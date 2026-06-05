@@ -1,6 +1,6 @@
 ## 1.0.8 - 2026-06-06
 
-<details open><summary><b>🇷🇺 Русский</b></summary>
+<details open><summary style="cursor: pointer"><b>🇷🇺 Русский</b></summary>
 
 **Новое**
 * **Команда «Copy Path»** в контекстном меню Remote Explorer — копирует путь файла или папки **на сервере** в буфер обмена.
@@ -11,7 +11,7 @@
 
 </details>
 
-<details><summary><b>🇬🇧 English</b></summary>
+<details><summary style="cursor: pointer"><b>🇬🇧 English</b></summary>
 
 **New**
 * **"Copy Path" command** in the Remote Explorer context menu — copies the **server-side** path of a file or folder to the clipboard.
@@ -24,7 +24,7 @@
 
 ## 1.0.1 - 2026-06-06
 
-<details open><summary><b>🇷🇺 Русский</b></summary>
+<details open><summary style="cursor: pointer"><b>🇷🇺 Русский</b></summary>
 
 **Исправления**
 * **`ignore` теперь работает на Windows.** Локальный относительный путь строился через `path.relative` (обратные слеши), а пакет `ignore` понимает только POSIX-пути — поэтому шаблоны папок (`node_modules`, `.git`) не срабатывали: *Upload Project* мог залить `node_modules` на сервер, а *Sync* с `delete` молча пропускал фильтр. Теперь используется `upath` (прямые слеши), как в remote-ветке.
@@ -34,7 +34,7 @@
 
 </details>
 
-<details><summary><b>🇬🇧 English</b></summary>
+<details><summary style="cursor: pointer"><b>🇬🇧 English</b></summary>
 
 **Fixes**
 * **`ignore` now works on Windows.** The local relative path was built with `path.relative` (backslashes), but the `ignore` package is POSIX-only, so directory patterns like `node_modules` / `.git` never matched — *Upload Project* could push `node_modules` to the server and *Sync* with `delete` silently skipped the filter. Now uses `upath` (forward slashes), matching the remote branch.
@@ -46,7 +46,7 @@
 
 ## 1.0.0 - 2026-06-06
 
-<details open><summary><b>🇷🇺 Русский</b></summary>
+<details open><summary style="cursor: pointer"><b>🇷🇺 Русский</b></summary>
 
 Первый релиз форка **SFTP Link**, поддерживается независимо [@e-u-shapovalov](https://github.com/e-u-shapovalov). Версия намеренно сброшена на `1.0.0` — новый старт под новым издателем.
 
@@ -64,7 +64,7 @@
 
 </details>
 
-<details><summary><b>🇬🇧 English</b></summary>
+<details><summary style="cursor: pointer"><b>🇬🇧 English</b></summary>
 
 First release of the **SFTP Link** fork, maintained independently by [@e-u-shapovalov](https://github.com/e-u-shapovalov). The version is intentionally reset to `1.0.0` as a fresh start under a new publisher.
 

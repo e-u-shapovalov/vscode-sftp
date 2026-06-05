@@ -19,18 +19,11 @@ original MIT license and copyright notice are preserved in `LICENSE`.
 - Issues: https://github.com/e-u-shapovalov/vscode-sftp/issues
 - Documentation: see the `docs/` directory in this repository.
 
-## What's changed in 1.0.0
+## Changelog
 
-- Fixed Node 22+ SFTP crashes caused by the old bundled `ssh2` dependency.
-- Fixed Remote Explorer delete confirmations that silently cancelled the command.
-- Fixed the Remote Explorer toolbar refresh so it reloads the whole tree.
-- Fixed build-breaking TypeScript errors inherited from the previous codebase.
-- Fixed SFTP disconnect handler registration.
-- Remote Explorer delete now clearly deletes both the remote item and the local copy.
-- Local deletes made through VS Code can now be mirrored to the server after confirmation.
-- Removed `watcher.autoDelete`, which silently mirrored external local deletes to the server.
-
-See [CHANGELOG.md](./CHANGELOG.md) for the full release notes.
+See the **CHANGELOG** tab in the extension — or
+[CHANGELOG.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/CHANGELOG.md) — for the
+full, up-to-date release notes (Russian and English).
 
 ---
 
