@@ -1,6 +1,6 @@
 # Publishing
 
-How to release **SFTP Sync** (`EvgeniiShapovalov.sftp-sync`).
+How to release **SFTP Sync** (`EvgeniiShapovalov.sftp-link`).
 
 ## One-time setup (first publish only)
 
@@ -26,7 +26,7 @@ npx @vscode/vsce publish                    # builds (npm run compile) and uploa
 ```
 
 The extension appears in the Marketplace within ~5–15 min. Install via the Extensions panel
-("SFTP Sync") or `ext install EvgeniiShapovalov.sftp-sync`.
+("SFTP Sync") or `ext install EvgeniiShapovalov.sftp-link`.
 
 ## Releasing a new version
 
@@ -45,7 +45,7 @@ locally first:
 
 ```bash
 npx @vscode/vsce package
-code --install-extension sftp-sync-<version>.vsix
+code --install-extension sftp-link-<version>.vsix
 ```
 
 Then sanity-check the critical paths: connect to a server, download/upload, Remote Explorer **Delete**,

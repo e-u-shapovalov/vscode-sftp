@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import logger from '../../logger';
 import { registerCommand } from '../../host';
 import {
   COMMAND_REMOTEEXPLORER_REFRESH,
@@ -32,7 +31,7 @@ export default class RemoteExplorer {
     // Custom panel title. VS Code already prefixes the view-container title ("SFTP:"), so we omit
     // "SFTP" here to avoid "SFTP: SFTP …". TreeView.title postdates the pinned @types/vscode (1.40),
     // so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
-    const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-sync');
+    const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-link');
     const version = ext && ext.packageJSON ? ext.packageJSON.version : '';
     (this._explorerView as { title?: string }).title = `eushapovalov${version ? ': ' + version : ''}`;
 
@@ -83,10 +82,9 @@ export default class RemoteExplorer {
     return item ? this._explorerView.reveal(item, options) : Promise.resolve();
   }
 
-  // Make a freshly created remote file/folder visible in the tree without a manual refresh.
-  // Delete works with a passive fire(parent), but for a brand-new node (one VS Code has never
-  // rendered) that fire is unreliable — so here we additionally drive the view with reveal(),
-  // which actively forces VS Code to fetch the parent's children and render/select the new entry.
+  // Make a freshly created remote file/folder visible and selected in the tree without a manual
+  // refresh: re-list the parent (which fires the tree-data change) and then reveal/select the
+  // new entry.
   async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
     const item: ExplorerItem = {
       resource: UResource.makeResource(remoteUri),
@@ -97,7 +95,7 @@ export default class RemoteExplorer {
     try {
       parent = await this._treeDataProvider.getParent(item);
     } catch (e) {
-      logger.trace('showCreated: getParent failed', `${e}`);
+      // Tree isn't initialized yet (no roots) — nothing to reveal into.
       return;
     }
 
@@ -107,17 +105,16 @@ export default class RemoteExplorer {
     try {
       const children = (await this._treeDataProvider.refresh(parent)) as ExplorerItem[] | undefined;
       created = children && children.find(c => c.resource.uri.query === item.resource.uri.query);
-      logger.trace(`showCreated: parent=${parent.resource.fsPath} found=${!!created}`);
     } catch (e) {
-      logger.trace('showCreated: refresh(parent) failed', `${e}`);
+      // Couldn't re-list the parent; leave the tree as-is.
     }
 
-    // Actively reveal + select the new entry. This is the part the passive fire can't guarantee.
+    // Reveal + select the new entry so it is visible without any manual action.
     if (created) {
       try {
         await this.reveal(created, { select: true, focus: false, expand: true });
       } catch (e) {
-        logger.trace('showCreated: reveal failed', `${e}`);
+        // reveal() can throw if VS Code hasn't registered the node yet; the refresh already showed it.
       }
     }
   }

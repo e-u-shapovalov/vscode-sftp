@@ -1,8 +1,8 @@
 {
-  "name": "sftp-sync",
+  "name": "sftp-link",
   "displayName": "SFTP Sync",
   "description": "SFTP/FTP sync — maintained fork",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
