@@ -399,7 +399,11 @@ export default class SFTPFileSystem extends RemoteFileSystem {
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const writer: WriteStream = this.sftp.createWriteStream(path, option);
-      writer.once('error', reject).once('finish', resolve); // transffered
+      // Resolve on 'finish' (all data flushed). Also resolve on 'close' as a fallback: ssh2's
+      // write stream does not reliably emit 'finish' for a zero-byte write (e.g. creating an empty
+      // file), but it does close the handle. 'error' is registered first, so a failed transfer
+      // still rejects rather than resolves; for a normal upload 'finish' fires before 'close'.
+      writer.once('error', reject).once('finish', resolve).once('close', resolve); // transffered
 
       input.once('error', err => {
         reject(err);
