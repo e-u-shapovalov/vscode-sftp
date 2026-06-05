@@ -116,9 +116,6 @@ export default class RemoteTreeData
     }
     return {
       label: customLabel,
-      // Stable id so VS Code keeps expand/selection state across a refresh — this lets us do a
-      // full-tree refresh (to surface newly created/removed entries) without collapsing the tree.
-      id: item.resource.uri.toString(),
       resourceUri: item.resource.uri,
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
       contextValue: isRoot ? 'root' : item.isDirectory ? 'folder' : 'file',

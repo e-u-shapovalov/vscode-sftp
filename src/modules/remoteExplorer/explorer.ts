@@ -28,11 +28,12 @@ export default class RemoteExplorer {
       canSelectMany: true,
     });
 
-    // Custom panel title: "SFTP eushapovalov: <version>". TreeView.title postdates the pinned
-    // @types/vscode (1.40), so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
+    // Custom panel title. VS Code already prefixes the view-container title ("SFTP:"), so we omit
+    // "SFTP" here to avoid "SFTP: SFTP …". TreeView.title postdates the pinned @types/vscode (1.40),
+    // so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
     const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-sync');
     const version = ext && ext.packageJSON ? ext.packageJSON.version : '';
-    (this._explorerView as { title?: string }).title = `SFTP eushapovalov${version ? ': ' + version : ''}`;
+    (this._explorerView as { title?: string }).title = `eushapovalov${version ? ': ' + version : ''}`;
 
     // The toolbar refresh button always does a full refresh of the whole tree, so newly
     // created/removed files on the server show up regardless of the current selection.

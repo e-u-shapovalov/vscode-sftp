@@ -16,8 +16,9 @@ export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?:
     };
   },
   afterHandle() {
-    // Show the new file immediately, without the user pressing the refresh button.
-    return app.remoteExplorer.showCreated(this.target.remoteUri, false);
+    // Full tree refresh — the same mechanism as the toolbar Refresh button (which is known to work) —
+    // so the newly created file shows up without the user pressing refresh.
+    return app.remoteExplorer.refresh();
   },
 });
 
@@ -34,6 +35,6 @@ export const createRemoteFolder = createFileHandler<FileHandleOption & { skipDir
     };
   },
   afterHandle() {
-    return app.remoteExplorer.showCreated(this.target.remoteUri, true);
+    return app.remoteExplorer.refresh();
   },
 });
