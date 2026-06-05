@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import logger from '../../logger';
 import { registerCommand } from '../../host';
 import {
   COMMAND_REMOTEEXPLORER_REFRESH,
@@ -80,6 +81,45 @@ export default class RemoteExplorer {
     options?: { select?: boolean, focus?: boolean, expand?: boolean | number }
   ): Thenable<void> {
     return item ? this._explorerView.reveal(item, options) : Promise.resolve();
+  }
+
+  // Make a freshly created remote file/folder visible in the tree without a manual refresh.
+  // Delete works with a passive fire(parent), but for a brand-new node (one VS Code has never
+  // rendered) that fire is unreliable — so here we additionally drive the view with reveal(),
+  // which actively forces VS Code to fetch the parent's children and render/select the new entry.
+  async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
+    const item: ExplorerItem = {
+      resource: UResource.makeResource(remoteUri),
+      isDirectory,
+    };
+
+    let parent: ExplorerItem;
+    try {
+      parent = await this._treeDataProvider.getParent(item);
+    } catch (e) {
+      logger.trace('showCreated: getParent failed', `${e}`);
+      return;
+    }
+
+    // Re-list the parent: this runs the readdir, lands the new entry in the provider's map,
+    // and fires onDidChangeTreeData(parent). Returns the parent's children.
+    let created: ExplorerItem | undefined;
+    try {
+      const children = (await this._treeDataProvider.refresh(parent)) as ExplorerItem[] | undefined;
+      created = children && children.find(c => c.resource.uri.query === item.resource.uri.query);
+      logger.trace(`showCreated: parent=${parent.resource.fsPath} found=${!!created}`);
+    } catch (e) {
+      logger.trace('showCreated: refresh(parent) failed', `${e}`);
+    }
+
+    // Actively reveal + select the new entry. This is the part the passive fire can't guarantee.
+    if (created) {
+      try {
+        await this.reveal(created, { select: true, focus: false, expand: true });
+      } catch (e) {
+        logger.trace('showCreated: reveal failed', `${e}`);
+      }
+    }
   }
 
   findRoot(remoteUri: vscode.Uri) {
