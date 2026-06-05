@@ -95,6 +95,7 @@ export default class RemoteTreeData
       children
         .filter(i => !i.isDirectory)
         .forEach(i => this._onDidChangeFile.fire(makePreivewUrl(i.resource.uri)));
+      return children;
     } else {
       const parent = await this.getParent(item);
       if (parent) {
@@ -115,6 +116,9 @@ export default class RemoteTreeData
     }
     return {
       label: customLabel,
+      // Stable id so VS Code keeps expand/selection state across a refresh — this lets us do a
+      // full-tree refresh (to surface newly created/removed entries) without collapsing the tree.
+      id: item.resource.uri.toString(),
       resourceUri: item.resource.uri,
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
       contextValue: isRoot ? 'root' : item.isDirectory ? 'folder' : 'file',

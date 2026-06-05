@@ -10,7 +10,7 @@ Set to `control` for control encryption only, or `implicit` for implicitly encry
 
 ```json
 {
-  "secure": control
+  "secure": "control"
 }
 ```
 

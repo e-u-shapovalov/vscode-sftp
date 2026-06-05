@@ -20,7 +20,7 @@ type FileHandlerContextMethodArg1<A, R = void> = (this: FileHandlerContext, a: A
 interface FileHandlerOption<T> {
   name: string;
   handle: FileHandlerContextMethodArg1<T, Promise<any>>;
-  afterHandle?: FileHandlerContextMethod;
+  afterHandle?: FileHandlerContextMethod<void | Promise<void>>;
   config?: FileHandlerConfig;
   transformOption?: FileHandlerContextMethod<T>;
 }
@@ -118,7 +118,7 @@ export default function createFileHandler<T>(
       app.sftpBarItem.stopSpinner();
     }
     if (handlerOption.afterHandle) {
-      handlerOption.afterHandle.call(handleCtx);
+      await handlerOption.afterHandle.call(handleCtx);
     }
   }
 

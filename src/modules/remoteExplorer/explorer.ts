@@ -4,6 +4,7 @@ import {
   COMMAND_REMOTEEXPLORER_REFRESH,
   COMMAND_REMOTEEXPLORER_REFRESH_ACTIVE_FILE,
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
+  COMMAND_REMOTEEXPLORER_COPY_PATH,
 } from '../../constants';
 import { UResource } from '../../core';
 import { toRemotePath } from '../../helper';
@@ -27,6 +28,12 @@ export default class RemoteExplorer {
       canSelectMany: true,
     });
 
+    // Custom panel title: "SFTP eushapovalov: <version>". TreeView.title postdates the pinned
+    // @types/vscode (1.40), so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
+    const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-sync');
+    const version = ext && ext.packageJSON ? ext.packageJSON.version : '';
+    (this._explorerView as { title?: string }).title = `SFTP eushapovalov${version ? ': ' + version : ''}`;
+
     // The toolbar refresh button always does a full refresh of the whole tree, so newly
     // created/removed files on the server show up regardless of the current selection.
     registerCommand(context, COMMAND_REMOTEEXPLORER_REFRESH, () => this.refresh());
@@ -34,6 +41,10 @@ export default class RemoteExplorer {
     registerCommand(context, COMMAND_REMOTEEXPLORER_VIEW_CONTENT, (item: ExplorerItem) =>
       this._treeDataProvider.showItem(item)
     );
+    // Copy the remote (server-side) path of the selected file/folder to the clipboard.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_COPY_PATH, (item: ExplorerItem) => {
+      vscode.env.clipboard.writeText(item.resource.fsPath);
+    });
   }
 
   refresh(item?: ExplorerItem) {
@@ -60,11 +71,33 @@ export default class RemoteExplorer {
       });
     }
 
-    this._treeDataProvider.refresh(item);
+    return this._treeDataProvider.refresh(item);
   }
 
-  reveal(item: ExplorerItem): Thenable<void> {
-    return item ? this._explorerView.reveal(item) : Promise.resolve();
+  reveal(
+    item: ExplorerItem,
+    options?: { select?: boolean, focus?: boolean, expand?: boolean | number }
+  ): Thenable<void> {
+    return item ? this._explorerView.reveal(item, options) : Promise.resolve();
+  }
+
+  async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
+    const item: ExplorerItem = {
+      resource: UResource.makeResource(remoteUri),
+      isDirectory,
+    };
+    let parent: ExplorerItem | undefined;
+
+    try {
+      parent = await this._treeDataProvider.getParent(item);
+      const children = await this._treeDataProvider.refresh(parent);
+      const createdItem =
+        children && children.find(child => child.resource.uri.query === item.resource.uri.query);
+
+      await this.reveal(createdItem || item, { focus: false, select: true });
+    } catch (e) {
+      await this.refresh(parent);
+    }
   }
 
   findRoot(remoteUri: vscode.Uri) {

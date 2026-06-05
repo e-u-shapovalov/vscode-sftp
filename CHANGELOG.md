@@ -1,22 +1,53 @@
+## 1.0.2 - 2026-06-06
+
+<details open><summary><b>🇷🇺 Русский</b></summary>
+
+**Новое**
+* **Команда «Copy Path»** в контекстном меню Remote Explorer — копирует путь файла или папки **на сервере** в буфер обмена.
+* **Созданные файл/папка сразу видны** в дереве сервера — больше не нужно вручную жать «Обновить» (раскрытые папки при этом не сворачиваются).
+
+**Прочее**
+* README: добавлена родословная форка (Natizyskunk ← liximomo). Поправлены неточности в документации (примеры настроек, FTP-конфиг).
+
+</details>
+
+<details><summary><b>🇬🇧 English</b></summary>
+
+**New**
+* **"Copy Path" command** in the Remote Explorer context menu — copies the **server-side** path of a file or folder to the clipboard.
+* **Newly created files/folders appear immediately** in the server tree — no need to press Refresh manually (and expanded folders stay expanded).
+
+**Other**
+* README: added the fork lineage (Natizyskunk ← liximomo). Fixed documentation inaccuracies (settings examples, FTP config).
+
+</details>
+
 ## 1.0.1 - 2026-06-06
 
-### Русский
+<details open><summary><b>🇷🇺 Русский</b></summary>
+
 **Исправления**
 * **`ignore` теперь работает на Windows.** Локальный относительный путь строился через `path.relative` (обратные слеши), а пакет `ignore` понимает только POSIX-пути — поэтому шаблоны папок (`node_modules`, `.git`) не срабатывали: *Upload Project* мог залить `node_modules` на сервер, а *Sync* с `delete` молча пропускал фильтр. Теперь используется `upath` (прямые слеши), как в remote-ветке.
 
 **Изменения**
 * **Удаление в Remote Explorer перемещает локальную копию в корзину** (`useTrash`), а не стирает безвозвратно — случайное удаление можно восстановить.
 
-### English
+</details>
+
+<details><summary><b>🇬🇧 English</b></summary>
+
 **Fixes**
 * **`ignore` now works on Windows.** The local relative path was built with `path.relative` (backslashes), but the `ignore` package is POSIX-only, so directory patterns like `node_modules` / `.git` never matched — *Upload Project* could push `node_modules` to the server and *Sync* with `delete` silently skipped the filter. Now uses `upath` (forward slashes), matching the remote branch.
 
 **Changes**
 * **Remote Explorer "Delete" moves the local copy to the OS trash** (`useTrash`) instead of deleting it permanently, so an accidental delete is recoverable.
 
+</details>
+
 ## 1.0.0 - 2026-06-06
 
-### Русский
+<details open><summary><b>🇷🇺 Русский</b></summary>
+
 Первый релиз форка **SFTP Sync**, поддерживается независимо [@e-u-shapovalov](https://github.com/e-u-shapovalov). Версия намеренно сброшена на `1.0.0` — новый старт под новым издателем.
 
 **Исправления**
@@ -31,7 +62,10 @@
 * **Удаления через VS Code синхронизируются с сервером** — при удалении файла через проводник VS Code спрашивается, удалить ли его и на сервере. Через `onDidDeleteFiles`, поэтому внешние удаления (вне VS Code) сервер не трогают.
 * **Убрана опция `watcher.autoDelete`** — она молча удаляла файлы на сервере при *любом* локальном удалении (включая внешние), что было неожиданно и опасно. Её заменяет синхронизация удаления через VS Code выше.
 
-### English
+</details>
+
+<details><summary><b>🇬🇧 English</b></summary>
+
 First release of the **SFTP Sync** fork, maintained independently by [@e-u-shapovalov](https://github.com/e-u-shapovalov). The version is intentionally reset to `1.0.0` as a fresh start under a new publisher.
 
 **Fixes**
@@ -45,3 +79,5 @@ First release of the **SFTP Sync** fork, maintained independently by [@e-u-shapo
 * **Remote Explorer "Delete" now also removes the local copy**, with a clear "delete on both the server and locally?" confirmation.
 * **Deletions made through VS Code now sync to the server** — deleting a file via the VS Code Explorer asks whether to delete it on the server too. Implemented with `onDidDeleteFiles`, so external/file-system deletions never touch the server.
 * **Removed the `watcher.autoDelete` option** — it silently deleted files on the server on *any* local deletion (including external ones), which was surprising and risky. The VS Code-scoped deletion sync above replaces it.
+
+</details>

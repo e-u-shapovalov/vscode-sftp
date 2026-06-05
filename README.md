@@ -1,7 +1,8 @@
 # SFTP Sync - VS Code extension
 
-SFTP Sync is a maintained fork of the VS Code SFTP extension for syncing local
-workspace files with remote servers over SFTP or FTP.
+SFTP Sync is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp)
+(itself a fork of [liximomo's vscode-sftp](https://github.com/liximomo/vscode-sftp)) for syncing
+local workspace files with remote servers over SFTP or FTP.
 
 This fork is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov)
 in this repository:

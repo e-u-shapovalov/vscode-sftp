@@ -1,44 +1,23 @@
-import { refreshRemoteExplorer } from './shared';
 import { fileOperations } from '../core';
 import createFileHandler from './createFileHandler';
 import { FileHandleOption } from './option';
+import app from '../app';
 
 export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?: boolean }>({
   name: 'createRemoteFile',
   async handle(option) {
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const { remoteFsPath } = this.target;
-
-    let promise;
-    promise = fileOperations.createFile(remoteFsPath, remoteFs, {});
-
-    /*
-    const stat = await remoteFs.lstat(remoteFsPath);
-    switch (stat.type) {
-      case FileType.Directory:
-        if (option.skipDir) {
-          return;
-        }
-        promise = fileOperations.createDir(remoteFsPath, remoteFs, {});
-        // promise = fileOperations.removeDir(remoteFsPath, remoteFs, {});
-        break;
-      case FileType.File:
-      case FileType.SymbolicLink:
-        // promise = fileOperations.removeFile(remoteFsPath, remoteFs, {});
-        break;
-      default:
-        throw new Error(`Unsupported file type (type = ${stat.type})`);
-    }*/
-    await promise;
+    await fileOperations.createFile(remoteFsPath, remoteFs, {});
   },
   transformOption() {
-    const config = this.config;
     return {
-      ignore: config.ignore,
+      ignore: this.config.ignore,
     };
   },
   afterHandle() {
-    refreshRemoteExplorer(this.target, false);
+    // Show the new file immediately, without the user pressing the refresh button.
+    return app.remoteExplorer.showCreated(this.target.remoteUri, false);
   },
 });
 
@@ -47,36 +26,14 @@ export const createRemoteFolder = createFileHandler<FileHandleOption & { skipDir
   async handle(option) {
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const { remoteFsPath } = this.target;
-
-    let promise;
-    promise = fileOperations.createDir(remoteFsPath, remoteFs, {});
-
-    /*
-    const stat = await remoteFs.lstat(remoteFsPath);
-    switch (stat.type) {
-      case FileType.Directory:
-        if (option.skipDir) {
-          return;
-        }
-        promise = fileOperations.createDir(remoteFsPath, remoteFs, {});
-        // promise = fileOperations.removeDir(remoteFsPath, remoteFs, {});
-        break;
-      case FileType.File:
-      case FileType.SymbolicLink:
-        // promise = fileOperations.removeFile(remoteFsPath, remoteFs, {});
-        break;
-      default:
-        throw new Error(`Unsupported file type (type = ${stat.type})`);
-    }*/
-    await promise;
+    await fileOperations.createDir(remoteFsPath, remoteFs, {});
   },
   transformOption() {
-    const config = this.config;
     return {
-      ignore: config.ignore,
+      ignore: this.config.ignore,
     };
   },
   afterHandle() {
-    refreshRemoteExplorer(this.target, false);
+    return app.remoteExplorer.showCreated(this.target.remoteUri, true);
   },
 });

@@ -2,7 +2,7 @@
   "name": "sftp-sync",
   "displayName": "SFTP Sync",
   "description": "SFTP/FTP sync — maintained fork",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -276,6 +276,11 @@
         "category": "SFTP"
       },
       {
+        "command": "sftp.remoteExplorer.copyPath",
+        "title": "Copy Path",
+        "category": "SFTP"
+      },
+      {
         "command": "sftp.remoteExplorer.refresh",
         "title": "Refresh",
         "icon": {
@@ -444,6 +449,10 @@
           "when": "false"
         },
         {
+          "command": "sftp.remoteExplorer.copyPath",
+          "when": "false"
+        },
+        {
           "command": "sftp.remoteExplorer.refresh",
           "when": "false"
         }
@@ -579,6 +588,11 @@
         },
         {
           "command": "sftp.revealInExplorer",
+          "group": "2_files",
+          "when": "view == remoteExplorer && viewItem != root"
+        },
+        {
+          "command": "sftp.remoteExplorer.copyPath",
           "group": "2_files",
           "when": "view == remoteExplorer && viewItem != root"
         },
