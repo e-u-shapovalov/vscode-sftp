@@ -15,10 +15,11 @@ export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?:
       ignore: this.config.ignore,
     };
   },
-  afterHandle() {
-    // Full tree refresh — the same mechanism as the toolbar Refresh button (which is known to work) —
-    // so the newly created file shows up without the user pressing refresh.
-    return app.remoteExplorer.refresh();
+  async afterHandle() {
+    // Re-list the parent folder and reveal the new file so it appears in the tree immediately,
+    // without the user pressing Refresh. An argument-less refresh() issues no readdir at all and
+    // just collapses the tree to its roots, so it can't show the new entry in place.
+    await app.remoteExplorer.showCreated(this.target.remoteUri, false);
   },
 });
 
@@ -34,7 +35,7 @@ export const createRemoteFolder = createFileHandler<FileHandleOption & { skipDir
       ignore: this.config.ignore,
     };
   },
-  afterHandle() {
-    return app.remoteExplorer.refresh();
+  async afterHandle() {
+    await app.remoteExplorer.showCreated(this.target.remoteUri, true);
   },
 });
