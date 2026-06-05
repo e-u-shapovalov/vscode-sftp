@@ -1,4 +1,4 @@
-## 1.0.7 - 2026-06-06
+## 1.0.8 - 2026-06-06
 
 <details open><summary><b>🇷🇺 Русский</b></summary>
 
@@ -48,7 +48,7 @@
 
 <details open><summary><b>🇷🇺 Русский</b></summary>
 
-Первый релиз форка **SFTP Sync**, поддерживается независимо [@e-u-shapovalov](https://github.com/e-u-shapovalov). Версия намеренно сброшена на `1.0.0` — новый старт под новым издателем.
+Первый релиз форка **SFTP Link**, поддерживается независимо [@e-u-shapovalov](https://github.com/e-u-shapovalov). Версия намеренно сброшена на `1.0.0` — новый старт под новым издателем.
 
 **Исправления**
 * **Падение скачивания/загрузки/создания папки на Node 22+** — встроенный `ssh2` обновлён до `1.17.0`. В Node 22 удалили устаревший `util.isDate`, на который опирался `ssh2 1.13.0` (`TypeError: isDate is not a function`).
@@ -66,7 +66,7 @@
 
 <details><summary><b>🇬🇧 English</b></summary>
 
-First release of the **SFTP Sync** fork, maintained independently by [@e-u-shapovalov](https://github.com/e-u-shapovalov). The version is intentionally reset to `1.0.0` as a fresh start under a new publisher.
+First release of the **SFTP Link** fork, maintained independently by [@e-u-shapovalov](https://github.com/e-u-shapovalov). The version is intentionally reset to `1.0.0` as a fresh start under a new publisher.
 
 **Fixes**
 * **Download/upload/create-folder crashed on Node 22+** — bundled `ssh2` upgraded to `1.17.0`. Node 22 removed the legacy `util.isDate` that `ssh2 1.13.0` relied on (`TypeError: isDate is not a function`).

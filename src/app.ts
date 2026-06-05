@@ -22,7 +22,7 @@ app.sftpBarItem = new StatusBarItem(
       return 'SFTP';
     }
   },
-  'SFTP Sync',
+  'SFTP Link',
   COMMAND_TOGGLE_OUTPUT
 );
 app.fsCache = LRU<string, string>({ max: 6 });

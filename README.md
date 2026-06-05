@@ -1,6 +1,6 @@
-# SFTP Sync - VS Code extension
+# SFTP Link - VS Code extension
 
-SFTP Sync is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp)
+SFTP Link is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp)
 (itself a fork of [liximomo's vscode-sftp](https://github.com/liximomo/vscode-sftp)) for syncing
 local workspace files with remote servers over SFTP or FTP.
 
@@ -14,7 +14,7 @@ original MIT license and copyright notice are preserved in `LICENSE`.
 
 ## Project status
 
-- VS Code Marketplace: pending.
+- VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link
 - VSIX releases: https://github.com/e-u-shapovalov/vscode-sftp/releases
 - Issues: https://github.com/e-u-shapovalov/vscode-sftp/issues
 - Documentation: see the `docs/` directory in this repository.
@@ -251,7 +251,7 @@ local -> hopa -> hopb -> target
 ```
 
 ### Configuration in User Setting
-You can use `remote` to tell SFTP Sync to get the connection settings from the
+You can use `remote` to tell SFTP Link to get the connection settings from the
 `remotefs.remote` VS Code user setting.
 
 In User Setting:
