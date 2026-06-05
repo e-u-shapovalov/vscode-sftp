@@ -55,16 +55,19 @@ export function createDir(path: string, fs: FileSystem, option): Promise<void> {
 export async function createFile(path: string, fs: FileSystem, option): Promise<void> {
   try {
     await fs.lstat(path);
-    logger.warn(`Can't create file becase file already exist`);
-    window.showErrorMessage(`Can't create file becase file already exist`);
+    logger.warn(`Can't create file because file already exists`);
+    window.showErrorMessage(`Can't create file because file already exists`);
     return;
   } catch (error) {
-
+    // file doesn't exist — proceed to create it
   }
 
-  const targetFd = await fs.open(path, 'w');
-  const s = new Readable();
-  s._read = () => { };
-  s.push(null);
-  return fs.put(s, path, { fd: targetFd });
+  // Write an empty stream to create a zero-byte file. Use the normal put() path, which opens,
+  // writes and closes the handle itself. The previous version pre-opened the file and passed the
+  // fd to put(); reusing that handle left the write stream without a 'finish' event, so createFile
+  // never resolved and the post-create tree refresh (afterHandle) was silently skipped.
+  const emptyContent = new Readable();
+  emptyContent._read = () => {};
+  emptyContent.push(null);
+  return fs.put(emptyContent, path);
 }
