@@ -1,7 +1,7 @@
 import { fileOperations } from '../core';
+import { refreshRemoteExplorer } from './shared';
 import createFileHandler from './createFileHandler';
 import { FileHandleOption } from './option';
-import app from '../app';
 
 export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?: boolean }>({
   name: 'createRemoteFile',
@@ -15,11 +15,11 @@ export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?:
       ignore: this.config.ignore,
     };
   },
-  async afterHandle() {
-    // Re-list the parent folder and reveal the new file so it appears in the tree immediately,
-    // without the user pressing Refresh. An argument-less refresh() issues no readdir at all and
-    // just collapses the tree to its roots, so it can't show the new entry in place.
-    await app.remoteExplorer.showCreated(this.target.remoteUri, false);
+  afterHandle() {
+    // Refresh the parent folder so the new file shows up in the tree without a manual refresh.
+    // Passing isDirectory=false makes refresh() fire the PARENT (re-listing it) — the exact same
+    // mechanism the Delete command uses, which is known to update the tree correctly.
+    refreshRemoteExplorer(this.target, false);
   },
 });
 
@@ -35,7 +35,7 @@ export const createRemoteFolder = createFileHandler<FileHandleOption & { skipDir
       ignore: this.config.ignore,
     };
   },
-  async afterHandle() {
-    await app.remoteExplorer.showCreated(this.target.remoteUri, true);
+  afterHandle() {
+    refreshRemoteExplorer(this.target, false);
   },
 });

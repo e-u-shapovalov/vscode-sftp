@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import logger from '../../logger';
 import { registerCommand } from '../../host';
 import {
   COMMAND_REMOTEEXPLORER_REFRESH,
@@ -81,42 +80,6 @@ export default class RemoteExplorer {
     options?: { select?: boolean, focus?: boolean, expand?: boolean | number }
   ): Thenable<void> {
     return item ? this._explorerView.reveal(item, options) : Promise.resolve();
-  }
-
-  async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
-    const item: ExplorerItem = {
-      resource: UResource.makeResource(remoteUri),
-      isDirectory,
-    };
-
-    // 1. Resolve the parent folder. If the tree isn't initialized yet (no roots), there is
-    //    nothing to reveal into — fall back to a plain full refresh and stop.
-    let parent: ExplorerItem;
-    try {
-      parent = await this._treeDataProvider.getParent(item);
-    } catch (e) {
-      logger.trace('showCreated: getParent failed, doing a full refresh', `${e}`);
-      await this._treeDataProvider.refresh();
-      return;
-    }
-
-    // 2. Re-list the parent folder. This is the real work: getChildren() runs the readdir,
-    //    updates the map, and refresh() fires onDidChangeTreeData(parent) so an already-expanded
-    //    parent re-renders in place. This must not be gated behind reveal() — reveal is cosmetic.
-    logger.trace('showCreated: refreshing parent', parent.resource.fsPath);
-    const children = (await this._treeDataProvider.refresh(parent)) as ExplorerItem[] | undefined;
-    const createdItem =
-      (children && children.find(child => child.resource.uri.query === item.resource.uri.query)) ||
-      item;
-
-    // 3. Reveal it: expand the parent and select the new entry so it is visible without any
-    //    manual action. Best-effort — reveal() can throw if VS Code hasn't registered the node
-    //    yet, but by now the refresh above has already shown it, so we just swallow that.
-    try {
-      await this.reveal(createdItem, { focus: false, select: true, expand: true });
-    } catch (e) {
-      logger.trace('showCreated: reveal failed (entry is already listed)', `${e}`);
-    }
   }
 
   findRoot(remoteUri: vscode.Uri) {
