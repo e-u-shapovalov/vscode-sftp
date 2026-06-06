@@ -1,16 +1,34 @@
 import * as vscode from 'vscode';
-import { registerCommand } from '../../host';
+import {
+  registerCommand,
+  executeCommand,
+  showWarningMessage,
+  showErrorMessage,
+} from '../../host';
 import {
   COMMAND_REMOTEEXPLORER_REFRESH,
   COMMAND_REMOTEEXPLORER_REFRESH_ACTIVE_FILE,
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
   COMMAND_REMOTEEXPLORER_COPY_PATH,
+  COMMAND_REMOTEEXPLORER_OPEN_BY_PATH,
+  COMMAND_REMOTEEXPLORER_EDITINLOCAL,
 } from '../../constants';
-import { UResource } from '../../core';
+import { UResource, upath } from '../../core';
 import { toRemotePath } from '../../helper';
 import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
-import RemoteTreeDataProvider, { ExplorerItem } from './treeDataProvider';
+import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
+
+// Is `target` the same as `rootPath` or nested inside it? Remote paths are POSIX, so we compare with
+// upath (forward slashes) instead of the platform-specific `path`, which would break on Windows.
+function isUnderRoot(rootPath: string, target: string): boolean {
+  const root = upath.normalize(rootPath).replace(/\/+$/, '') || '/';
+  const t = upath.normalize(target);
+  if (root === '/') {
+    return t.startsWith('/');
+  }
+  return t === root || t.startsWith(root + '/');
+}
 
 export default class RemoteExplorer {
   private _explorerView: vscode.TreeView<ExplorerItem>;
@@ -28,12 +46,12 @@ export default class RemoteExplorer {
       canSelectMany: true,
     });
 
-    // Custom panel title. VS Code already prefixes the view-container title ("SFTP:"), so we omit
-    // "SFTP" here to avoid "SFTP: SFTP …". TreeView.title postdates the pinned @types/vscode (1.40),
-    // so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
+    // Custom panel title — just the extension version. VS Code already prefixes the view-container
+    // title ("SFTP"), so we don't repeat it here. TreeView.title postdates the pinned
+    // @types/vscode (1.40), so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
     const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-link');
     const version = ext && ext.packageJSON ? ext.packageJSON.version : '';
-    (this._explorerView as { title?: string }).title = `eushapovalov${version ? ': ' + version : ''}`;
+    (this._explorerView as { title?: string }).title = version || undefined;
 
     // The toolbar refresh button always does a full refresh of the whole tree, so newly
     // created/removed files on the server show up regardless of the current selection.
@@ -46,6 +64,9 @@ export default class RemoteExplorer {
     registerCommand(context, COMMAND_REMOTEEXPLORER_COPY_PATH, (item: ExplorerItem) => {
       vscode.env.clipboard.writeText(item.resource.fsPath);
     });
+    // Toolbar "Open Remote File by Path": type a full server path, the tree expands down to it and
+    // the file is downloaded + opened for editing.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_OPEN_BY_PATH, () => this.openByPath());
   }
 
   refresh(item?: ExplorerItem) {
@@ -80,6 +101,116 @@ export default class RemoteExplorer {
     options?: { select?: boolean, focus?: boolean, expand?: boolean | number }
   ): Thenable<void> {
     return item ? this._explorerView.reveal(item, options) : Promise.resolve();
+  }
+
+  // "Open Remote File by Path" toolbar action. Prompts for a server path, figures out which
+  // configured remote it belongs to, expands the tree down to it, then downloads + opens it.
+  async openByPath(): Promise<void> {
+    const roots = this._treeDataProvider.getRoots();
+    if (roots.length === 0) {
+      showWarningMessage(
+        'SFTP: no remote is configured. Open a workspace with .vscode/sftp.json first.'
+      );
+      return;
+    }
+
+    const input = await vscode.window.showInputBox({
+      ignoreFocusOut: true,
+      prompt: 'Open a remote file by its full path',
+      placeHolder: 'e.g. /etc/acpi/handler.sh',
+    });
+    if (input === undefined) {
+      return; // dismissed
+    }
+    const raw = input.trim();
+    if (!raw) {
+      return;
+    }
+
+    let root: ExplorerRoot | undefined;
+    let remotePath: string | undefined;
+    if (raw.startsWith('/')) {
+      // Absolute server path — pick the remote(s) whose root contains it.
+      const abs = upath.normalize(raw);
+      remotePath = abs;
+      const matching = roots.filter(r => isUnderRoot(r.resource.fsPath, abs));
+      if (matching.length === 0) {
+        showWarningMessage(
+          `SFTP: "${abs}" is outside every configured remote root ` +
+            `(${roots.map(r => r.resource.fsPath).join(', ')}).`
+        );
+        return;
+      }
+      root = matching.length === 1 ? matching[0] : await this._pickRoot(matching);
+    } else {
+      // Relative path — resolve it against the chosen remote's root.
+      root = roots.length === 1 ? roots[0] : await this._pickRoot(roots);
+      if (root) {
+        remotePath = upath.normalize(upath.join(root.resource.fsPath, raw));
+      }
+    }
+    if (!root || remotePath === undefined) {
+      return; // profile pick cancelled
+    }
+
+    let item: ExplorerItem | undefined;
+    try {
+      item = await this._resolveByPath(root, remotePath);
+    } catch (error) {
+      const detail = error && (error as Error).message ? (error as Error).message : String(error);
+      showErrorMessage(`SFTP: failed to reach "${remotePath}". ${detail}`);
+      return;
+    }
+    if (!item) {
+      showWarningMessage(`SFTP: "${remotePath}" was not found on the server.`);
+      return;
+    }
+
+    await this.reveal(item, { select: true, focus: true, expand: true });
+
+    // Directories are only revealed/expanded; files are downloaded and opened for editing.
+    if (!item.isDirectory) {
+      await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, item);
+    }
+  }
+
+  private async _pickRoot(roots: ExplorerRoot[]): Promise<ExplorerRoot | undefined> {
+    const picks = roots.map(r => ({
+      label: r.explorerContext.fileService.name || r.resource.fsPath,
+      description: `${r.explorerContext.config.host} — ${r.resource.fsPath}`,
+      root: r,
+    }));
+    const picked = await vscode.window.showQuickPick(picks, {
+      placeHolder: 'Select the remote this path belongs to',
+    });
+    return picked ? picked.root : undefined;
+  }
+
+  // Walk the tree from the remote root down to `remotePath`, listing each directory along the way so
+  // the returned item is the real, cached node the tree view can reveal. Returns undefined if any
+  // segment is missing (or hidden by remoteExplorer.filesExclude).
+  private async _resolveByPath(
+    root: ExplorerRoot,
+    remotePath: string
+  ): Promise<ExplorerItem | undefined> {
+    const relative = upath.relative(root.resource.fsPath, remotePath);
+    if (!relative || relative === '.') {
+      return root;
+    }
+    const segments = relative.split('/').filter(segment => segment.length > 0);
+    let current: ExplorerItem = root;
+    for (const segment of segments) {
+      if (!current.isDirectory) {
+        return undefined; // a path component points at a file — can't descend further
+      }
+      const children = await this._treeDataProvider.getChildren(current);
+      const next = children.find(child => upath.basename(child.resource.fsPath) === segment);
+      if (!next) {
+        return undefined;
+      }
+      current = next;
+    }
+    return current;
   }
 
   // Make a freshly created remote file/folder visible and selected in the tree without a manual

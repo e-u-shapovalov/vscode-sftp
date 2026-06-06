@@ -208,6 +208,10 @@ export default class RemoteTreeData
     }
   }
 
+  getRoots(): ExplorerRoot[] {
+    return this._getRoots();
+  }
+
   findRoot(uri: vscode.Uri): ExplorerRoot | null | undefined {
     if (!this._rootsMap) {
       return null;

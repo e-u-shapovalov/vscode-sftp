@@ -1,3 +1,19 @@
+## 1.0.9 - 2026-06-06
+
+<details open><summary style="cursor: pointer"><b>🇷🇺 Русский</b></summary>
+
+**Новое**
+* **Кнопка «Open Remote File by Path»** на панели Remote Explorer (слева от «Обновить дерево»). Вставляешь полный путь на сервере (например `/etc/acpi/handler.sh`) — дерево само раскрывается до файла, файл скачивается и открывается на редактирование. Принимает и относительные пути (от корня профиля); при нескольких профилях нужный выбирается автоматически по пути либо предлагается список.
+
+</details>
+
+<details><summary style="cursor: pointer"><b>🇬🇧 English</b></summary>
+
+**New**
+* **"Open Remote File by Path" button** in the Remote Explorer toolbar (left of Refresh). Paste a full server path (e.g. `/etc/acpi/handler.sh`) — the tree expands down to the file, which is then downloaded and opened for editing. Relative paths (from the profile root) are accepted too; with multiple profiles the right one is auto-picked from the path or offered as a list.
+
+</details>
+
 ## 1.0.8 - 2026-06-06
 
 <details open><summary style="cursor: pointer"><b>🇷🇺 Русский</b></summary>

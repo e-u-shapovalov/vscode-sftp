@@ -2,7 +2,7 @@
   "name": "sftp-link",
   "displayName": "SFTP Link",
   "description": "SFTP/FTP sync — maintained fork",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -296,6 +296,12 @@
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
         }
+      },
+      {
+        "command": "sftp.remoteExplorer.openByPath",
+        "title": "Open Remote File by Path",
+        "category": "SFTP",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -453,6 +459,10 @@
           "when": "false"
         },
         {
+          "command": "sftp.remoteExplorer.openByPath",
+          "when": "sftp.enabled"
+        },
+        {
           "command": "sftp.remoteExplorer.refresh",
           "when": "false"
         }
@@ -565,9 +575,14 @@
       ],
       "view/title": [
         {
+          "command": "sftp.remoteExplorer.openByPath",
+          "when": "view == remoteExplorer",
+          "group": "navigation@1"
+        },
+        {
           "command": "sftp.remoteExplorer.refresh",
           "when": "view == remoteExplorer",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [

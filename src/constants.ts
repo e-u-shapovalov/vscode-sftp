@@ -62,6 +62,7 @@ export const COMMAND_REMOTEEXPLORER_REFRESH_ACTIVE_FILE = "sftp.remoteExplorer.r
 export const COMMAND_REMOTEEXPLORER_EDITINLOCAL = 'sftp.remoteExplorer.editInLocal';
 export const COMMAND_REMOTEEXPLORER_VIEW_CONTENT = 'sftp.viewContent';
 export const COMMAND_REMOTEEXPLORER_COPY_PATH = 'sftp.remoteExplorer.copyPath';
+export const COMMAND_REMOTEEXPLORER_OPEN_BY_PATH = 'sftp.remoteExplorer.openByPath';
 
 export const COMMAND_CREATE_FOLDER = 'sftp.create.folder';
 export const COMMAND_CREATE_FILE = 'sftp.create.file';
