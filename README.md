@@ -2,13 +2,12 @@
 
 > Sync your workspace with a remote server over **SFTP / FTP**, right inside VS Code — browse, edit, upload, download, diff and watch.
 
-[![VS Marketplace](https://img.shields.io/badge/VS%20Marketplace-SFTP%20Link-2b7cd3)](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link)
+[![Latest release](https://img.shields.io/github/v/release/e-u-shapovalov/vscode-sftp)](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/LICENSE)
 
 **SFTP Link** is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp) (itself a fork of [liximomo's vscode-sftp](https://github.com/liximomo/vscode-sftp)), maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov). It is developed independently from the upstream forks; the original MIT license and copyright notice are preserved in [`LICENSE`](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/LICENSE).
 
-- 🛒 **Marketplace:** <https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link>
-- 📦 **VSIX releases:** <https://github.com/e-u-shapovalov/vscode-sftp/releases>
+- 📦 **Latest release (VSIX):** <https://github.com/e-u-shapovalov/vscode-sftp/releases/latest>
 - 🐞 **Issues:** <https://github.com/e-u-shapovalov/vscode-sftp/issues>
 
 ---
@@ -16,6 +15,7 @@
 ## ✨ What's New · Что нового
 
 **English — in short**
+- **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
 - **1.1.1** — rename & move: "Rename" a server file via right-click, auto-sync when you rename/move locally, and drag&drop between folders in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
 - **1.0.9** — open a server file by its full path with one button.
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
@@ -23,6 +23,7 @@
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
 
 **Русский — коротко**
+- **1.1.2** — технический релиз: усиление безопасности (проверка имён файлов, присланных сервером, и полей SSH-подключения).
 - **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при локальном переименовании/переносе, drag&drop между папками в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
 - **1.0.9** — открыть файл на сервере по полному пути одной кнопкой.
 - **1.0.6** — созданные файлы сразу видны в дереве без «Обновить» (папки — ещё с 1.0.4).
@@ -49,19 +50,41 @@
 
 ---
 
-## 📦 Installation
+## 📦 Installation · Установка
 
-### From the Marketplace
-Search for **“SFTP Link”** in the Extensions view (`Ctrl/Cmd + Shift + X`), or open the
-[Marketplace page](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link) and click **Install**.
-If you're replacing another SFTP extension, disable or uninstall it first.
+The extension ships as a `.vsix` file. Download the latest one from the
+**[releases page](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)** — it is
+named `sftp-link-<version>.vsix` (e.g. `sftp-link-1.1.2.vsix`).
 
-### From a VSIX
-1. Open **Extensions** (`Ctrl/Cmd + Shift + X`).
-2. If you're replacing another SFTP extension, uninstall or disable it first.
-3. Download the `.vsix` from the [releases page](https://github.com/e-u-shapovalov/vscode-sftp/releases).
-4. In the **⋯ (More Actions)** menu, choose **Install from VSIX…**.
-5. Select the file, then reload VS Code.
+**English**
+
+_Via the VS Code UI (buttons):_
+1. Open the **Extensions** view (`Ctrl/Cmd + Shift + X`).
+2. Click the **⋯ (Views and More Actions)** button at the top-right of the panel.
+3. Choose **Install from VSIX…**, pick the downloaded file, then **Reload** VS Code.
+
+_Via the command line:_
+```
+code --install-extension sftp-link-1.1.2.vsix
+```
+Run it from the folder where you downloaded the file (use the real version number).
+
+> If you're replacing another SFTP extension, disable or uninstall it first.
+
+**Русский**
+
+_Через интерфейс VS Code (кнопками):_
+1. Откройте панель **Extensions / Расширения** (`Ctrl/Cmd + Shift + X`).
+2. Нажмите кнопку **⋯ (Views and More Actions)** в правом верхнем углу панели.
+3. Выберите **Install from VSIX… / Установить из VSIX…**, укажите скачанный файл и **перезагрузите** VS Code.
+
+_Через консоль:_
+```
+code --install-extension sftp-link-1.1.2.vsix
+```
+Запускайте из папки, куда скачали файл (подставьте актуальный номер версии).
+
+> Если у вас установлено другое SFTP-расширение — сначала отключите или удалите его.
 
 ---
 

@@ -7,6 +7,8 @@ import FileSystem, {
 } from './fileSystem';
 import RemoteFileSystem from './remoteFileSystem';
 import { SSHClient } from '../remote-client';
+import logger from '../../logger';
+import { isUnsafeRemoteSegment } from '../../utils';
 
 type FileHandle = Buffer;
 
@@ -321,9 +323,19 @@ export default class SFTPFileSystem extends RemoteFileSystem {
           return;
         }
 
-        const fileEntries = result.map(item =>
-          this.toFileEntry(this.pathResolver.join(dir, item.filename), item)
-        );
+        const fileEntries = result
+          .filter(item => {
+            if (isUnsafeRemoteSegment(item.filename)) {
+              logger.warn(
+                `sftp: ignoring listing entry with unsafe name ${JSON.stringify(
+                  item.filename
+                )} in ${dir}`
+              );
+              return false;
+            }
+            return true;
+          })
+          .map(item => this.toFileEntry(this.pathResolver.join(dir, item.filename), item));
         resolve(fileEntries);
       });
     });

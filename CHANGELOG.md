@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **1.1.2** — технический релиз: усиление безопасности (проверка имён файлов, присланных сервером, и полей SSH-подключения).
 - **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при переименовании/переносе файла локально, и drag&drop файлов между папками прямо в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
 - **1.0.9** — открыть файл на сервере по полному пути одной кнопкой.
 - **1.0.6** — созданные файлы сразу видны в дереве без «Обновить» (папки — ещё с 1.0.4).
@@ -14,11 +15,36 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
 - **1.1.1** — rename & move: "Rename" on the server via right-click, auto-sync when you rename/move a file locally, and drag&drop files between folders right in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
 - **1.0.9** — open a server file by its full path with one button.
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 1.1.2 — Усиление безопасности · Security hardening
+
+**Русский:** Технический релиз без новых функций: имена файлов, присланные сервером, проверяются перед записью на диск, а поля подключения — перед открытием SSH в терминале.
+
+**English:** A maintenance release with no new features: filenames returned by the server are validated before being written to disk, and connection fields are validated before opening SSH in a terminal.
+
+<details><summary><b>Подробности · Details</b></summary>
+
+**Русский**
+
+🔒 **Безопасность**
+- **Защита от path traversal при загрузке.** Записи в списке файлов от сервера, чьё имя содержит `..` или разделители путей, теперь отклоняются (и логируются). Раньше вредоносный или скомпрометированный SFTP/FTP-сервер теоретически мог прислать запись вроде `../../file` и при загрузке записать файл за пределами выбранной папки.
+- **Усиление команды «Open SSH in Terminal».** Поля подключения (`host`, `username`, `port`, `privateKeyPath`, `sshCustomParams`) проверяются перед формированием команды; строки с shell-метасимволами отклоняются с понятной ошибкой. Это закрывает подстановку команд через недоверенный `.vscode/sftp.json`.
+
+**English**
+
+🔒 **Security**
+- **Path-traversal guard on download.** Server-supplied listing entries whose name contains `..` or a path separator are now rejected (and logged). Previously a malicious or compromised SFTP/FTP server could return an entry like `../../file` and, on download, write outside the chosen folder.
+- **Hardened "Open SSH in Terminal".** Connection fields (`host`, `username`, `port`, `privateKeyPath`, `sshCustomParams`) are validated before the command is built; values containing shell metacharacters are refused with a clear error. This closes command substitution via an untrusted `.vscode/sftp.json`.
+
+</details>
 
 ---
 

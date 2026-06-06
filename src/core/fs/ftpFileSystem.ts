@@ -4,6 +4,7 @@ import logger from '../../logger';
 import { FileEntry, FileType, FileStats, FileOption } from './fileSystem';
 import RemoteFileSystem from './remoteFileSystem';
 import { FTPClient } from '../remote-client';
+import { isUnsafeRemoteSegment } from '../../utils';
 
 interface FtpFileHandle {
   path: string;
@@ -253,7 +254,16 @@ export default class FTPFileSystem extends RemoteFileSystem {
     return (
       stats
         // item will be a string if ftp fails to parse it — ignore by checking for a name property
-        .filter(item => item.name && item.name !== '.' && item.name !== '..')
+        .filter(item => {
+          if (!item.name) return false;
+          if (isUnsafeRemoteSegment(item.name)) {
+            logger.warn(
+              `ftp: ignoring listing entry with unsafe name ${JSON.stringify(item.name)} in ${dir}`
+            );
+            return false;
+          }
+          return true;
+        })
         .map(item =>
           this.toFileEntry(this.pathResolver.join(dir, item.name), item)
         )
