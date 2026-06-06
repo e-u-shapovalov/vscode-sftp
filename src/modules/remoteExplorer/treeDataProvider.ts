@@ -69,11 +69,11 @@ export default class RemoteTreeData
   private _rootsMap: Map<Id, ExplorerRoot> | null;
   private _map: Map<vscode.Uri['query'], ExplorerItem>;
 
-  private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem> = new vscode.EventEmitter<
-    ExplorerItem
+  private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem | undefined> = new vscode.EventEmitter<
+    ExplorerItem | undefined
   >();
   private _onDidChangeFile: vscode.EventEmitter<vscode.Uri> = new vscode.EventEmitter<vscode.Uri>();
-  readonly onDidChangeTreeData: vscode.Event<ExplorerItem> = this._onDidChangeFolder.event;
+  readonly onDidChangeTreeData: vscode.Event<ExplorerItem | undefined> = this._onDidChangeFolder.event;
   readonly onDidChange: vscode.Event<vscode.Uri> = this._onDidChangeFile.event;
 
   async refresh(item?: ExplorerItem): Promise<any> {
@@ -83,7 +83,9 @@ export default class RemoteTreeData
       this._roots = null;
       this._rootsMap = null;
 
-      this._onDidChangeFolder.fire();
+      // fire(undefined) tells VS Code to refresh the whole tree (EventEmitter.fire
+      // requires an argument since @types/vscode bumped past 1.40).
+      this._onDidChangeFolder.fire(undefined);
       return;
     }
 

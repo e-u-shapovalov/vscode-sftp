@@ -18,6 +18,7 @@ import { toRemotePath } from '../../helper';
 import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
 import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
+import RemoteDragAndDropController from './dragAndDrop';
 
 // Is `target` the same as `rootPath` or nested inside it? Remote paths are POSIX, so we compare with
 // upath (forward slashes) instead of the platform-specific `path`, which would break on Windows.
@@ -44,6 +45,7 @@ export default class RemoteExplorer {
       showCollapseAll: true,
       treeDataProvider: this._treeDataProvider,
       canSelectMany: true,
+      dragAndDropController: new RemoteDragAndDropController(this._treeDataProvider),
     });
 
     // Custom panel title — just the extension version. VS Code already prefixes the view-container

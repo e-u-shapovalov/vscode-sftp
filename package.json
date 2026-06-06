@@ -2,11 +2,11 @@
   "name": "sftp-link",
   "displayName": "SFTP Link",
   "description": "SFTP/FTP sync — maintained fork",
-  "version": "1.0.9",
+  "version": "1.1.1",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
-    "vscode": "^1.64.2"
+    "vscode": "^1.66.0"
   },
   "bugs": {
     "url": "https://github.com/e-u-shapovalov/vscode-sftp/issues"
@@ -241,6 +241,11 @@
         "category": "SFTP"
       },
       {
+        "command": "sftp.rename",
+        "title": "Rename",
+        "category": "SFTP"
+      },
+      {
         "command": "sftp.delete.remote",
         "title": "Delete",
         "category": "SFTP"
@@ -424,6 +429,10 @@
         },
         {
           "command": "sftp.diff",
+          "when": "false"
+        },
+        {
+          "command": "sftp.rename",
           "when": "false"
         },
         {
@@ -645,6 +654,11 @@
           "when": "view == remoteExplorer && viewItem != root && viewItem == file"
         },
         {
+          "command": "sftp.rename",
+          "group": "7_modification",
+          "when": "view == remoteExplorer && viewItem != root"
+        },
+        {
           "command": "sftp.delete.remote",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem != root"
@@ -732,40 +746,40 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^9.0.13",
-    "@types/jest": "^23.3.5",
+    "@types/jest": "^29.5.14",
     "@types/lru-cache": "^4.1.1",
-    "@types/node": "^9.6.51",
-    "@types/vscode": "1.40",
-    "@types/webpack-env": "^1.13.6",
+    "@types/node": "^18.19.130",
+    "@types/vscode": "1.66",
+    "@types/webpack-env": "^1.18.8",
     "braces": ">=2.3.1",
     "glob-parent": ">=5.1.2",
-    "jest": "^29.0.3",
+    "jest": "^29.7.0",
     "json-schema": ">=0.4.0",
-    "memfs": "^2.15.5",
+    "memfs": "^4.57.6",
     "merge": ">=2.1.1",
     "node-notifier": ">=8.0.1",
     "rimraf": "^2.7.1",
     "set-value": "^4.0.1",
-    "ts-loader": "^9.4.1",
+    "ts-loader": "^9.6.0",
     "tslint": "^6.1.3",
-    "typescript": "^3.9.7",
+    "typescript": "^5.9.3",
     "typescript-tslint-plugin": "^1.0.2",
-    "webpack": "^5.0.0",
-    "webpack-cli": "^4.7.0",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^5.1.4",
     "yargs-parser": "^20.2.4"
   },
   "dependencies": {
-    "async": "^3.2.4",
+    "async": "^3.2.6",
     "fs-extra": "^10.1.0",
     "ftp": "^0.3.10",
-    "ignore": "^5.1.4",
+    "ignore": "^5.3.2",
     "joi": "^10.6.0",
     "lodash.debounce": "^4.0.8",
     "lru-cache": "^4.1.3",
     "p-queue": "2.4.2",
     "ssh-config": "^1.1.3",
     "ssh2": "^1.17.0",
-    "tmp": "^0.2.1",
+    "tmp": "^0.2.7",
     "upath": "^2.0.1"
   },
   "jest": {

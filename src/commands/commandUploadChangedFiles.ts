@@ -95,25 +95,30 @@ async function handleCommand(hint: any) {
     }
   }
 
-  await Promise.all(creates.concat(uploads).map(change => {
+  // The map callbacks are async and awaited inside, so Promise.all actually waits for each transfer
+  // and try/catch sees rejections (a bare sync try/catch around an un-awaited promise would not).
+  await Promise.all(creates.concat(uploads).map(async change => {
     try {
-      uploadFile(change.uri)
+      await uploadFile(change.uri);
     } catch (e) {
       logger.error('Upload failed.', e);
     }
   }));
   await Promise.all(
-    renames.map(change => {
+    renames.map(async change => {
       try {
-        renameRemote(change.originalUri, { originPath: change.renameUri!.fsPath });
+        await renameRemote(change.originalUri, {
+          newLocalPath: change.renameUri!.fsPath,
+          skipRefresh: true,
+        });
       } catch (e) {
         logger.error('Rename failed.', e);
       }
     })
   );
-  await Promise.all(deletes.map(change => {
+  await Promise.all(deletes.map(async change => {
     try {
-      removeRemote(change.uri)
+      await removeRemote(change.uri);
     } catch (e) {
       logger.error('Deletion failed.', e);
     }

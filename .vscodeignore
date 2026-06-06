@@ -1,0 +1,39 @@
+# What ships in the .vsix: dist/ (the bundled extension), resources/, schema/, assets/,
+# package.json, README.md, CHANGELOG.md, LICENSE, and the production node_modules.
+# Everything below is excluded so the published package contains only what the extension
+# needs at runtime — no sources, tests, docs, editor/tooling dirs or build noise.
+
+# Sources & build inputs (only the webpack bundle in dist/ ships)
+src/**
+test/**
+__mocks__/**
+out/**
+docs/**
+**/*.ts
+**/*.map
+
+# All hidden dot-files and dot-folders (editor, VCS and any local tooling dirs).
+# Kept generic on purpose — no need to enumerate specific tool names.
+**/.*
+**/.*/**
+
+# Dev / build configuration
+tsconfig.json
+tslint.json
+webpack.config.js
+
+# Every markdown file except the two the Marketplace renders (Details / Changelog).
+# node_modules markdown is re-excluded after the README/CHANGELOG allow-back.
+*.md
+!README.md
+!CHANGELOG.md
+node_modules/**/*.md
+
+# Build artifacts
+*.vsix
+
+# Trim obvious noise from the bundled production dependencies
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/example/**
+node_modules/**/examples/**

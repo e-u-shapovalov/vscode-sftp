@@ -1,130 +1,100 @@
-# SFTP Link - VS Code extension
+# SFTP Link
 
-SFTP Link is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp)
-(itself a fork of [liximomo's vscode-sftp](https://github.com/liximomo/vscode-sftp)) for syncing
-local workspace files with remote servers over SFTP or FTP.
+> Sync your workspace with a remote server over **SFTP / FTP**, right inside VS Code — browse, edit, upload, download, diff and watch.
 
-This fork is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov)
-in this repository:
+[![VS Marketplace](https://img.shields.io/badge/VS%20Marketplace-SFTP%20Link-2b7cd3)](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/LICENSE)
 
-https://github.com/e-u-shapovalov/vscode-sftp
+**SFTP Link** is a maintained, independent fork of [Natizyskunk's vscode-sftp](https://github.com/Natizyskunk/vscode-sftp) (itself a fork of [liximomo's vscode-sftp](https://github.com/liximomo/vscode-sftp)), maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov). It is developed independently from the upstream forks; the original MIT license and copyright notice are preserved in [`LICENSE`](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/LICENSE).
 
-The project is developed independently from the earlier upstream forks. The
-original MIT license and copyright notice are preserved in `LICENSE`.
-
-## Project status
-
-- VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link
-- VSIX releases: https://github.com/e-u-shapovalov/vscode-sftp/releases
-- Issues: https://github.com/e-u-shapovalov/vscode-sftp/issues
-- Documentation: see the `docs/` directory in this repository.
-
-## Changelog
-
-See the **CHANGELOG** tab in the extension — or
-[CHANGELOG.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/CHANGELOG.md) — for the
-full, up-to-date release notes (Russian and English).
+- 🛒 **Marketplace:** <https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link>
+- 📦 **VSIX releases:** <https://github.com/e-u-shapovalov/vscode-sftp/releases>
+- 🐞 **Issues:** <https://github.com/e-u-shapovalov/vscode-sftp/issues>
 
 ---
 
-VSCode-SFTP enables you to add, edit or delete files within a local directory and have it sync to a remote server directory using different transfer protocols like FTP or SSH. The most basic setup requires only a few lines of configuration with a wide array of specific settings also available to meet the needs of any user. Both powerful and fast, it helps developers save time by allowing the use of a familiar editor and environment.
+## ✨ What's New · Что нового
 
-- Features
-  - [Browser remote with Remote Explorer](#remote-explorer)
-  - Diff local and remote
-  - Sync directory
-  - Upload/Download
-  - Upload on save
-  - File Watcher
-  - Multiple configurations
-  - Switchable profiles
-  - Temp File support
-- [Commands](./docs/commands.md)
-- [Debug](#debug)
-- [FAQ](#FAQ)
+**English — in short**
+- **1.1.1** — rename & move: "Rename" a server file via right-click, auto-sync when you rename/move locally, and drag&drop between folders in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
+- **1.0.9** — open a server file by its full path with one button.
+- **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
+- **1.0.2** — "Copy Path": copy a file/folder's server-side path.
+- **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
 
-## Installation
+**Русский — коротко**
+- **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при локальном переименовании/переносе, drag&drop между папками в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
+- **1.0.9** — открыть файл на сервере по полному пути одной кнопкой.
+- **1.0.6** — созданные файлы сразу видны в дереве без «Обновить» (папки — ещё с 1.0.4).
+- **1.0.2** — «Copy Path»: копировать серверный путь файла/папки.
+- **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
-### Method 1 (VSIX release)
-To install just follow these steps from within VSCode:
-1. Select Extensions (Ctrl + Shift + X).
-2. If you are replacing another SFTP extension, uninstall or disable it first.
-3. Download the `.vsix` file from this repository's releases page.
-4. Open "More Action" menu (ellipsis on the top) and click "Install from VSIX...".
-5. Locate the VSIX file and select it.
-6. Reload VS Code.
+> Full release notes / полный список изменений: the **CHANGELOG** tab in the extension, or
+> [CHANGELOG.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/CHANGELOG.md).
 
-### Method 2 (Marketplace)
-Marketplace publication is pending. This README will be updated with the
-Marketplace link when the extension is published.
+---
 
-## Documentation
-- [Home](./docs/home.md)
-- [Settings](./docs/setting.md)
-- [Common configuration](./docs/common_configuration.md)
-- [SFTP configuration](./docs/sftp_configuration.md)
-- [FTP configuration](./docs/ftp_configuration.md)
-- [Commands](./docs/commands.md)
+## 🚀 Features
 
-## Usage
-If the latest files are already on a remote server, you can start with an empty local folder,
-then download your project, and from that point sync.
+- 🗂 **Remote Explorer** — browse the remote server right inside VS Code (see the section below).
+- 🔎 **Open Remote File by Path** — jump straight to any server file by its full path. _(new in 1.0.9)_
+- 📋 **Copy Path** — copy a file/folder's server-side path to the clipboard. _(new in 1.0.2)_
+- ⬆️ ⬇️ **Upload / Download** files, folders or the whole project — to one profile or to all profiles at once.
+- 🔁 **Sync** a directory: local → remote, remote → local, or both ways.
+- 🔍 **Diff** a local file against its remote counterpart.
+- 💾 **Upload on save** and a **File Watcher**.
+- 🧩 **Multiple configurations** and **switchable profiles**.
+- 🪜 **Connection hopping** — reach a target server through one or more SSH proxies.
+- 🗑 **Safe delete** — deleting in the Remote Explorer asks first and sends the local copy to the OS Trash.
 
-1. In `VS Code`, open a local directory you wish to sync to the remote server (or create an empty directory
-that you wish to first download the contents of a remote server folder in order to edit locally).
-2. `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on Mac open command palette, run `SFTP: config` command.
-3. A basic configuration file will appear named `sftp.json` under the `.vscode` directory, open and edit the configuration parameters with your remote server information.
+---
 
-For instance:
-```json
-{
-    "name": "Profile Name",
-    "host": "name_of_remote_host",
-    "protocol": "ftp",
-    "port": 21,
-    "secure": true,
-    "username": "username",
-    "remotePath": "/public_html/project", // <--- This is the path which will be downloaded if you "Download Project"
-    "password": "password",
-    "uploadOnSave": false
-}
-```
-The password parameter in `sftp.json` is optional, if left out you will be prompted for a password on sync.
-_Note：_ backslashes and other special characters must be escaped with a backslash.
+## 📦 Installation
 
-4. Save and close the `sftp.json` file.
-5. `Ctrl+Shift+P` on Windows/Linux or `Cmd+Shift+P` on Mac open command palette.
-6. Type `sftp` and you'll now see a number of other commands. You can also access many of the commands from the project's file explorer context menus.
-7. A good one to start with if you want to sync with a remote folder is `SFTP: Download Project`.  This will download the directory shown in the `remotePath` setting in `sftp.json` to your local open directory.
-8. Done - you can now edit locally and after each save it will upload to sync your remote file with the local copy.
-9. Enjoy!
+### From the Marketplace
+Search for **“SFTP Link”** in the Extensions view (`Ctrl/Cmd + Shift + X`), or open the
+[Marketplace page](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.sftp-link) and click **Install**.
+If you're replacing another SFTP extension, disable or uninstall it first.
 
-For detailed explanations, see the documentation files in `docs/`.
+### From a VSIX
+1. Open **Extensions** (`Ctrl/Cmd + Shift + X`).
+2. If you're replacing another SFTP extension, uninstall or disable it first.
+3. Download the `.vsix` from the [releases page](https://github.com/e-u-shapovalov/vscode-sftp/releases).
+4. In the **⋯ (More Actions)** menu, choose **Install from VSIX…**.
+5. Select the file, then reload VS Code.
 
-## Example configurations
-You can see the full list of configuration options [here](./docs/configuration.md).
+---
 
-- [sftp sync extension for VS Code](#sftp-sync-extension-for-vs-code)
-  - [Installation](#installation)
-    - [Method 1 (VSIX release)](#method-1-vsix-release)
-    - [Method 2 (Marketplace)](#method-2-marketplace)
-  - [Documentation](#documentation)
-  - [Usage](#usage)
-  - [Example configurations](#example-configurations)
-    - [Simple](#simple)
-    - [Profiles](#profiles)
-    - [Multiple Context](#multiple-context)
-    - [Connection Hopping](#connection-hopping)
-      - [Single Hop](#single-hop)
-      - [Multiple Hop](#multiple-hop)
-    - [Configuration in User Setting](#configuration-in-user-setting)
-  - [Remote Explorer](#remote-explorer)
-    - [Multiple Select](#multiple-select)
-    - [Order](#order)
-  - [Debug](#debug)
-  - [FAQ](#faq)
+## ⚡ Quick start
 
-### Simple
+1. Open the local folder you want to sync (or an empty folder to download a remote project into).
+2. `Ctrl/Cmd + Shift + P` → run **SFTP: Config**. This creates `.vscode/sftp.json`.
+3. Fill in your server details, for example:
+   ```json
+   {
+       "name": "Profile Name",
+       "host": "name_of_remote_host",
+       "protocol": "ftp",
+       "port": 21,
+       "secure": true,
+       "username": "username",
+       "remotePath": "/public_html/project", // <--- downloaded when you run "Download Project"
+       "password": "password",
+       "uploadOnSave": false
+   }
+   ```
+   `password` is optional — you'll be prompted on sync if it's left out. _Note:_ backslashes and other special characters must be escaped with a backslash.
+4. Save and close `sftp.json`.
+5. `Ctrl/Cmd + Shift + P` → type **sftp** to see all commands (also available from the file-explorer context menus).
+6. To pull an existing remote project, run **SFTP: Download Project** — it downloads `remotePath` into your local folder.
+7. Edit locally; with `uploadOnSave` enabled, every save syncs to the server. 🎉
+
+---
+
+## ⚙️ Configuration
+
+The simplest possible `sftp.json`:
+
 ```json
 {
   "host": "host",
@@ -133,168 +103,28 @@ You can see the full list of configuration options [here](./docs/configuration.m
 }
 ```
 
-### Profiles
-```json
-{
-  "username": "username",
-  "password": "password",
-  "remotePath": "/remote/workspace/a",
-  "watcher": {
-    "files": "dist/*.{js,css}",
-    "autoUpload": false
-  },
-  "profiles": {
-    "dev": {
-      "host": "dev-host",
-      "remotePath": "/dev",
-      "uploadOnSave": true
-    },
-    "prod": {
-      "host": "prod-host",
-      "remotePath": "/prod"
-    }
-  },
-  "defaultProfile": "dev"
-}
-```
+More setups — **profiles**, **multiple contexts**, **connection hopping** (through an SSH proxy) and reading credentials from **User Settings** — are covered in the docs:
 
-_Note：_ `context` and `watcher` are only available at root level.
+- [Full configuration reference](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/configuration.md)
+- [SFTP configuration](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/sftp_configuration.md) · [FTP configuration](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/ftp_configuration.md)
 
-Use `SFTP: Set Profile` to switch profile.
+---
 
-### Multiple Context
-The context must **not be same**.
-```json
-[
-  {
-    "name": "server1",
-    "context": "project/build",
-    "host": "host",
-    "username": "username",
-    "password": "password",
-    "remotePath": "/remote/project/build"
-  },
-  {
-    "name": "server2",
-    "context": "project/src",
-    "host": "host",
-    "username": "username",
-    "password": "password",
-    "remotePath": "/remote/project/src"
-  }
-]
-```
+## 🗂 Remote Explorer
 
-_Note：_ `name` is required in this mode.
+![Remote Explorer preview](./assets/showcase/remote-explorer.png)
 
-### Connection Hopping
-You can connect to a target server through a proxy with ssh protocol.
+Browse remote files without leaving the editor. Open the Remote Explorer via:
 
-_Note：_ Variable substitution is not working in a hop configuration.
+1. the command **View: Show SFTP**, or
+2. the **SFTP** icon in the Activity Bar.
 
-#### Single Hop
-local -> hop -> target
-```json
-{
-  "name": "target",
-  "remotePath": "/path/in/target",
+By default, double-clicking only **views** a file's content; run **SFTP: Edit in Local** to edit it locally. You can also use the **Open Remote File by Path** toolbar button to jump straight to a file by its server path.
 
-  // hop
-  "host": "hopHost",
-  "username": "hopUsername",
-  "privateKeyPath": "/Users/localUser/.ssh/id_rsa", // <-- The key file is assumed on the local.
+**Multiple select** — hold `Ctrl` or `Shift` to select several files/folders at once for upload or download, just like the regular Explorer.
 
-  "hop": {
-    // target
-    "host": "targetHost",
-    "username": "targetUsername",
-    "privateKeyPath": "/Users/hopUser/.ssh/id_rsa", // <-- The key file is assumed on the hop.
-  }
-}
-```
+**Order** — sort the Remote Explorer with the `remoteExplorer.order` parameter in `sftp.json`:
 
-#### Multiple Hop
-local -> hopa -> hopb -> target
-```json
-{
-  "name": "target",
-  "remotePath": "/path/in/target",
-
-  // hopa
-  "host": "hopAHost",
-  "username": "hopAUsername",
-  "privateKeyPath": "/Users/hopAUsername/.ssh/id_rsa" // <-- The key file is assumed on the local.
-
-  "hop": [
-    // hopb
-    {
-      "host": "hopBHost",
-      "username": "hopBUsername",
-      "privateKeyPath": "/Users/hopaUser/.ssh/id_rsa" // <-- The key file is assumed on the hopa.
-    },
-
-    // target
-    {
-      "host": "targetHost",
-      "username": "targetUsername",
-      "privateKeyPath": "/Users/hopbUser/.ssh/id_rsa", // <-- The key file is assumed on the hopb.
-    }
-  ]
-}
-```
-
-### Configuration in User Setting
-You can use `remote` to tell SFTP Link to get the connection settings from the
-`remotefs.remote` VS Code user setting.
-
-In User Setting:
-```json
-"remotefs.remote": {
-  "dev": {
-    "scheme": "sftp",
-    "host": "host",
-    "username": "username",
-    "rootPath": "/path/to/somewhere"
-  },
-  "projectX": {
-    "scheme": "sftp",
-    "host": "host",
-    "username": "username",
-    "privateKeyPath": "/Users/xx/.ssh/id_rsa",
-    "rootPath": "/home/foo/some/projectx"
-  }
-}
-```
-
-In sftp.json:
-```json
-{
-  "remote": "dev",
-  "remotePath": "/home/xx/",
-  "uploadOnSave": false,
-  "ignore": [".vscode", ".git", ".DS_Store"]
-}
-```
-
-## Remote Explorer
-![remote-explorer-preview](./assets/showcase/remote-explorer.png)
-
-Remote Explorer lets you explore files in remote. You can open Remote Explorer by:
-
-1. Run Command `View: Show SFTP`.
-2. Click SFTP view in Activity Bar.
-
-You can only view a files content with Remote Explorer. Run command `SFTP: Edit in Local` to edit it in local.
-
-### Multiple Select
-You are able to select multiple files/folders at once on the remote server to download and upload. You can do it simply by holding down Ctrl or Shift while selecting all desired files, just like on the regular explorer view.
-
-_Note：_ You need to manually refresh the parent folder after you **delete** a file if the explorer isn't correctly updated.
-
-### Order
-You can order the remote Explorer by adding the `remoteExplorer.order` parameter inside your `sftp.json` config file.
-
-In sftp.json:
 ```json
 {
   "remoteExplorer": {
@@ -303,12 +133,28 @@ In sftp.json:
 }
 ```
 
-## Debug
-1. Open User Settings.
-  - On Windows/Linux - `File > Preferences > Settings`
-  - On macOS - `Code > Preferences > Settings`
-2. Set `sftp.debug` to `true` and reload vscode.
-3. View the logs in `View > Output > sftp`.
+---
 
-## FAQ
-You can see all the Frequently Asked Questions [here](./FAQ.md).
+## 🐞 Debug
+
+1. Open **Settings** (`File → Preferences → Settings`, or `Code → Preferences → Settings` on macOS).
+2. Set **`sftp.debug`** to `true` and reload VS Code.
+3. View the logs in **View → Output → sftp**.
+
+---
+
+## 📚 Documentation & FAQ
+
+- [Home](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/home.md) ·
+  [Settings](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/setting.md) ·
+  [Common configuration](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/common_configuration.md) ·
+  [SFTP configuration](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/sftp_configuration.md) ·
+  [FTP configuration](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/ftp_configuration.md) ·
+  [Commands](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/commands.md)
+- ❓ [Frequently Asked Questions](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/FAQ.md)
+
+---
+
+## 📄 License
+
+MIT — see [`LICENSE`](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/LICENSE). The original copyright notice is retained per the MIT terms; fork copyright © 2026 Evgenii Shapovalov.

@@ -66,3 +66,4 @@ export const COMMAND_REMOTEEXPLORER_OPEN_BY_PATH = 'sftp.remoteExplorer.openByPa
 
 export const COMMAND_CREATE_FOLDER = 'sftp.create.folder';
 export const COMMAND_CREATE_FILE = 'sftp.create.file';
+export const COMMAND_RENAME = 'sftp.rename';
