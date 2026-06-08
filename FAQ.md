@@ -72,8 +72,7 @@ You'll have to Explicitly override the default transport layer algorithms used f
 
 ## Error: Clicking Upload Changed Files does not work
 
-**@PaPa31** added a fix to make the 'Upload Changed Files' command visible and added a default keyboard shortcut to call it.
-<!-- **danieleiobbi** has a workaround to create a keyboard shortcut. -->
+The **Upload Changed Files** command is available with a default keyboard shortcut (`Ctrl` + `Alt` + `U`).
 
 ## ENFILE: file table overflow ...
 
