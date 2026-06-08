@@ -2,7 +2,7 @@ import * as output from './ui/output';
 import { getExtensionSetting } from './modules/ext';
 
 const extSetting = getExtensionSetting();
-const debug = extSetting.debug || extSetting.printDebugLog;
+const debug = extSetting.debug;
 
 const paddingTime = time => ('00' + time).slice(-2);
 

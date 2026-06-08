@@ -64,11 +64,6 @@
       "type": "object",
       "title": "WireFerry",
       "properties": {
-        "wireferry.printDebugLog": {
-          "type": "boolean",
-          "default": false,
-          "description": "%wireferry.printDebugLog.description%"
-        },
         "wireferry.debug": {
           "type": "boolean",
           "default": false,

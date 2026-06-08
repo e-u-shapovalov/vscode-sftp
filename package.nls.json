@@ -44,7 +44,6 @@
   "wireferry.remoteExplorer.refresh": "Refresh",
   "wireferry.remoteExplorer.refreshActiveFile": "Refresh Active Remote File",
   "wireferry.remoteExplorer.openByPath": "Open Remote File by Path",
-  "wireferry.printDebugLog.description": "print debug log on WireFerry output channel.(reload vscode when change this)",
   "wireferry.debug.description": "print debug log on WireFerry output channel.(reload vscode when change this)",
   "wireferry.downloadWhenOpenInRemoteExplorer.description": "\"Download\" instead of \"View Content\" when open file in Remote Explorer",
   "view.remoteExplorer.name": "Explorer"
