@@ -16,6 +16,7 @@ import {
   disposeFileService,
 } from './modules/serviceManager';
 import { getWorkspaceFolders, setContextValue, showConfirmMessage } from './host';
+import { EXTENSION_DISPLAY_NAME } from './constants';
 import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
 
@@ -147,7 +148,7 @@ export async function activate(context: vscode.ExtensionContext) {
   app.state.subscribe(_ => {
     const currentText = app.sftpBarItem.getText();
     // current is showing profile
-    if (currentText.startsWith('SFTP')) {
+    if (currentText.startsWith(EXTENSION_DISPLAY_NAME)) {
       app.sftpBarItem.reset();
     }
     if (app.remoteExplorer) {

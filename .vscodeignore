@@ -37,3 +37,23 @@ node_modules/**/test/**
 node_modules/**/tests/**
 node_modules/**/example/**
 node_modules/**/examples/**
+
+# Native module build debris (ssh2 / cpu-features) — keep the runtime *.node bindings,
+# drop the Windows build leftovers that bloat the package and are useless at runtime.
+node_modules/**/*.pdb
+node_modules/**/*.ipdb
+node_modules/**/*.iobj
+node_modules/**/*.obj
+node_modules/**/*.lib
+node_modules/**/*.exp
+node_modules/**/*.tlog
+node_modules/**/*.recipe
+node_modules/**/*.lastbuildstate
+node_modules/**/*.vcxproj
+node_modules/**/*.vcxproj.filters
+node_modules/**/*.sln
+node_modules/**/build/**/obj/**
+node_modules/**/build/**/*.gypi
+
+# Unused SVG asset — not referenced by package.json (icon is resources/icon.png).
+resources/WireFerryIcon.svg

@@ -1,6 +1,6 @@
 # Publishing
 
-How to release **SFTP Link** (`EvgeniiShapovalov.sftp-link`).
+How to release **WireFerry** (`EvgeniiShapovalov.wireferry`).
 
 ## One-time setup (first publish only)
 
@@ -26,7 +26,7 @@ npx @vscode/vsce publish                    # builds (npm run compile) and uploa
 ```
 
 The extension appears in the Marketplace within ~5–15 min. Install via the Extensions panel
-("SFTP Link") or `ext install EvgeniiShapovalov.sftp-link`.
+("WireFerry") or `ext install EvgeniiShapovalov.wireferry`.
 
 ## Releasing a new version
 
@@ -45,7 +45,7 @@ locally first:
 
 ```bash
 npx @vscode/vsce package
-code --install-extension sftp-link-<version>.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 Then sanity-check the critical paths: connect to a server, download/upload, Remote Explorer **Delete**,

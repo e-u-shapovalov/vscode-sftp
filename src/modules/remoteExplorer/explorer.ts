@@ -49,9 +49,9 @@ export default class RemoteExplorer {
     });
 
     // Custom panel title — just the extension version. VS Code already prefixes the view-container
-    // title ("SFTP"), so we don't repeat it here. TreeView.title postdates the pinned
+    // title ("WireFerry"), so we don't repeat it here. TreeView.title postdates the pinned
     // @types/vscode (1.40), so it's set through a typed cast; it exists at runtime (VS Code >= 1.41).
-    const ext = vscode.extensions.getExtension('EvgeniiShapovalov.sftp-link');
+    const ext = vscode.extensions.getExtension('EvgeniiShapovalov.wireferry');
     const version = ext && ext.packageJSON ? ext.packageJSON.version : '';
     (this._explorerView as { title?: string }).title = version || undefined;
 
@@ -76,11 +76,7 @@ export default class RemoteExplorer {
       const uri = item.resource.uri;
       const fileService = getFileService(uri);
       if (!fileService) {
-        if (uri.toString(true) == "file:///${command:sftp.sync.remoteToLocal}") {
-          throw '';
-        } else {
-          throw new Error(`Config Not Found. (${uri.toString(true)})`);
-        }
+        throw new Error(`Config Not Found. (${uri.toString(true)})`);
       }
       const config = fileService.getConfig();
       const localPath = item.resource.fsPath;
@@ -111,7 +107,7 @@ export default class RemoteExplorer {
     const roots = this._treeDataProvider.getRoots();
     if (roots.length === 0) {
       showWarningMessage(
-        'SFTP: no remote is configured. Open a workspace with .vscode/sftp.json first.'
+        'WireFerry: no remote is configured. Open a workspace with .vscode/wireferry.json first.'
       );
       return;
     }
@@ -138,7 +134,7 @@ export default class RemoteExplorer {
       const matching = roots.filter(r => isUnderRoot(r.resource.fsPath, abs));
       if (matching.length === 0) {
         showWarningMessage(
-          `SFTP: "${abs}" is outside every configured remote root ` +
+          `WireFerry:"${abs}" is outside every configured remote root ` +
             `(${roots.map(r => r.resource.fsPath).join(', ')}).`
         );
         return;
@@ -160,11 +156,11 @@ export default class RemoteExplorer {
       item = await this._resolveByPath(root, remotePath);
     } catch (error) {
       const detail = error && (error as Error).message ? (error as Error).message : String(error);
-      showErrorMessage(`SFTP: failed to reach "${remotePath}". ${detail}`);
+      showErrorMessage(`WireFerry:failed to reach "${remotePath}". ${detail}`);
       return;
     }
     if (!item) {
-      showWarningMessage(`SFTP: "${remotePath}" was not found on the server.`);
+      showWarningMessage(`WireFerry:"${remotePath}" was not found on the server.`);
       return;
     }
 

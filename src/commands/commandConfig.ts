@@ -17,7 +17,7 @@ export default checkCommand({
     const workspaceFolders = getWorkspaceFolders();
     if (!workspaceFolders) {
       const result = await showConfirmMessage(
-        'SFTP expects to work at a folder.',
+        'WireFerry expects to work at a folder.',
         'Open Folder',
         'Ok'
       );

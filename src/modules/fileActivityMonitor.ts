@@ -67,7 +67,7 @@ async function downloadOnOpen(uri: vscode.Uri) {
   const config = fileService.getConfig();
   if (config.downloadOnOpen) {
     if (config.downloadOnOpen === 'confirm') {
-      const isConfirm = await showConfirmMessage('Do you want SFTP to download this file?');
+      const isConfirm = await showConfirmMessage('Do you want WireFerry to download this file?');
       if (!isConfirm) return;
     }
 

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import * as Joi from 'joi';
-import { CONFIG_PATH } from '../constants';
+import { CONFIG_PATH, LEGACY_CONFIG_PATH } from '../constants';
 import { reportError } from '../helper';
 import { showTextDocument } from '../host';
 
@@ -123,6 +123,26 @@ function getConfigPath(basePath) {
   return path.join(basePath, CONFIG_PATH);
 }
 
+function getLegacyConfigPath(basePath) {
+  return path.join(basePath, LEGACY_CONFIG_PATH);
+}
+
+// Resolve which config file to read: prefer the current .vscode/wireferry.json, but fall back
+// to a legacy .vscode/sftp.json so projects created before the rename keep working untouched.
+async function resolveConfigPath(basePath): Promise<string | null> {
+  const primary = getConfigPath(basePath);
+  if (await fse.pathExists(primary)) {
+    return primary;
+  }
+
+  const legacy = getLegacyConfigPath(basePath);
+  if (await fse.pathExists(legacy)) {
+    return legacy;
+  }
+
+  return null;
+}
+
 export function validateConfig(config) {
   const { error } = Joi.validate(config, configScheme, {
     allowUnknown: true,
@@ -144,10 +164,9 @@ export function readConfigsFromFile(configPath): Promise<any[]> {
 }
 
 export function tryLoadConfigs(workspace): Promise<any[]> {
-  const configPath = getConfigPath(workspace);
-  return fse.pathExists(configPath).then(
-    exist => {
-      if (exist) {
+  return resolveConfigPath(workspace).then(
+    configPath => {
+      if (configPath) {
         return readConfigsFromFile(configPath);
       }
       return [];
@@ -166,15 +185,14 @@ export function tryLoadConfigs(workspace): Promise<any[]> {
 // }
 
 export function newConfig(basePath) {
-  const configPath = getConfigPath(basePath);
-
-  return fse
-    .pathExists(configPath)
-    .then(exist => {
-      if (exist) {
-        return showTextDocument(vscode.Uri.file(configPath));
+  return resolveConfigPath(basePath)
+    .then(existing => {
+      // Open an existing config (current or legacy) instead of creating a duplicate.
+      if (existing) {
+        return showTextDocument(vscode.Uri.file(existing));
       }
 
+      const configPath = getConfigPath(basePath);
       return fse
         .outputJson(
           configPath,

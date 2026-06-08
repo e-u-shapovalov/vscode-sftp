@@ -45,7 +45,7 @@ export default class RemoteDragAndDropController
     // ENOENT at best, a wrong-server write at worst.
     const targetRemoteId = target.resource.remoteId;
     if (sources.some(s => s.resource.remoteId !== targetRemoteId)) {
-      showWarningMessage('SFTP: you can only move items within the same remote.');
+      showWarningMessage('WireFerry: you can only move items within the same remote.');
       return;
     }
 

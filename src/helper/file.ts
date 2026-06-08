@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as tmp from 'tmp';
 import * as vscode from 'vscode';
-import { CONGIF_FILENAME } from '../constants';
+import { CONGIF_FILENAME, LEGACY_CONFIG_FILENAME } from '../constants';
 import { upath } from '../core';
 
 export function isValidFile(uri: vscode.Uri) {
@@ -10,7 +10,7 @@ export function isValidFile(uri: vscode.Uri) {
 
 export function isConfigFile(uri: vscode.Uri) {
   const filename = path.basename(uri.fsPath);
-  return filename === CONGIF_FILENAME;
+  return filename === CONGIF_FILENAME || filename === LEGACY_CONFIG_FILENAME;
 }
 
 export function fileDepth(file: string) {

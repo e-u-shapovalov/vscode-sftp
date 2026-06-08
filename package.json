@@ -1,8 +1,8 @@
 {
-  "name": "sftp-link",
-  "displayName": "SFTP Link",
-  "description": "SFTP/FTP sync — maintained fork",
-  "version": "1.1.2",
+  "name": "wireferry",
+  "displayName": "WireFerry — SFTP & FTP Sync",
+  "description": "Sync and deploy workspace files to remote servers — a fast SFTP, FTP and SSH client with upload on save, diff view, and multiple server profiles.",
+  "version": "2.0.0",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/e-u-shapovalov/vscode-sftp/issues"
   },
-  "homepage": "https://github.com/e-u-shapovalov/vscode-sftp/blob/master/README.md",
+  "homepage": "https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/README.md",
   "repository": {
     "type": "git",
     "url": "https://github.com/e-u-shapovalov/vscode-sftp.git"
@@ -21,14 +21,23 @@
     "Other"
   ],
   "keywords": [
-    "ftp",
     "sftp",
+    "ftp",
+    "ftps",
+    "ssh",
     "sync",
-    "remote"
+    "upload",
+    "download",
+    "deploy",
+    "remote",
+    "remote-edit",
+    "file-sync",
+    "wireferry"
   ],
   "activationEvents": [
-    "onCommand:sftp.config",
-    "workspaceContains:.vscode/sftp.json"
+    "onCommand:wireferry.config",
+    "workspaceContains:.vscode/sftp.json",
+    "workspaceContains:.vscode/wireferry.json"
   ],
   "icon": "resources/icon.png",
   "main": "./dist/extension",
@@ -36,36 +45,36 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "sftp",
-          "title": "SFTP",
+          "id": "wireferry",
+          "title": "WireFerry",
           "icon": "resources/remote-explorer.svg"
         }
       ]
     },
     "views": {
-      "sftp": [
+      "wireferry": [
         {
           "id": "remoteExplorer",
           "name": "Explorer",
-          "when": "sftp.enabled"
+          "when": "wireferry.enabled"
         }
       ]
     },
     "configuration": {
       "type": "object",
-      "title": "sftp configuration",
+      "title": "WireFerry",
       "properties": {
-        "sftp.printDebugLog": {
+        "wireferry.printDebugLog": {
           "type": "boolean",
           "default": false,
-          "description": "print debug log on sftp output channel.(reload vscode when change this)"
+          "description": "print debug log on WireFerry output channel.(reload vscode when change this)"
         },
-        "sftp.debug": {
+        "wireferry.debug": {
           "type": "boolean",
           "default": false,
-          "description": "print debug log on sftp output channel.(reload vscode when change this)"
+          "description": "print debug log on WireFerry output channel.(reload vscode when change this)"
         },
-        "sftp.downloadWhenOpenInRemoteExplorer": {
+        "wireferry.downloadWhenOpenInRemoteExplorer": {
           "type": "boolean",
           "default": false,
           "description": "\"Download\" instead of \"View Content\" when open file in Remote Explorer"
@@ -74,219 +83,219 @@
     },
     "commands": [
       {
-        "command": "sftp.config",
+        "command": "wireferry.config",
         "title": "Config",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.setProfile",
+        "command": "wireferry.setProfile",
         "title": "Set Profile",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.openConnectInTerminal",
+        "command": "wireferry.openConnectInTerminal",
         "title": "Open SSH in Terminal",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.cancelAllTransfer",
+        "command": "wireferry.cancelAllTransfer",
         "title": "Cancel All Transfers",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.file",
+        "command": "wireferry.upload.file",
         "title": "Upload File",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.changedFiles",
+        "command": "wireferry.upload.changedFiles",
         "title": "Upload Changed Files",
-        "category": "SFTP",
+        "category": "WireFerry",
         "icon": {
           "light": "resources/light/upload.svg",
           "dark": "resources/dark/upload.svg"
         }
       },
       {
-        "command": "sftp.upload.activeFile",
+        "command": "wireferry.upload.activeFile",
         "title": "Upload Active File",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.folder",
+        "command": "wireferry.upload.folder",
         "title": "Upload Folder",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.activeFolder",
+        "command": "wireferry.upload.activeFolder",
         "title": "Upload Active Folder",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.project",
+        "command": "wireferry.upload.project",
         "title": "Upload Project",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.forceUpload",
+        "command": "wireferry.forceUpload",
         "title": "Force Upload",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.file.to.allProfiles",
+        "command": "wireferry.upload.file.to.allProfiles",
         "title": "Upload File To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.activeFile.to.allProfiles",
+        "command": "wireferry.upload.activeFile.to.allProfiles",
         "title": "Upload Active File To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.folder.to.allProfiles",
+        "command": "wireferry.upload.folder.to.allProfiles",
         "title": "Upload Folder To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.activeFolder.to.allProfiles",
+        "command": "wireferry.upload.activeFolder.to.allProfiles",
         "title": "Upload Active Folder To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.upload.project.to.allProfiles",
+        "command": "wireferry.upload.project.to.allProfiles",
         "title": "Upload Project To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.forceUpload.to.allProfiles",
+        "command": "wireferry.forceUpload.to.allProfiles",
         "title": "Force Upload To All Profiles",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.download.file",
+        "command": "wireferry.download.file",
         "title": "Download File",
-        "category": "SFTP",
+        "category": "WireFerry",
         "icon": {
           "dark": "resources/dark/download-file.svg",
           "light": "resources/light/download-file.svg"
         }
       },
       {
-        "command": "sftp.download.activeFile",
+        "command": "wireferry.download.activeFile",
         "title": "Download Active File",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.download.folder",
+        "command": "wireferry.download.folder",
         "title": "Download Folder",
-        "category": "SFTP",
+        "category": "WireFerry",
         "icon": {
           "dark": "resources/dark/download-folder.svg",
           "light": "resources/light/download-folder.svg"
         }
       },
       {
-        "command": "sftp.download.activeFolder",
+        "command": "wireferry.download.activeFolder",
         "title": "Download Active Folder",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.download.project",
+        "command": "wireferry.download.project",
         "title": "Download Project",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.forceDownload",
+        "command": "wireferry.forceDownload",
         "title": "Force Download",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.sync.localToRemote",
+        "command": "wireferry.sync.localToRemote",
         "title": "Sync Local -> Remote",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.sync.remoteToLocal",
+        "command": "wireferry.sync.remoteToLocal",
         "title": "Sync Remote -> Local",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.sync.bothDirections",
+        "command": "wireferry.sync.bothDirections",
         "title": "Sync Both Directions",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.diff",
+        "command": "wireferry.diff",
         "title": "Diff with Remote",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.diff.activeFile",
+        "command": "wireferry.diff.activeFile",
         "title": "Diff Active File with Remote",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.list",
+        "command": "wireferry.list",
         "title": "List",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.listActiveFolder",
+        "command": "wireferry.listActiveFolder",
         "title": "List Active Folder",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.listAll",
+        "command": "wireferry.listAll",
         "title": "List All",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.rename",
+        "command": "wireferry.rename",
         "title": "Rename",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.delete.remote",
+        "command": "wireferry.delete.remote",
         "title": "Delete",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.create.folder",
+        "command": "wireferry.create.folder",
         "title": "Create Folder",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.create.file",
+        "command": "wireferry.create.file",
         "title": "Create File",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.revealInExplorer",
+        "command": "wireferry.revealInExplorer",
         "title": "Reveal in Explorer",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.revealInRemoteExplorer",
+        "command": "wireferry.revealInRemoteExplorer",
         "title": "Reveal in Remote Explorer",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.remoteExplorer.editInLocal",
+        "command": "wireferry.remoteExplorer.editInLocal",
         "title": "Edit in Local",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.viewContent",
+        "command": "wireferry.viewContent",
         "title": "View Content",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.remoteExplorer.copyPath",
+        "command": "wireferry.remoteExplorer.copyPath",
         "title": "Copy Path",
-        "category": "SFTP"
+        "category": "WireFerry"
       },
       {
-        "command": "sftp.remoteExplorer.refresh",
+        "command": "wireferry.remoteExplorer.refresh",
         "title": "Refresh",
         "icon": {
           "light": "resources/light/refresh.svg",
@@ -294,436 +303,440 @@
         }
       },
       {
-        "command": "sftp.remoteExplorer.refreshActiveFile",
+        "command": "wireferry.remoteExplorer.refreshActiveFile",
         "title": "Refresh Active Remote File",
-        "category": "SFTP",
+        "category": "WireFerry",
         "icon": {
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
         }
       },
       {
-        "command": "sftp.remoteExplorer.openByPath",
+        "command": "wireferry.remoteExplorer.openByPath",
         "title": "Open Remote File by Path",
-        "category": "SFTP",
+        "category": "WireFerry",
         "icon": "$(go-to-file)"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "sftp.setProfile",
-          "when": "sftp.enabled"
+          "command": "wireferry.setProfile",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.openConnectInTerminal",
-          "when": "sftp.enabled"
+          "command": "wireferry.openConnectInTerminal",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.cancelAllTransfer",
-          "when": "sftp.enabled"
+          "command": "wireferry.cancelAllTransfer",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.activeFile",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.activeFile",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.activeFolder",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.activeFolder",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.project",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.project",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.activeFile.to.allProfiles",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.activeFile.to.allProfiles",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.activeFolder.to.allProfiles",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.activeFolder.to.allProfiles",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.project.to.allProfiles",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.project.to.allProfiles",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.download.activeFile",
-          "when": "sftp.enabled"
+          "command": "wireferry.download.activeFile",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.download.activeFolder",
-          "when": "sftp.enabled"
+          "command": "wireferry.download.activeFolder",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.download.project",
-          "when": "sftp.enabled"
+          "command": "wireferry.download.project",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.sync.localToRemote",
-          "when": "sftp.enabled"
+          "command": "wireferry.sync.localToRemote",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.sync.remoteToLocal",
-          "when": "sftp.enabled"
+          "command": "wireferry.sync.remoteToLocal",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.sync.bothDirections",
-          "when": "sftp.enabled"
+          "command": "wireferry.sync.bothDirections",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.diff.activeFile",
-          "when": "sftp.enabled"
+          "command": "wireferry.diff.activeFile",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.list",
-          "when": "sftp.enabled"
+          "command": "wireferry.list",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.listActiveFolder",
-          "when": "sftp.enabled"
+          "command": "wireferry.listActiveFolder",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.listAll",
-          "when": "sftp.enabled"
+          "command": "wireferry.listAll",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.file",
+          "command": "wireferry.upload.file",
           "when": "false"
         },
         {
-          "command": "sftp.upload.changedFiles",
-          "when": "sftp.enabled"
+          "command": "wireferry.upload.changedFiles",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.upload.folder",
+          "command": "wireferry.upload.folder",
           "when": "false"
         },
         {
-          "command": "sftp.forceUpload",
+          "command": "wireferry.forceUpload",
           "when": "false"
         },
         {
-          "command": "sftp.upload.file.to.allProfiles",
+          "command": "wireferry.upload.file.to.allProfiles",
           "when": "false"
         },
         {
-          "command": "sftp.upload.folder.to.allProfiles",
+          "command": "wireferry.upload.folder.to.allProfiles",
           "when": "false"
         },
         {
-          "command": "sftp.forceUpload.to.allProfiles",
+          "command": "wireferry.forceUpload.to.allProfiles",
           "when": "false"
         },
         {
-          "command": "sftp.download.file",
+          "command": "wireferry.download.file",
           "when": "false"
         },
         {
-          "command": "sftp.download.folder",
+          "command": "wireferry.download.folder",
           "when": "false"
         },
         {
-          "command": "sftp.forceDownload",
+          "command": "wireferry.forceDownload",
           "when": "false"
         },
         {
-          "command": "sftp.diff",
+          "command": "wireferry.diff",
           "when": "false"
         },
         {
-          "command": "sftp.rename",
+          "command": "wireferry.rename",
           "when": "false"
         },
         {
-          "command": "sftp.delete.remote",
+          "command": "wireferry.delete.remote",
           "when": "false"
         },
         {
-          "command": "sftp.create.folder",
+          "command": "wireferry.create.folder",
           "when": "false"
         },
         {
-          "command": "sftp.create.file",
+          "command": "wireferry.create.file",
           "when": "false"
         },
         {
-          "command": "sftp.revealInExplorer",
+          "command": "wireferry.revealInExplorer",
           "when": "false"
         },
         {
-          "command": "sftp.revealInRemoteExplorer",
+          "command": "wireferry.revealInRemoteExplorer",
           "when": "false"
         },
         {
-          "command": "sftp.remoteExplorer.editInLocal",
+          "command": "wireferry.remoteExplorer.editInLocal",
           "when": "false"
         },
         {
-          "command": "sftp.viewContent",
+          "command": "wireferry.viewContent",
           "when": "false"
         },
         {
-          "command": "sftp.remoteExplorer.copyPath",
+          "command": "wireferry.remoteExplorer.copyPath",
           "when": "false"
         },
         {
-          "command": "sftp.remoteExplorer.openByPath",
-          "when": "sftp.enabled"
+          "command": "wireferry.remoteExplorer.openByPath",
+          "when": "wireferry.enabled"
         },
         {
-          "command": "sftp.remoteExplorer.refresh",
+          "command": "wireferry.remoteExplorer.refresh",
           "when": "false"
         }
       ],
       "explorer/context": [
         {
-          "command": "sftp.revealInRemoteExplorer",
+          "command": "wireferry.revealInRemoteExplorer",
           "group": "navigation@20",
-          "when": "sftp.enabled && !explorerResourceIsRoot"
+          "when": "wireferry.enabled && !explorerResourceIsRoot"
         },
         {
-          "command": "sftp.diff",
+          "command": "wireferry.diff",
           "group": "3_compare",
-          "when": "sftp.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
+          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
         },
         {
-          "command": "sftp.sync.localToRemote",
-          "group": "sftp.sync@1",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.sync.localToRemote",
+          "group": "wireferry.sync@1",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "sftp.sync.remoteToLocal",
-          "group": "sftp.sync@2",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.sync.remoteToLocal",
+          "group": "wireferry.sync@2",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "sftp.sync.bothDirections",
-          "group": "sftp.sync@3",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.sync.bothDirections",
+          "group": "wireferry.sync@3",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "sftp.upload.file",
-          "group": "sftp.trans@1",
-          "when": "sftp.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
+          "command": "wireferry.upload.file",
+          "group": "wireferry.trans@1",
+          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
         },
         {
-          "command": "sftp.upload.folder",
-          "group": "sftp.trans@1",
-          "alt": "sftp.forceUpload",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.upload.folder",
+          "group": "wireferry.trans@1",
+          "alt": "wireferry.forceUpload",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "sftp.upload.file.to.allProfiles",
-          "group": "sftp.trans@1",
-          "when": "sftp.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
+          "command": "wireferry.upload.file.to.allProfiles",
+          "group": "wireferry.trans@1",
+          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
         },
         {
-          "command": "sftp.upload.folder.to.allProfiles",
-          "group": "sftp.trans@1",
-          "alt": "sftp.forceUpload.to.allProfiles",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.upload.folder.to.allProfiles",
+          "group": "wireferry.trans@1",
+          "alt": "wireferry.forceUpload.to.allProfiles",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "sftp.download.file",
-          "group": "sftp.trans@2",
-          "when": "sftp.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
+          "command": "wireferry.download.file",
+          "group": "wireferry.trans@2",
+          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
         },
         {
-          "command": "sftp.download.folder",
-          "group": "sftp.trans@2",
-          "alt": "sftp.forceDownload",
-          "when": "sftp.enabled && explorerResourceIsFolder"
+          "command": "wireferry.download.folder",
+          "group": "wireferry.trans@2",
+          "alt": "wireferry.forceDownload",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
         }
       ],
       "editor/context": [
         {
-          "command": "sftp.upload.file",
-          "group": "sftp.trans@1",
-          "when": "sftp.enabled && resourceScheme == file"
+          "command": "wireferry.upload.file",
+          "group": "wireferry.trans@1",
+          "when": "wireferry.enabled && resourceScheme == file"
         },
         {
-          "command": "sftp.upload.file.to.allProfiles",
-          "group": "sftp.trans@1",
-          "when": "sftp.enabled && resourceScheme == file"
+          "command": "wireferry.upload.file.to.allProfiles",
+          "group": "wireferry.trans@1",
+          "when": "wireferry.enabled && resourceScheme == file"
         },
         {
-          "command": "sftp.download.file",
-          "group": "sftp.trans@2",
-          "when": "sftp.enabled && resourceScheme == file"
+          "command": "wireferry.download.file",
+          "group": "wireferry.trans@2",
+          "when": "wireferry.enabled && resourceScheme == file"
         },
         {
-          "command": "sftp.diff",
+          "command": "wireferry.diff",
           "group": "3_compare",
-          "when": "sftp.enabled && resourceScheme == file"
+          "when": "wireferry.enabled && resourceScheme == file"
         },
         {
-          "command": "sftp.remoteExplorer.editInLocal",
+          "command": "wireferry.remoteExplorer.editInLocal",
           "group": "2_files",
-          "when": "sftp.enabled && resourceScheme == remote"
+          "when": "wireferry.enabled && resourceScheme == remote"
         }
       ],
       "editor/title": [
         {
-          "command": "sftp.remoteExplorer.refreshActiveFile",
+          "command": "wireferry.remoteExplorer.refreshActiveFile",
           "group": "navigation",
-          "when": "sftp.enabled && resourceScheme == remote"
+          "when": "wireferry.enabled && resourceScheme == remote"
         }
       ],
       "editor/title/context": [
         {
-          "command": "sftp.revealInExplorer",
+          "command": "wireferry.revealInExplorer",
           "group": "2_files",
-          "when": "sftp.enabled && resourceScheme == remote"
+          "when": "wireferry.enabled && resourceScheme == remote"
         },
         {
-          "command": "sftp.revealInRemoteExplorer",
-          "when": "sftp.enabled && resourceScheme == file",
+          "command": "wireferry.revealInRemoteExplorer",
+          "when": "wireferry.enabled && resourceScheme == file",
           "group": "2_files"
         }
       ],
       "view/title": [
         {
-          "command": "sftp.remoteExplorer.openByPath",
+          "command": "wireferry.remoteExplorer.openByPath",
           "when": "view == remoteExplorer",
           "group": "navigation@1"
         },
         {
-          "command": "sftp.remoteExplorer.refresh",
+          "command": "wireferry.remoteExplorer.refresh",
           "when": "view == remoteExplorer",
           "group": "navigation@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "sftp.openConnectInTerminal",
+          "command": "wireferry.openConnectInTerminal",
           "group": "navigation",
           "when": "view == remoteExplorer && viewItem == root"
         },
         {
-          "command": "sftp.remoteExplorer.editInLocal",
+          "command": "wireferry.remoteExplorer.editInLocal",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem == file && !config.sftp.downloadWhenOpenInRemoteExplorer"
+          "when": "view == remoteExplorer && viewItem == file && !config.wireferry.downloadWhenOpenInRemoteExplorer"
         },
         {
-          "command": "sftp.viewContent",
+          "command": "wireferry.viewContent",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem == file && config.sftp.downloadWhenOpenInRemoteExplorer"
+          "when": "view == remoteExplorer && viewItem == file && config.wireferry.downloadWhenOpenInRemoteExplorer"
         },
         {
-          "command": "sftp.revealInExplorer",
-          "group": "2_files",
-          "when": "view == remoteExplorer && viewItem != root"
-        },
-        {
-          "command": "sftp.remoteExplorer.copyPath",
+          "command": "wireferry.revealInExplorer",
           "group": "2_files",
           "when": "view == remoteExplorer && viewItem != root"
         },
         {
-          "command": "sftp.upload.folder",
-          "group": "3_trans@1",
-          "alt": "sftp.forceUpload",
-          "when": "sftp.enabled && viewItem != file"
+          "command": "wireferry.remoteExplorer.copyPath",
+          "group": "2_files",
+          "when": "view == remoteExplorer && viewItem != root"
         },
         {
-          "command": "sftp.upload.file",
+          "command": "wireferry.upload.folder",
           "group": "3_trans@1",
-          "when": "view == remoteExplorer && viewItem != root && viewItem == file"
+          "alt": "wireferry.forceUpload",
+          "when": "wireferry.enabled && viewItem != file"
         },
         {
-          "command": "sftp.upload.folder.to.allProfiles",
-          "group": "3_trans@1",
-          "alt": "sftp.forceUpload.to.allProfiles",
-          "when": "sftp.enabled && viewItem != file"
-        },
-        {
-          "command": "sftp.upload.file.to.allProfiles",
+          "command": "wireferry.upload.file",
           "group": "3_trans@1",
           "when": "view == remoteExplorer && viewItem != root && viewItem == file"
         },
         {
-          "command": "sftp.download.folder",
+          "command": "wireferry.upload.folder.to.allProfiles",
+          "group": "3_trans@1",
+          "alt": "wireferry.forceUpload.to.allProfiles",
+          "when": "wireferry.enabled && viewItem != file"
+        },
+        {
+          "command": "wireferry.upload.file.to.allProfiles",
+          "group": "3_trans@1",
+          "when": "view == remoteExplorer && viewItem != root && viewItem == file"
+        },
+        {
+          "command": "wireferry.download.folder",
           "group": "3_trans@2",
-          "alt": "sftp.forceDownload",
-          "when": "sftp.enabled && viewItem != file"
+          "alt": "wireferry.forceDownload",
+          "when": "wireferry.enabled && viewItem != file"
         },
         {
-          "command": "sftp.download.file",
+          "command": "wireferry.download.file",
           "group": "3_trans@2",
           "when": "view == remoteExplorer && viewItem != root && viewItem == file"
         },
         {
-          "command": "sftp.rename",
+          "command": "wireferry.rename",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem != root"
         },
         {
-          "command": "sftp.delete.remote",
+          "command": "wireferry.delete.remote",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem != root"
         },
         {
-          "command": "sftp.create.folder",
+          "command": "wireferry.create.folder",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem != file"
         },
         {
-          "command": "sftp.create.file",
+          "command": "wireferry.create.file",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem != file"
         },
         {
-          "command": "sftp.download.file",
+          "command": "wireferry.download.file",
           "group": "inline",
           "when": "view == remoteExplorer && viewItem == file"
         },
         {
-          "command": "sftp.download.folder",
+          "command": "wireferry.download.folder",
           "group": "inline",
-          "when": "sftp.enabled && view == remoteExplorer && viewItem == folder"
+          "when": "wireferry.enabled && view == remoteExplorer && viewItem == folder"
         }
       ],
       "scm/title": [
         {
-          "command": "sftp.upload.changedFiles",
-          "group": "sftp",
-          "when": "sftp.enabled && scmProvider == git && !gitFreshRepository"
+          "command": "wireferry.upload.changedFiles",
+          "group": "wireferry",
+          "when": "wireferry.enabled && scmProvider == git && !gitFreshRepository"
         }
       ],
       "scm/resourceGroup/context": [
         {
-          "command": "sftp.upload.changedFiles",
+          "command": "wireferry.upload.changedFiles",
           "group": "inline",
-          "when": "sftp.enabled && scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository"
+          "when": "wireferry.enabled && scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository"
         },
         {
-          "command": "sftp.upload.changedFiles",
-          "group": "sftp",
-          "when": "sftp.enabled && scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository"
+          "command": "wireferry.upload.changedFiles",
+          "group": "wireferry",
+          "when": "wireferry.enabled && scmProvider == git && scmResourceGroup == workingTree && !gitFreshRepository"
         },
         {
-          "command": "sftp.upload.changedFiles",
+          "command": "wireferry.upload.changedFiles",
           "group": "inline",
-          "when": "sftp.enabled && scmProvider == git && scmResourceGroup == index && !gitFreshRepository"
+          "when": "wireferry.enabled && scmProvider == git && scmResourceGroup == index && !gitFreshRepository"
         },
         {
-          "command": "sftp.upload.changedFiles",
-          "group": "sftp",
-          "when": "sftp.enabled && scmProvider == git && scmResourceGroup == index && !gitFreshRepository"
+          "command": "wireferry.upload.changedFiles",
+          "group": "wireferry",
+          "when": "wireferry.enabled && scmProvider == git && scmResourceGroup == index && !gitFreshRepository"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "sftp.upload.changedFiles",
+        "command": "wireferry.upload.changedFiles",
         "key": "ctrl+alt+u",
-        "when": "sftp.enabled"
+        "when": "wireferry.enabled"
       }
     ],
     "jsonValidation": [
       {
         "fileMatch": ".vscode/sftp.json",
+        "url": "./schema/config.schema.json"
+      },
+      {
+        "fileMatch": ".vscode/wireferry.json",
         "url": "./schema/config.schema.json"
       }
     ],

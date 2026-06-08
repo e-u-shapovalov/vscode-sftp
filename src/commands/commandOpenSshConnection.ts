@@ -7,7 +7,7 @@ import { checkCommand } from './abstract/createCommand';
 
 const isWindows = process.platform === 'win32';
 
-// Connection fields come from .vscode/sftp.json, which an untrusted workspace can supply.
+// Connection fields come from .vscode/wireferry.json, which an untrusted workspace can supply.
 // The SSH command is typed into an integrated terminal via terminal.sendText(), so any
 // shell control character in these fields could chain a second command. Validate first.
 const SHELL_CONTROL_CHARS = /[;&|`$(){}<>\n\r]/;
@@ -17,6 +17,19 @@ const USERNAME_RE = /^[A-Za-z0-9._\-\\@]+$/;
 function assertNoShellControl(value: string, fieldName: string) {
   if (SHELL_CONTROL_CHARS.test(value)) {
     throw new Error(`Cannot open SSH terminal: "${fieldName}" contains shell control characters.`);
+  }
+}
+
+// `ssh` runs ProxyCommand/LocalCommand as local programs and pulls in arbitrary config via
+// Include/ProxyJump — none of which need a shell metacharacter to fire. sshCustomParams comes
+// from the (untrusted) workspace config, so reject those options outright.
+const DANGEROUS_SSH_OPTIONS = ['proxycommand', 'localcommand', 'permitlocalcommand', 'proxyjump', 'include'];
+
+function assertNoDangerousSshOption(value: string, fieldName: string) {
+  const lowered = value.toLowerCase();
+  const hit = DANGEROUS_SSH_OPTIONS.find(opt => lowered.includes(opt));
+  if (hit) {
+    throw new Error(`Cannot open SSH terminal: "${fieldName}" uses a disallowed ssh option (${hit}).`);
   }
 }
 
@@ -140,6 +153,7 @@ export default checkCommand({
       });
       try {
         assertNoShellControl(customParams, 'sshCustomParams');
+        assertNoDangerousSshOption(customParams, 'sshCustomParams');
       } catch (error) {
         vscode.window.showErrorMessage(error.message);
         return;

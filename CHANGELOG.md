@@ -1,12 +1,13 @@
 # Changelog
 
-> **SFTP Link** — независимо поддерживаемый форк [vscode-sftp](https://github.com/Natizyskunk/vscode-sftp) (Natizyskunk ← liximomo).
+> **WireFerry** — независимо поддерживаемый форк [vscode-sftp](https://github.com/Natizyskunk/vscode-sftp) (Natizyskunk ← liximomo).
 > Сверху — коротко о новом простым языком; технические детали каждого релиза спрятаны в блок **«Подробности»** (нажмите, чтобы развернуть).
 > _Plain-language highlights up top; per-release specifics are tucked into **"Details"**. Russian first, then English._
 
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.0** — новое имя: **WireFerry**. Новая иконка, команды и настройки переехали на префикс `wireferry.*`, файл конфигурации теперь `.vscode/wireferry.json` (старый `.vscode/sftp.json` ещё читается). Свои горячие клавиши/настройки под `sftp.*` обновите на `wireferry.*`.
 - **1.1.2** — технический релиз: усиление безопасности (проверка имён файлов, присланных сервером, и полей SSH-подключения).
 - **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при переименовании/переносе файла локально, и drag&drop файлов между папками прямо в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
 - **1.0.9** — открыть файл на сервере по полному пути одной кнопкой.
@@ -15,12 +16,49 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.0** — new name: **WireFerry**. New icon, commands & settings moved to the `wireferry.*` prefix, and config is now `.vscode/wireferry.json` (legacy `.vscode/sftp.json` still read). Update any custom `sftp.*` keybindings/settings to `wireferry.*`.
 - **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
 - **1.1.1** — rename & move: "Rename" on the server via right-click, auto-sync when you rename/move a file locally, and drag&drop files between folders right in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
 - **1.0.9** — open a server file by its full path with one button.
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.0.0 — Новое имя: WireFerry · Renamed to WireFerry
+
+**Русский:** Расширение переименовано из «SFTP Link» в **WireFerry** — новое имя, иконка и отдельное пространство имён. Команды и настройки переехали с префикса `sftp.*` на `wireferry.*`, файл конфигурации теперь `.vscode/wireferry.json` (старый `.vscode/sftp.json` по-прежнему читается автоматически).
+
+**English:** The extension has been renamed from "SFTP Link" to **WireFerry** — new name, icon and a distinct namespace. Commands and settings moved from the `sftp.*` prefix to `wireferry.*`, and the config file is now `.vscode/wireferry.json` (a legacy `.vscode/sftp.json` is still read automatically).
+
+<details><summary><b>Подробности · Details</b></summary>
+
+**Русский**
+
+♻️ **Изменено**
+- **Имя и идентификатор:** «SFTP Link» → **WireFerry**; id `EvgeniiShapovalov.sftp-link` → `EvgeniiShapovalov.wireferry`. Новая иконка.
+- **Пространство команд и настроек:** все команды и параметры переехали с префикса `sftp.*` на `wireferry.*` (например, `sftp.upload` → `wireferry.upload`, настройка `sftp.debug` → `wireferry.debug`). Категория команд в палитре теперь «WireFerry».
+- **Файл конфигурации:** основной файл теперь `.vscode/wireferry.json`; команда **WireFerry: Config** создаёт именно его.
+
+⚠️ **Важно**
+- **Старые проекты продолжают работать:** если в проекте есть старый `.vscode/sftp.json` (а нового нет) — он по-прежнему читается автоматически, переименовывать файл не обязательно.
+- **Это новый идентификатор расширения** — авто-обновление со старого `sftp-link` не сработает: удалите старое расширение и установите `wireferry` (`.vsix` со страницы релизов).
+- **Свои горячие клавиши и настройки под `sftp.*` обновите** на `wireferry.*` вручную (дефолтные уже обновлены).
+
+**English**
+
+♻️ **Changed**
+- **Name and identifier:** "SFTP Link" → **WireFerry**; id `EvgeniiShapovalov.sftp-link` → `EvgeniiShapovalov.wireferry`. New icon.
+- **Command and settings namespace:** every command and setting moved from the `sftp.*` prefix to `wireferry.*` (e.g. `sftp.upload` → `wireferry.upload`, the `sftp.debug` setting → `wireferry.debug`). The command-palette category is now "WireFerry".
+- **Config file:** the primary file is now `.vscode/wireferry.json`; the **WireFerry: Config** command creates it.
+
+⚠️ **Important**
+- **Existing projects keep working:** if a project has a legacy `.vscode/sftp.json` (and no new one), it is still read automatically — renaming the file is optional.
+- **This is a new extension identifier** — auto-update from the old `sftp-link` won't happen: uninstall the old extension and install `wireferry` (the `.vsix` from the releases page).
+- **Update any custom `sftp.*` keybindings and settings** to `wireferry.*` manually (the defaults are already updated).
+
+</details>
 
 ---
 
