@@ -7,7 +7,7 @@
 
 WireFerry connects your VS Code workspace to a remote server over **SFTP**, **FTP** and **FTPS**, so you can upload, download and deploy without leaving the editor. Edit a file locally, hit save, and WireFerry pushes it to the host; pull a whole project down with one command; or keep both sides in step with two-way **sync**. Connections run over **SSH** for SFTP, with optional connection hopping through intermediate hosts.
 
-A dedicated **Remote Explorer** lets you browse the server's filesystem like a second tree: open files for viewing, edit them locally, **diff** a local file against its remote copy, and drag entries between folders. Transfers work on single files, folders or the entire project, against one profile or all profiles at once — handy when the same code ships to staging and production.
+A dedicated **Remote Explorer** lets you browse the server's filesystem like a second tree: open files for viewing, edit them locally, **diff** a local file against its remote copy, and drag entries between folders. Transfers work on single files, folders or the entire project; **uploads** can also go to all profiles at once — handy when the same code ships to staging and production.
 
 WireFerry is an independent VS Code extension built for everyday remote-development and deploy workflows: keeping a live site, a CI artifact or a staging box up to date straight from the source you are editing.
 
@@ -50,7 +50,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 - **Remote Explorer** — browse the remote server right inside VS Code (see the section below).
 - **Open Remote File by Path** — jump straight to any server file by its full path. _(new in 1.0.9)_
 - **Copy Path** — copy a file/folder's server-side path to the clipboard. _(new in 1.0.2)_
-- **Upload / Download** files, folders or the whole project — to one profile or to all profiles at once.
+- **Upload / Download** files, folders or the whole project. **Uploads** can also target all profiles at once.
 - **Sync** a directory: local → remote, remote → local, or both ways.
 - **Diff** a local file against its remote counterpart.
 - **Upload on save** and a **File Watcher**.
@@ -64,7 +64,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 
 WireFerry can also be installed from a `.vsix` file — download the latest from the
 **[releases page](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)**, named
-`wireferry-<version>.vsix` (e.g. `wireferry-2.0.0.vsix`).
+`wireferry-<version>.vsix` (e.g. `wireferry-2.0.2.vsix`).
 
 **English**
 
@@ -75,7 +75,7 @@ _Via the VS Code UI (buttons):_
 
 _Via the command line:_
 ```
-code --install-extension wireferry-2.0.0.vsix
+code --install-extension wireferry-2.0.2.vsix
 ```
 Run it from the folder where you downloaded the file (use the real version number).
 
@@ -90,7 +90,7 @@ _Через интерфейс VS Code (кнопками):_
 
 _Через консоль:_
 ```
-code --install-extension wireferry-2.0.0.vsix
+code --install-extension wireferry-2.0.2.vsix
 ```
 Запускайте из папки, куда скачали файл (подставьте актуальный номер версии).
 

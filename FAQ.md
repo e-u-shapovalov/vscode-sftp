@@ -30,8 +30,8 @@ option in your config. See [configuration](./docs/configuration.md).
 
 ## Error: Connection closed
 
-The problem could be that the SFTP extension keeps closing the connection for those who use more legacy/old systems.
-You'll have to Explicitly override the default transport layer algorithms used for the connection to remove the new `"diffie-hellman-group-exchange-sha256"` algorithm that cause the problem from the `kex` section. Just add this in your `sftp.json` configuration file, which should make it work.
+The problem could be that WireFerry keeps closing the connection for those who use more legacy/old systems.
+You'll have to Explicitly override the default transport layer algorithms used for the connection to remove the new `"diffie-hellman-group-exchange-sha256"` algorithm that cause the problem from the `kex` section. Just add this to your `.vscode/wireferry.json` (or legacy `.vscode/sftp.json`) configuration file, which should make it work.
 ```json
 {
 	"algorithms": {
@@ -112,14 +112,6 @@ Example configuration (where all JS and HTML files in `./build` will be copied t
 }
 ```
 
-## How can I upload files as root?
-
-One possible workaround is to open the SSH session as root. It may not work for
-every server setup. In `sftp.json`, set the following:
-```json
-"sshCustomParams": "sudo su -;"
-```
-
 ## Automatically sync both ways without user interaction
 
 > *This can also be used with **GIT** this way when you're checking out a branch or reverting changes/commits, your server will also be updated.*
@@ -132,14 +124,14 @@ every server setup. In `sftp.json`, set the following:
   "port": 22,
   "username": "user1",
   "remotePath": "/folder1/folder2/folder3",
-  "uploadOnSave": false, // Set to false if watcher `autoUpload` is set to true & `files` is set to "**/*".
+  "uploadOnSave": false,
   "watcher": {
     "files": "**/*",
     "autoUpload": true
-  }
-  "syncOption": {
-    "delete": true // Delete extraneous files from destination directories.
   },
+  "syncOption": {
+    "delete": true
+  }
 }
 ```
 
