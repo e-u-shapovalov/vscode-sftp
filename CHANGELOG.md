@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
 - **2.0.2** — русская локализация команд и настроек (для русского интерфейса VS Code) + пункт «Открыть страницу расширения» в контекстном меню сервера.
 - **2.0.1** — новая иконка на боковой панели (Activity Bar / «Remote Explorer»).
 - **2.0.0** — новое имя: **WireFerry**. Новая иконка, команды и настройки переехали на префикс `wireferry.*`, файл конфигурации теперь `.vscode/wireferry.json` (старый `.vscode/sftp.json` ещё читается). Свои горячие клавиши/настройки под `sftp.*` обновите на `wireferry.*`.
@@ -18,6 +19,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
 - **2.0.2** — Russian localization of commands & settings (for Russian VS Code) + an "Open Extension Page" item in the server context menu.
 - **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
 - **2.0.0** — new name: **WireFerry**. New icon, commands & settings moved to the `wireferry.*` prefix, and config is now `.vscode/wireferry.json` (legacy `.vscode/sftp.json` still read). Update any custom `sftp.*` keybindings/settings to `wireferry.*`.
@@ -27,6 +29,14 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.0.3 — Исправления · Bug fixes
+
+**Русский:** Исправлена выгрузка при сохранении (`uploadOnSave`) для файлов на сетевых/UNC-путях Windows (`\\сервер\share\…`): из-за регистра имени хоста сервис конфигурации не находился при сохранении и появлялось «Config Not Found» (#589). Команда **«Синхронизация»** теперь дожидается завершения удаления файлов и не сообщает об успехе раньше времени; `chmod` по `dirPerm` тоже ожидается и больше не теряет ошибки. Документация и JSON-схема настроек приведены в соответствие с кодом: протокол `local`, опции `passive` и `defaultProfile`, значение `"confirm"` у `downloadOnOpen`, принудительный `concurrency = 1` для FTP; убран дубль и неверные значения по умолчанию.
+
+**English:** Fixed upload-on-save (`uploadOnSave`) for files on Windows network/UNC paths (`\\server\share\…`): a host-name case mismatch meant the config service wasn't found on save, surfacing as "Config Not Found" (#589). The **Sync** command now waits for file deletions to finish before reporting success; the `dirPerm` `chmod` is awaited too and no longer swallows errors. Documentation and the settings JSON-schema were aligned with the code: the `local` protocol, the `passive` and `defaultProfile` options, the `"confirm"` value for `downloadOnOpen`, the forced `concurrency = 1` for FTP; removed a duplicate section and incorrect defaults.
 
 ---
 
