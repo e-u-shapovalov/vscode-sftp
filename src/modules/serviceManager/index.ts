@@ -44,12 +44,12 @@ function maskConfig(config) {
 }
 
 function normalizePathForTrie(pathname) {
+  // Windows paths — including UNC \\host\share — are case-insensitive, but the trie keys by exact
+  // string segments. Lowercase the whole path on Windows so a service registered as \\pc_test\...
+  // is still found after realpathSync.native returns \\Pc_test\... on save (#589). Drive-letter
+  // paths were already handled this way; this extends the same treatment to the UNC host part.
   if (isWindows) {
-    const device = pathname.substr(0, 2);
-    if (device.charAt(1) === ':') {
-      // lowercase drive letter
-      pathname = pathname[0].toLowerCase() + pathname.substr(1);
-    }
+    pathname = pathname.toLowerCase();
   }
 
   return path.normalize(pathname);
