@@ -28,7 +28,6 @@ const configScheme = {
   uploadOnSave: Joi.boolean().optional(),
   useTempFile: Joi.boolean().optional(),
   openSsh: Joi.boolean().optional(),
-  syncMode: Joi.any().valid('update', 'full'),
   ignore: Joi.array()
     .min(0)
     .items(Joi.string()),
@@ -37,7 +36,6 @@ const configScheme = {
       .allow(false, null)
       .optional(),
     autoUpload: Joi.boolean().optional(),
-    autoDelete: Joi.boolean().optional(),
   },
 };
 
@@ -60,12 +58,10 @@ describe("validation config", () => {
       useTempFile: false,
       openSsh: false,
 
-      syncMode: 'update',
 
       watcher: {
         files: false,
         autoUpload: false,
-        autoDelete: false,
       },
 
       ignore: [
@@ -90,7 +86,6 @@ describe("validation config", () => {
 
       remotePath: '/',
 
-      syncMode: 'update',
 
       watcher: {},
 
@@ -129,12 +124,10 @@ describe("validation config", () => {
         useTempFile: false,
         openSsh: false,
 
-        syncMode: 'update',
 
         watcher: {
           files: false,
           autoUpload: false,
-          autoDelete: false,
         },
 
         ignore: [
@@ -165,12 +158,10 @@ describe("validation config", () => {
         useTempFile: false,
         openSsh: false,
 
-        syncMode: 'update',
 
         watcher: {
           files: false,
           autoUpload: false,
-          autoDelete: false,
         },
 
         ignore: [
@@ -225,12 +216,10 @@ describe("validation config", () => {
         useTempFile: false,
         openSsh: false,
 
-        syncMode: 'update',
 
         watcher: {
           files: false,
           autoUpload: false,
-          autoDelete: false,
         },
 
         ignore: [
@@ -268,12 +257,10 @@ describe("validation config", () => {
         useTempFile: false,
         openSsh: false,
 
-        syncMode: 'update',
 
         watcher: {
           files: false,
           autoUpload: false,
-          autoDelete: false,
         },
 
         ignore: [

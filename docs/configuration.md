@@ -369,6 +369,8 @@ Upload when the file changed.
 ### remoteTimeOffsetInHours
 The number of hours difference between the local machine and the remote server (remote minus local).
 
+> **Note:** this option is currently inactive — it is not yet applied by the transfer pipeline (planned; see the project ROADMAP).
+
 | Key | Value | Default |
 | --- | --- | --- |
 | *remoteTimeOffsetInHours* | *number* | `0` |
