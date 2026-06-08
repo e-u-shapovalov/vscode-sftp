@@ -59,10 +59,22 @@
         "description": "True to enable atomic file uploads (only supported by openSSH servers). if true, `useTempFile` must also be set to true.",
         "default": false
       },
+      "filePerm": {
+        "type": "number",
+        "description": "Octal permission applied to uploaded files (e.g. 644). Leave unset to preserve the source file mode."
+      },
+      "dirPerm": {
+        "type": "number",
+        "description": "Octal permission applied to created remote directories (e.g. 755)."
+      },
+      "passive": {
+        "type": "boolean",
+        "description": "FTP only: use passive mode for data connections."
+      },
       "downloadOnOpen": {
         "enum": ["confirm", true, false],
-        "description": "True to download when a file opens.",
-        "default": "confirm"
+        "description": "Download when a file opens: true / false, or \"confirm\" to ask first.",
+        "default": false
       },
       "syncOption": {
         "type": "object",
@@ -129,7 +141,7 @@
         "description": "The number of hours difference between the local machine and remote/server. (remote minus local)"
       },
       "limitOpenFilesOnRemote": {
-        "enum": ["number", true],
+        "type": ["number", "boolean"],
         "description": "Limit the open file descriptors to the specific number in a remote server. Set to true for using default limit(222). Do not set this unless you have to.",
         "default": true
       }

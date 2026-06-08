@@ -268,7 +268,7 @@ Absolute path to the ignore file or Relative path relative to the workspace root
  
 ```json
 {
-  "ignoreFile": "/.vscode/sftp.json"
+  "ignoreFile": ".gitignore"
 }
 ```
 
