@@ -22,6 +22,7 @@ export const COMMAND_CONFIG = 'wireferry.config';
 export const COMMAND_SET_PROFILE = 'wireferry.setProfile';
 export const COMMAND_CANCEL_ALL_TRANSFER = 'wireferry.cancelAllTransfer';
 export const COMMAND_OPEN_CONNECTION_IN_TERMINAL = 'wireferry.openConnectInTerminal';
+export const COMMAND_OPEN_EXTENSION_PAGE = 'wireferry.openExtensionPage';
 
 export const COMMAND_FORCE_UPLOAD = 'wireferry.forceUpload';
 export const COMMAND_UPLOAD = 'wireferry.upload';

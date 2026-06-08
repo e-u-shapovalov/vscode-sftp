@@ -12,6 +12,7 @@ import {
   COMMAND_REMOTEEXPLORER_COPY_PATH,
   COMMAND_REMOTEEXPLORER_OPEN_BY_PATH,
   COMMAND_REMOTEEXPLORER_EDITINLOCAL,
+  COMMAND_OPEN_EXTENSION_PAGE,
 } from '../../constants';
 import { UResource, upath } from '../../core';
 import { toRemotePath } from '../../helper';
@@ -69,6 +70,10 @@ export default class RemoteExplorer {
     // Toolbar "Open Remote File by Path": type a full server path, the tree expands down to it and
     // the file is downloaded + opened for editing.
     registerCommand(context, COMMAND_REMOTEEXPLORER_OPEN_BY_PATH, () => this.openByPath());
+    // Server root context menu: open WireFerry's own extension page locally (details / features).
+    registerCommand(context, COMMAND_OPEN_EXTENSION_PAGE, () =>
+      executeCommand('extension.open', 'EvgeniiShapovalov.wireferry')
+    );
   }
 
   refresh(item?: ExplorerItem) {

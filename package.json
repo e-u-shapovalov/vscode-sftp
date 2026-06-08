@@ -1,8 +1,8 @@
 {
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
-  "description": "Sync and deploy workspace files to remote servers — a fast SFTP, FTP and SSH client with upload on save, diff view, and multiple server profiles.",
-  "version": "2.0.1",
+  "description": "%extension.description%",
+  "version": "2.0.2",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -55,7 +55,7 @@
       "wireferry": [
         {
           "id": "remoteExplorer",
-          "name": "Explorer",
+          "name": "%view.remoteExplorer.name%",
           "when": "wireferry.enabled"
         }
       ]
@@ -67,49 +67,54 @@
         "wireferry.printDebugLog": {
           "type": "boolean",
           "default": false,
-          "description": "print debug log on WireFerry output channel.(reload vscode when change this)"
+          "description": "%wireferry.printDebugLog.description%"
         },
         "wireferry.debug": {
           "type": "boolean",
           "default": false,
-          "description": "print debug log on WireFerry output channel.(reload vscode when change this)"
+          "description": "%wireferry.debug.description%"
         },
         "wireferry.downloadWhenOpenInRemoteExplorer": {
           "type": "boolean",
           "default": false,
-          "description": "\"Download\" instead of \"View Content\" when open file in Remote Explorer"
+          "description": "%wireferry.downloadWhenOpenInRemoteExplorer.description%"
         }
       }
     },
     "commands": [
       {
         "command": "wireferry.config",
-        "title": "Config",
+        "title": "%wireferry.config%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.setProfile",
-        "title": "Set Profile",
+        "title": "%wireferry.setProfile%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.openConnectInTerminal",
-        "title": "Open SSH in Terminal",
+        "title": "%wireferry.openConnectInTerminal%",
+        "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.openExtensionPage",
+        "title": "%wireferry.openExtensionPage%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.cancelAllTransfer",
-        "title": "Cancel All Transfers",
+        "title": "%wireferry.cancelAllTransfer%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.file",
-        "title": "Upload File",
+        "title": "%wireferry.upload.file%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.changedFiles",
-        "title": "Upload Changed Files",
+        "title": "%wireferry.upload.changedFiles%",
         "category": "WireFerry",
         "icon": {
           "light": "resources/light/upload.svg",
@@ -118,62 +123,62 @@
       },
       {
         "command": "wireferry.upload.activeFile",
-        "title": "Upload Active File",
+        "title": "%wireferry.upload.activeFile%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.folder",
-        "title": "Upload Folder",
+        "title": "%wireferry.upload.folder%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.activeFolder",
-        "title": "Upload Active Folder",
+        "title": "%wireferry.upload.activeFolder%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.project",
-        "title": "Upload Project",
+        "title": "%wireferry.upload.project%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.forceUpload",
-        "title": "Force Upload",
+        "title": "%wireferry.forceUpload%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.file.to.allProfiles",
-        "title": "Upload File To All Profiles",
+        "title": "%wireferry.upload.file.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.activeFile.to.allProfiles",
-        "title": "Upload Active File To All Profiles",
+        "title": "%wireferry.upload.activeFile.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.folder.to.allProfiles",
-        "title": "Upload Folder To All Profiles",
+        "title": "%wireferry.upload.folder.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.activeFolder.to.allProfiles",
-        "title": "Upload Active Folder To All Profiles",
+        "title": "%wireferry.upload.activeFolder.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.upload.project.to.allProfiles",
-        "title": "Upload Project To All Profiles",
+        "title": "%wireferry.upload.project.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.forceUpload.to.allProfiles",
-        "title": "Force Upload To All Profiles",
+        "title": "%wireferry.forceUpload.to.allProfiles%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.download.file",
-        "title": "Download File",
+        "title": "%wireferry.download.file%",
         "category": "WireFerry",
         "icon": {
           "dark": "resources/dark/download-file.svg",
@@ -182,12 +187,12 @@
       },
       {
         "command": "wireferry.download.activeFile",
-        "title": "Download Active File",
+        "title": "%wireferry.download.activeFile%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.download.folder",
-        "title": "Download Folder",
+        "title": "%wireferry.download.folder%",
         "category": "WireFerry",
         "icon": {
           "dark": "resources/dark/download-folder.svg",
@@ -196,107 +201,107 @@
       },
       {
         "command": "wireferry.download.activeFolder",
-        "title": "Download Active Folder",
+        "title": "%wireferry.download.activeFolder%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.download.project",
-        "title": "Download Project",
+        "title": "%wireferry.download.project%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.forceDownload",
-        "title": "Force Download",
+        "title": "%wireferry.forceDownload%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.sync.localToRemote",
-        "title": "Sync Local -> Remote",
+        "title": "%wireferry.sync.localToRemote%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.sync.remoteToLocal",
-        "title": "Sync Remote -> Local",
+        "title": "%wireferry.sync.remoteToLocal%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.sync.bothDirections",
-        "title": "Sync Both Directions",
+        "title": "%wireferry.sync.bothDirections%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.diff",
-        "title": "Diff with Remote",
+        "title": "%wireferry.diff%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.diff.activeFile",
-        "title": "Diff Active File with Remote",
+        "title": "%wireferry.diff.activeFile%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.list",
-        "title": "List",
+        "title": "%wireferry.list%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.listActiveFolder",
-        "title": "List Active Folder",
+        "title": "%wireferry.listActiveFolder%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.listAll",
-        "title": "List All",
+        "title": "%wireferry.listAll%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.rename",
-        "title": "Rename",
+        "title": "%wireferry.rename%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.delete.remote",
-        "title": "Delete",
+        "title": "%wireferry.delete.remote%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.create.folder",
-        "title": "Create Folder",
+        "title": "%wireferry.create.folder%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.create.file",
-        "title": "Create File",
+        "title": "%wireferry.create.file%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.revealInExplorer",
-        "title": "Reveal in Explorer",
+        "title": "%wireferry.revealInExplorer%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.revealInRemoteExplorer",
-        "title": "Reveal in Remote Explorer",
+        "title": "%wireferry.revealInRemoteExplorer%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.remoteExplorer.editInLocal",
-        "title": "Edit in Local",
+        "title": "%wireferry.remoteExplorer.editInLocal%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.viewContent",
-        "title": "View Content",
+        "title": "%wireferry.viewContent%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.remoteExplorer.copyPath",
-        "title": "Copy Path",
+        "title": "%wireferry.remoteExplorer.copyPath%",
         "category": "WireFerry"
       },
       {
         "command": "wireferry.remoteExplorer.refresh",
-        "title": "Refresh",
+        "title": "%wireferry.remoteExplorer.refresh%",
         "icon": {
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
@@ -304,7 +309,7 @@
       },
       {
         "command": "wireferry.remoteExplorer.refreshActiveFile",
-        "title": "Refresh Active Remote File",
+        "title": "%wireferry.remoteExplorer.refreshActiveFile%",
         "category": "WireFerry",
         "icon": {
           "light": "resources/light/refresh.svg",
@@ -313,7 +318,7 @@
       },
       {
         "command": "wireferry.remoteExplorer.openByPath",
-        "title": "Open Remote File by Path",
+        "title": "%wireferry.remoteExplorer.openByPath%",
         "category": "WireFerry",
         "icon": "$(go-to-file)"
       }
@@ -326,6 +331,10 @@
         },
         {
           "command": "wireferry.openConnectInTerminal",
+          "when": "wireferry.enabled"
+        },
+        {
+          "command": "wireferry.openExtensionPage",
           "when": "wireferry.enabled"
         },
         {
@@ -606,7 +615,12 @@
       "view/item/context": [
         {
           "command": "wireferry.openConnectInTerminal",
-          "group": "navigation",
+          "group": "navigation@1",
+          "when": "view == remoteExplorer && viewItem == root"
+        },
+        {
+          "command": "wireferry.openExtensionPage",
+          "group": "navigation@2",
           "when": "view == remoteExplorer && viewItem == root"
         },
         {
