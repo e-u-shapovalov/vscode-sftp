@@ -5,18 +5,15 @@ Post-1.0.0 work. Releases deliberately ship only verified fixes — everything b
 time with tests, not bundled into a release. Items marked ✅ were verified against the code in this
 repo.
 
-## Toolchain & dependency baseline (do this before runtime-dep bumps)
-The pain here is not "old" but **inconsistent**: a 2020 TypeScript/toolchain against partially-newer
-transitive `@types/*`. That mismatch is exactly why `tsc --noEmit` fails and why things "randomly
-break". Don't chase latest-everything — fix the baseline in order, gated by a green build + tests:
+## Toolchain & dependency baseline — ✅ steps 1–2 DONE (1.1.1 / 2.x)
+The dev toolchain was modernized (TypeScript 3.9 → 5.9, `@types/node` 9 → 18, `@types/vscode`
+1.40 → 1.66, jest 29.7, webpack 5.107, `skipLibCheck` on): `tsc --noEmit` now passes and the jest
+suite runs. Only the runtime-dep bumps (step 3) remain:
 
-1. **Dev toolchain first** (no runtime behavior change): bump `typescript` (3.9 → 5.x), `@types/node`
-   (9 → match the Node we run), `@types/vscode` (1.40 → ≥1.64 to match `engines`), `ts-loader`,
-   `webpack`. Expect ~5 small legacy fixes (readonly arrays, `EventEmitter.fire()` arity, `Uri` types)
-   — see the `@types/vscode` note below. Optionally migrate `tslint` → eslint. Add `"strict"` /
-   `skipLibCheck` deliberately.
-2. **Fix the tests** so they're a real signal: `test/preprocessor.js` must return `{ code }` for
-   jest@29/30; drop the stale `syncMode` / `watcher.autoDelete` assertions in `config.spec.js`.
+1. ✅ **Dev toolchain** — done (TypeScript 5.9, `@types/node` 18, `@types/vscode` 1.66, ts-loader,
+   webpack updated, `skipLibCheck` set). `tslint` → eslint migration is still optional.
+2. ✅ **Tests run** — `test/preprocessor.js` returns `{ code }` for jest@29; the stale
+   `syncMode` / `watcher.autoDelete` assertions are gone. (One test is `skip`ped — see below.)
 3. **Only then** move runtime deps, one at a time with the (now working) tests green:
    `fs-extra` 10 → 11, `joi` 10 → 18 (**breaking**: `Joi.validate` was removed — `config.ts:126`
    needs rewriting), evaluate replacing the ancient `ftp@0.3.10` with `basic-ftp`.
@@ -41,7 +38,7 @@ Snapshot (for reference): typescript 3.9.7→6.x, @types/node 9→25.x, @types/v
   `SecretStorage` for credentials.
 - **`bothDiretions` typo.** ✅ Internal `transferOption` field is misspelled (`transfer.ts`, tests,
   `fileCommandSyncBothDirections.ts`). NOTE: it is *internal* and consistent — users never type it in
-  JSON (the command id `sftp.sync.bothDirections` is correct), so this is cosmetic. Rename when
+  JSON (the command id `wireferry.sync.bothDirections` is correct), so this is cosmetic. Rename when
   convenient.
 - **Deep-merge profiles.** Profiles replace whole objects (e.g. `watcher`); a profile overriding one
   sub-key wipes the rest. Implement deep merge.
@@ -58,21 +55,25 @@ Snapshot (for reference): typescript 3.9.7→6.x, @types/node 9→25.x, @types/v
 Two related blockers were **fixed in 1.0.0** (sshClient `.on('close', this.end())` TypeError;
 `realpathSync` ENOENT on deleted paths in `toRemotePath`). The rest is backlog:
 
-- **Upload Changed Files doesn't await its work.** `commandUploadChangedFiles.ts:98,116` — the
-  `map()` callbacks don't return the promises, so upload/rename/delete are fire-and-forget and async
-  errors are swallowed.
+- ✅ **FIXED (1.1.1): Upload Changed Files now awaits its work.** Previously
+  (`commandUploadChangedFiles.ts:98,116`) the `map()` callbacks didn't return the promises, so
+  upload/rename/delete were fire-and-forget and async errors were swallowed.
 - **`createCommand` swallows errors.** ✅ `createCommand.ts:40` doesn't `return handleCommand.apply(...)`,
   so `Command.run()`'s `await` resolves before the work and `try/catch` never sees async errors. This
   is the root cause beneath the fire-and-forget item above; affects all normal commands (config,
   setProfile, uploadChangedFiles…). One-line change but touches every normal command — verify.
-- **`renameRemote` uses local paths as remote, and the caller swaps old/new** (`rename.ts:9` uses
-  `this.target.localFsPath` for a remote rename; `commandUploadChangedFiles.ts:108` passes `renameUri`
-  as `originPath`). Git-rename sync is effectively broken.
-- **`tsc --noEmit` fails** on the old `typescript@3.9` / `@types/node@9` vs newer lib types
-  (`@types/fs-extra`, `@types/prettier`, `memfs`). Webpack release build is fine (ts-loader), but
-  `skipLibCheck` is not set in `tsconfig.json`. Add it (and/or modernize the toolchain).
-- **Tests are not a valid release signal.** `test/preprocessor.js:5` returns a string but jest@29
-  needs `{ code }`; 3 suites fail to run. Fix the transformer.
+- ✅ **FIXED (1.1.1): `renameRemote` rewritten.** It previously used a local path as the remote path
+  (`rename.ts:9`) and the caller swapped old/new (`commandUploadChangedFiles.ts:108`), so git-rename
+  sync was broken. The handler was rewritten to keep local and remote paths separate.
+- ✅ **FIXED: `tsc --noEmit` passes.** The toolchain was modernized and `skipLibCheck` is set in
+  `tsconfig.json`.
+- ✅ **FIXED: the jest suite runs.** `test/preprocessor.js` returns `{ code }` for jest@29; the suites
+  run. One test (`sync --update with time offset`) is intentionally `skip`ped — see the next item.
+- **`remoteTimeOffsetInHours` is disabled.** It is commented out at every call site in
+  `transfer/index.ts`, so the documented option currently has no effect; and the sync `--update`
+  mtime comparison does not account for the offset (a re-sync re-uploads an already-synced file).
+  Re-enable the option and make the comparison offset-aware together; the `sync --update with time
+  offset` test is `skip`ped until then.
 - **"Upload to all profiles" confirm** only covers `file`/`folder`, not `activeFile`/`activeFolder`/
   `project`/`forceUpload` (`createCommand.ts:55,89`).
 - **Inverted context menu** for `downloadWhenOpenInRemoteExplorer` (`treeDataProvider.ts:124` vs

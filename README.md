@@ -7,7 +7,7 @@
 
 WireFerry connects your VS Code workspace to a remote server over **SFTP**, **FTP** and **FTPS**, so you can upload, download and deploy without leaving the editor. Edit a file locally, hit save, and WireFerry pushes it to the host; pull a whole project down with one command; or keep both sides in step with two-way **sync**. Connections run over **SSH** for SFTP, with optional connection hopping through intermediate hosts.
 
-A dedicated **Remote Explorer** lets you browse the server's filesystem like a second tree: open files for viewing, edit them locally, **diff** a local file against its remote copy, and drag entries between folders. Transfers work on single files, folders or the entire project; **uploads** can also go to all profiles at once — handy when the same code ships to staging and production.
+A dedicated **Remote Explorer** lets you browse the server's filesystem like a second tree: open files for viewing, edit them locally, and drag entries between folders. Transfers work on single files, folders or the entire project; **uploads** can also go to all profiles at once — handy when the same code ships to staging and production.
 
 WireFerry is an independent VS Code extension built for everyday remote-development and deploy workflows: keeping a live site, a CI artifact or a staging box up to date straight from the source you are editing.
 
@@ -23,7 +23,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 - **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
 - **2.0.0** — new name: **WireFerry**. New icon, commands & settings moved to the `wireferry.*` prefix, and config is now `.vscode/wireferry.json` (legacy `.vscode/sftp.json` still read). Update any custom `sftp.*` keybindings/settings to `wireferry.*`.
 - **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
-- **1.1.1** — rename & move: "Rename" a server file via right-click, auto-sync when you rename/move locally, and drag&drop between folders in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
+- **1.1.1** — rename & move: "Rename" a server file via right-click, auto-sync when you rename/move a file in VS Code, and drag&drop between folders in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
 - **1.0.9** — open a server file by its full path with one button.
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path": copy a file/folder's server-side path.
@@ -48,7 +48,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 ## Features
 
 - **Remote Explorer** — browse the remote server right inside VS Code (see the section below).
-- **Open Remote File by Path** — jump straight to any server file by its full path. _(new in 1.0.9)_
+- **Open Remote File by Path** — jump straight to a file inside a configured remote by its full path. _(new in 1.0.9)_
 - **Copy Path** — copy a file/folder's server-side path to the clipboard. _(new in 1.0.2)_
 - **Upload / Download** files, folders or the whole project. **Uploads** can also target all profiles at once.
 - **Sync** a directory: local → remote, remote → local, or both ways.
@@ -116,7 +116,7 @@ code --install-extension wireferry-2.0.2.vsix
    ```
    `password` is optional — you'll be prompted on sync if it's left out. For key-based SFTP, point `privateKeyPath` at your key instead. _Note:_ backslashes and other special characters in JSON strings must be escaped with a backslash.
 4. Save and close `wireferry.json`.
-5. `Ctrl/Cmd + Shift + P` → type **WireFerry** to see all commands (also available from the file-explorer context menus).
+5. `Ctrl/Cmd + Shift + P` → type **WireFerry** to see its commands (also available from the file-explorer context menus).
 6. To pull an existing remote project, run **WireFerry: Download Project** — it downloads `remotePath` into your local folder.
 7. Edit locally; with `uploadOnSave` enabled, every save syncs to the server.
 
