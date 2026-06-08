@@ -75,8 +75,6 @@ You'll have to Explicitly override the default transport layer algorithms used f
 **@PaPa31** added a fix to make the 'Upload Changed Files' command visible and added a default keyboard shortcut to call it.
 <!-- **danieleiobbi** has a workaround to create a keyboard shortcut. -->
 
-![upload changed files keyboard shortcut](assets/faq/upload_changed_files_shortcut.png)
-
 ## ENFILE: file table overflow ...
 
 MacOS have a harsh limit on number of open files.
