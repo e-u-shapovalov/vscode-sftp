@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.1** — новая иконка на боковой панели (Activity Bar / «Remote Explorer»).
 - **2.0.0** — новое имя: **WireFerry**. Новая иконка, команды и настройки переехали на префикс `wireferry.*`, файл конфигурации теперь `.vscode/wireferry.json` (старый `.vscode/sftp.json` ещё читается). Свои горячие клавиши/настройки под `sftp.*` обновите на `wireferry.*`.
 - **1.1.2** — технический релиз: усиление безопасности (проверка имён файлов, присланных сервером, и полей SSH-подключения).
 - **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при переименовании/переносе файла локально, и drag&drop файлов между папками прямо в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
@@ -16,6 +17,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
 - **2.0.0** — new name: **WireFerry**. New icon, commands & settings moved to the `wireferry.*` prefix, and config is now `.vscode/wireferry.json` (legacy `.vscode/sftp.json` still read). Update any custom `sftp.*` keybindings/settings to `wireferry.*`.
 - **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
 - **1.1.1** — rename & move: "Rename" on the server via right-click, auto-sync when you rename/move a file locally, and drag&drop files between folders right in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
@@ -23,6 +25,14 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.0.1 — Новая иконка панели · New panel icon
+
+**Русский:** Обновлена иконка боковой панели (Activity Bar / «Remote Explorer»).
+
+**English:** Updated the Activity Bar / "Remote Explorer" side-panel icon.
 
 ---
 

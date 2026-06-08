@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "Sync and deploy workspace files to remote servers — a fast SFTP, FTP and SSH client with upload on save, diff view, and multiple server profiles.",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
