@@ -143,7 +143,7 @@
       "limitOpenFilesOnRemote": {
         "type": ["number", "boolean"],
         "description": "Limit the open file descriptors to the specific number in a remote server. Set to true for using default limit(222). Do not set this unless you have to.",
-        "default": true
+        "default": false
       }
     }
   },

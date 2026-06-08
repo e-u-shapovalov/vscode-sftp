@@ -179,11 +179,11 @@ Enable atomic file uploads (*only supported by openSSH servers*).
 ```
 
 ### downloadOnOpen
-Download the file from the remote server whenever it is opened.
+Download the file from the remote server whenever it is opened. Set to `"confirm"` to be asked before each download instead of downloading automatically.
 
 | Key | Value | Default |
 | --- | --- | --- |
-| *downloadOnOpen* | *boolean* | `false` |
+| *downloadOnOpen* | `true` *,* `false` *or* `"confirm"` | `false` |
 
 ```json
 {
@@ -352,6 +352,8 @@ The Remote Explorer decides which files and folders to show or hide based on thi
 
 ### concurrency
 Lowering the concurrency could get more stability because some clients/servers have some sort of configured/hard coded limit.
+
+> **Note:** for the `ftp` protocol concurrency is always forced to `1`, regardless of this setting.
 
 | Key | Value | Default |
 | --- | --- | --- |
