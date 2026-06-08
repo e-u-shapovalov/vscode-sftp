@@ -34,7 +34,7 @@ interface SyncOption extends TransferOption {
   update?: boolean;
 
   // make newest file to be present in both locations.
-  bothDiretions?: boolean;
+  bothDirections?: boolean;
 }
 
 interface BaseTransferHandleConfig {
@@ -84,9 +84,13 @@ async function transferFolder(
   await targetFs.ensureDir(targetFsPath);
 
   // If dirPerm is configured, we chmod the remote directory after creation.
-  if(config.transferOption.dirPerm) {
-    logger.info("chmod remote directory as configured by dirPerm, dirPerm is: ", config.transferOption.dirPerm)
-    targetFs.chmod(targetFsPath, parseInt(String(config.transferOption.dirPerm), 8))
+  if (config.transferOption.dirPerm) {
+    logger.info('chmod remote directory as configured by dirPerm, dirPerm is: ', config.transferOption.dirPerm);
+    try {
+      await targetFs.chmod(targetFsPath, parseInt(String(config.transferOption.dirPerm), 8));
+    } catch (error) {
+      logger.warn('failed to chmod remote directory (dirPerm):', error);
+    }
   }
 
   const fileEntries = await srcFs.list(srcFsPath);
@@ -158,9 +162,13 @@ async function transferWithType(
         const { targetFs, targetFsPath } = config;
         await targetFs.ensureDir(targetFs.pathResolver.dirname(targetFsPath));
         // If dirPerm is configured, we chmod the remote directory after creation.
-        if(config.transferOption.dirPerm) {
-          logger.info("Running chmod on remote directory with perm: ", config.transferOption.dirPerm)
-          targetFs.chmod(targetFs.pathResolver.dirname(targetFsPath), parseInt(String(config.transferOption.dirPerm), 8));
+        if (config.transferOption.dirPerm) {
+          logger.info('Running chmod on remote directory with perm: ', config.transferOption.dirPerm);
+          try {
+            await targetFs.chmod(targetFs.pathResolver.dirname(targetFsPath), parseInt(String(config.transferOption.dirPerm), 8));
+          } catch (error) {
+            logger.warn('failed to chmod remote directory (dirPerm):', error);
+          }
         }
       }
       // <<< save before upload: start
@@ -188,18 +196,23 @@ async function removeFile(file: string, fs: FileSystem, fileType: FileType, opti
     return;
   }
 
-  switch (fileType) {
-    case FileType.Directory:
-      await fileOperations.removeDir(file, fs, option);
-      logger.info('folder removed.');
-      break;
-    case FileType.File:
-    case FileType.SymbolicLink:
-      await fileOperations.removeFile(file, fs, option);
-      logger.info('file removed.');
-      break;
-    default:
-      break;
+  // Keep removals non-fatal: a single failed delete should be logged, not abort the whole sync.
+  try {
+    switch (fileType) {
+      case FileType.Directory:
+        await fileOperations.removeDir(file, fs, option);
+        logger.info('folder removed.');
+        break;
+      case FileType.File:
+      case FileType.SymbolicLink:
+        await fileOperations.removeFile(file, fs, option);
+        logger.info('file removed.');
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    logger.error(`failed to remove ${file}`, error);
   }
 }
 
@@ -253,7 +266,7 @@ async function _sync(
             break;
           case FileType.File:
           case FileType.SymbolicLink:
-            if (transferOption.bothDiretions) {
+            if (transferOption.bothDirections) {
               // from new to old
               if (desFile.mtime > srcFile.mtime) {
                 from = desFile;
@@ -319,7 +332,7 @@ async function _sync(
     });
 
     // files exist only on target
-    if (transferOption.bothDiretions) {
+    if (transferOption.bothDirections) {
       if (transferOption.skipCreate !== true) {
         Object.keys(desFileTable).forEach(id => {
           const file = desFileTable[id];
@@ -365,9 +378,12 @@ async function _sync(
       });
     }
 
-    // side-effect
-    fileMissed.forEach(file => removeFile(file, targetFs, FileType.File, transferOption));
-    dirMissed.forEach(file => removeFile(file, targetFs, FileType.Directory, transferOption));
+    // side-effect: collect deletions so they are awaited together with the transfers below;
+    // otherwise the command can report success before the deletes actually finish.
+    const removePromise = [
+      ...fileMissed.map(file => removeFile(file, targetFs, FileType.File, transferOption)),
+      ...dirMissed.map(file => removeFile(file, targetFs, FileType.Directory, transferOption)),
+    ];
 
     const transFilePromise = file2trans.map(([src, target, direction, option]) =>
       transferFile(
@@ -406,7 +422,12 @@ async function _sync(
       )
     );
 
-    return Promise.all([...transFilePromise, ...transDirPromise, ...syncPromise]).then(flatten);
+    return Promise.all([
+      ...removePromise,
+      ...transFilePromise,
+      ...transDirPromise,
+      ...syncPromise,
+    ]).then(flatten);
   };
 
   // create dir here so we don't have to ensure it for children files.

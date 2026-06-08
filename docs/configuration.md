@@ -8,6 +8,7 @@ The configuration file can always be accessed with `CTRL` + `Shift` + `P`, and s
 ### Configuration
 - [name](#name)
 - [context](#context)
+- [defaultProfile](#defaultprofile)
 - [protocol](#protocol)
 - [host](#host)
 - [port](#port)
@@ -42,6 +43,7 @@ The configuration file can always be accessed with `CTRL` + `Shift` + `P`, and s
 ### FTP(s) only configuration
 - [secure](#secure)
 - [secureOptions](#secureoptions)
+- [passive](#passive)
 
 
 
@@ -74,12 +76,25 @@ Use this when you want to map a subfolder to the `remotePath`.
 }
 ```
 
+### defaultProfile
+When you define multiple server profiles (a `profiles` object in the config), this is the name of the profile selected by default.
+
+| Key | Value |
+| --- | --- |
+| *defaultProfile* | *string* |
+
+```json
+{
+  "defaultProfile": "dev"
+}
+```
+
 ### protocol
-Protocol to be used.
+Protocol to be used. Use `local` to sync to another folder on the same machine (no server connection — the `host`/`username` fields are ignored).
 
 | Key | Value | Default |
 | --- | --- | --- |
-| *protocol* | `sftp` *or* `ftp` | `sftp` |
+| *protocol* | `sftp` *,* `ftp` *or* `local` | `sftp` |
 
 ```json
 {
@@ -588,7 +603,7 @@ Set to `control` for control encryption only, or `implicit` for implicitly encry
 
 ```json
 {
-  "secure": control
+  "secure": "control"
 }
 ```
 
@@ -608,5 +623,18 @@ Additional options to be passed to `tls.connect()`.
   "secureOptions": {
     "enableTrace": true
   }
+}
+```
+
+### passive
+Use passive mode for FTP data connections (the client opens the data connection to the server). Useful behind NAT/firewalls.
+
+| Key | Value | Default |
+| --- | --- | --- |
+| *passive* | *boolean* | `false` |
+
+```json
+{
+  "passive": true
 }
 ```

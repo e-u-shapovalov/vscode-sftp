@@ -308,8 +308,7 @@
       },
       "sshCustomParams": {
         "type": "string",
-        "description": "Extra parameters append to SSH command using by \"Open SSH in Terminal\"",
-        "default": "\"cd \"${remotePath}\"; exec \\$SHELL -l\""
+        "description": "Extra parameters append to SSH command using by \"Open SSH in Terminal\""
       }
     }
   },

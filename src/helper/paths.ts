@@ -47,7 +47,14 @@ export function toLocalPath(remotePath: string, remoteContext: string, localCont
 }
 
 export function isSubpathOf(possiableParentPath: string, pathname: string) {
-  return path.normalize(pathname).indexOf(path.normalize(possiableParentPath)) === 0;
+  const parent = path.normalize(possiableParentPath);
+  const child = path.normalize(pathname);
+  if (child === parent) {
+    return true;
+  }
+  // Append a separator so `/foo` is not treated as a parent of `/foo-bar`.
+  const parentWithSep = parent.endsWith(path.sep) ? parent : parent + path.sep;
+  return child.indexOf(parentWithSep) === 0;
 }
 
 export function replaceHomePath(pathname: string) {
@@ -60,11 +67,18 @@ export function resolvePath(from: string, to: string) {
 
 export function isInWorkspace(filepath: string) {
   const workspaceFolders = getWorkspaceFolders();
+  // vscode can't keep filepath's stable, covert them to toLowerCase before check
+  const target = filepath.toLowerCase();
   return (
     workspaceFolders &&
-    workspaceFolders.some(
-      // vscode can't keep filepath's stable, covert them to toLowerCase before check
-      folder => filepath.toLowerCase().indexOf(folder.uri.fsPath.toLowerCase()) === 0
-    )
+    workspaceFolders.some(folder => {
+      const root = folder.uri.fsPath.toLowerCase();
+      if (target === root) {
+        return true;
+      }
+      // Append a separator so a sibling like `/foo-bar` is not matched against root `/foo`.
+      const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+      return target.indexOf(rootWithSep) === 0;
+    })
   );
 }

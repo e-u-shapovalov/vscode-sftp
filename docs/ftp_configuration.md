@@ -32,3 +32,16 @@ Additional options to be passed to `tls.connect()`.
   }
 }
 ```
+
+### passive
+Use passive mode for FTP data connections (the client opens the data connection to the server). Useful behind NAT/firewalls.
+
+| Key | Value | Default |
+| --- | --- | --- |
+| *passive* | *boolean* | `false` |
+
+```json
+{
+  "passive": true
+}
+```

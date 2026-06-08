@@ -61,6 +61,36 @@ Stop the current transfers (upload and download).
 ### WireFerry: Open SSH in Terminal
 Open a terminal in VSCode and auto login to a specific server.
 
+### WireFerry: Open Extension Page
+Open the WireFerry extension page inside VS Code.
+
+### WireFerry: Upload File / Upload Folder
+Upload the selected file or folder (used from the explorer context menu).
+
+### WireFerry: Upload Project
+Upload the whole project (everything under the configuration `context`).
+
+### WireFerry: Download File / Download Folder
+Download the selected file or folder, overwriting the local copy.
+
+### WireFerry: Download Project
+Download the whole project from the remote.
+
+### WireFerry: Diff with Remote
+Compare the selected file with its remote version.
+
+#### KeyBindings Args
+func(fspaths: string[])
+
+### WireFerry: Diff Active File with Remote
+Compare the current editor file with its remote version.
+
+### WireFerry: List
+List a remote folder and pick a file to open.
+
+### WireFerry: List All
+List all remote files reachable from the configuration `remotePath`.
+
 
 ## Alt commands
 An alternative command can be found when pressing `Alt` while opening a menu.
@@ -70,3 +100,43 @@ Download file but disregard ignore rules.
 
 ### Force Upload
 Upload file but disregard ignore rules.
+
+
+## Remote Explorer
+These commands appear in the **Remote Explorer** view (right-click a server, folder or file).
+
+### Edit in Local
+Download the remote file and open the local copy for editing.
+
+### View Content
+Open the remote file read-only, without downloading it into the workspace.
+
+### Reveal in Explorer
+Reveal the local counterpart of a remote item in the local Explorer.
+
+### Reveal in Remote Explorer
+Reveal the active file in the Remote Explorer tree.
+
+### Refresh / Refresh Active Remote File
+Reload the tree (or just the entry for the active file).
+
+### Open Remote File by Path
+Prompt for an absolute remote path and open that file.
+
+### Copy Path
+Copy the remote path of the selected item to the clipboard.
+
+### Create File / Create Folder
+Create a new file or folder on the remote under the selected node.
+
+### Rename
+Rename the selected remote file or folder.
+
+### Delete
+Delete the selected remote file or folder.
+
+
+## Upload to All Profiles
+When the config defines multiple `profiles`, each upload command has a **To All Profiles** variant
+(`Upload File`, `Upload Active File`, `Upload Folder`, `Upload Active Folder`, `Upload Project`, `Force Upload`)
+that runs the same upload against every profile in turn.

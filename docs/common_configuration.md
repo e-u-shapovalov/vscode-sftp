@@ -28,11 +28,11 @@ Use this when you want to map a subfolder to the `remotePath`.
 ```
 
 ### protocol
-Protocol to be used.
+Protocol to be used. Use `local` to sync to another folder on the same machine (no server connection — the `host`/`username` fields are ignored).
 
 | Key | Value | Default |
 | --- | --- | --- |
-| *protocol* | `sftp` *or* `ftp` | `sftp` |
+| *protocol* | `sftp` *,* `ftp` *or* `local` | `sftp` |
 
 ```json
 {

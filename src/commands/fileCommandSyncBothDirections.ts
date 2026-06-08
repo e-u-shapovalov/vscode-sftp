@@ -8,6 +8,6 @@ export default checkFileCommand({
   getFileTarget: applySelector(uriFromfspath, selectFolderFallbackToConfigContext),
 
   handleFile(ctx) {
-    return sync2Remote(ctx, { bothDiretions: true });
+    return sync2Remote(ctx, { bothDirections: true });
   },
 });

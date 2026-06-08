@@ -36,10 +36,9 @@ Snapshot (for reference): typescript 3.9.7→6.x, @types/node 9→25.x, @types/v
 ## Medium
 - **Secrets in `SecretStorage`.** Passwords currently live in plaintext in `sftp.json`. Adopt VS Code
   `SecretStorage` for credentials.
-- **`bothDiretions` typo.** ✅ Internal `transferOption` field is misspelled (`transfer.ts`, tests,
-  `fileCommandSyncBothDirections.ts`). NOTE: it is *internal* and consistent — users never type it in
-  JSON (the command id `wireferry.sync.bothDirections` is correct), so this is cosmetic. Rename when
-  convenient.
+- ✅ **FIXED: `bothDiretions` typo renamed** to `bothDirections` across `transfer.ts`,
+  `fileCommandSyncBothDirections.ts` and the tests. It was internal and consistent (users never typed
+  it in JSON; the command id `wireferry.sync.bothDirections` was always correct), so this was cosmetic.
 - **Deep-merge profiles.** Profiles replace whole objects (e.g. `watcher`); a profile overriding one
   sub-key wipes the rest. Implement deep merge.
 
@@ -78,16 +77,19 @@ Two related blockers were **fixed in 1.0.0** (sshClient `.on('close', this.end()
   `project`/`forceUpload` (`createCommand.ts:55,89`).
 - **Inverted context menu** for `downloadWhenOpenInRemoteExplorer` (`treeDataProvider.ts:124` vs
   `package.json` menu `when`).
-- **Fire-and-forget delete/chmod in sync** (`transfer.ts:89,369`) — command can report success before
-  they finish, errors escape.
+- ✅ **FIXED: delete/chmod in sync are now awaited** (`transfer.ts`). Deletions are collected into the
+  `Promise.all` the command waits on (so success is no longer reported before they finish) and made
+  non-fatal via try/catch in `removeFile`; the `dirPerm` chmod is awaited with its own try/catch so a
+  chmod failure is logged rather than escaping as an unhandled rejection.
 - **`removeRemote` awaits `undefined`** for unknown stat types (`remove.ts` switch default) — UI then
   refreshes as if the delete succeeded. Throw / skip `afterHandle` instead.
 
 ## Known bugs (pre-existing)
 Spot-checked against the code. All inherited from upstream unless noted.
 
-- **`isSubpathOf` / `isInWorkspace` lack a path-separator check** (`paths.ts:49,61`) — `indexOf(...) === 0`
-  makes `/foo/bar` a subpath of `/foo/b`. Append `path.sep` before comparing.
+- ✅ **FIXED: `isSubpathOf` / `isInWorkspace` now append `path.sep` before comparing** (`paths.ts`), so
+  `/foo` is no longer treated as a parent of `/foo-bar`. (`isSubpathOf` is currently unused, but kept
+  correct.)
 - **`hashOption` stringifies values with `join('')`** (`remoteFs.ts:14`) — object values become
   `[object Object]`, key order isn't stable → connection-reuse collisions. Hash deterministically.
 - **FTP `chmod` raw-command injection** (`ftpFileSystem.ts:142`) — `path` is interpolated unescaped

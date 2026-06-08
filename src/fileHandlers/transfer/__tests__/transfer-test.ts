@@ -451,7 +451,7 @@ describe('transfer algorithm', () => {
           targetFsPath: '/remote',
           transferDirection: TransferDirection.LOCAL_TO_REMOTE,
           transferOption: {
-            bothDiretions: true,
+            bothDirections: true,
             perserveTargetMode: false,
           },
         },
@@ -514,7 +514,7 @@ describe('transfer algorithm', () => {
           transferDirection: TransferDirection.LOCAL_TO_REMOTE,
           transferOption: {
             skipCreate: true,
-            bothDiretions: true,
+            bothDirections: true,
             perserveTargetMode: false,
           },
         },
