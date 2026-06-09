@@ -764,7 +764,8 @@
     "compile": "webpack --mode production",
     "dev": "webpack --mode development --watch",
     "test": "jest",
-    "package": "vsce package"
+    "package": "vsce package",
+    "bump": "node scripts/bump-version.js"
   },
   "devDependencies": {
     "@types/fs-extra": "^9.0.13",

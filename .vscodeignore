@@ -5,6 +5,7 @@
 
 # Sources & build inputs (only the webpack bundle in dist/ ships)
 src/**
+scripts/**
 test/**
 __mocks__/**
 out/**
