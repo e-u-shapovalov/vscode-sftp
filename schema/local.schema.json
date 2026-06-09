@@ -1,0 +1,46 @@
+{
+  "allOf": [
+    {
+      "$ref": "definitions.json#/rootOption"
+    },
+    {
+      "$ref": "definitions.json#/option"
+    },
+    {
+      "$ref": "definitions.json#/host"
+    },
+    {
+      "$ref": "definitions.json#/sftp"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "enum": ["local"],
+          "description": "local protocol — sync to another folder on the same machine, no server connection."
+        },
+
+        "profiles": {
+          "patternProperties": {
+            "^.*$": {
+              "allOf": [
+                {
+                  "$ref": "definitions.json#/option"
+                },
+                {
+                  "$ref": "definitions.json#/host"
+                },
+                {
+                  "$ref": "definitions.json#/sftp"
+                }
+              ]
+            }
+          },
+          "default": {
+            "profileName": {}
+          }
+        }
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия после 2.0.3 — `node_modules`/`.git` могли выгружаться на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
 - **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
 - **2.0.2** — русская локализация команд и настроек (для русского интерфейса VS Code) + пункт «Открыть страницу расширения» в контекстном меню сервера.
 - **2.0.1** — новая иконка на боковой панели (Activity Bar / «Remote Explorer»).
@@ -19,6 +20,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression — `node_modules`/`.git` could be uploaded to the server); the `local` protocol is now in the config schema; documentation clarifications.
 - **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
 - **2.0.2** — Russian localization of commands & settings (for Russian VS Code) + an "Open Extension Page" item in the server context menu.
 - **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
@@ -32,11 +34,19 @@
 
 ---
 
+## 2.0.4 — Исправления · Bug fixes
+
+**Русский:** Исправлена регрессия из 2.0.3: после перевода Windows-путей в нижний регистр (фикс UNC #589) проверка «локальный или удалённый путь» в правилах `ignore` стала регистрозависимой, из-за чего на Windows-путях со смешанным регистром (`C:\Users\…`) шаблоны `ignore` (`node_modules`, `.git` и пользовательские) могли не срабатывать, и лишние файлы выгружались на сервер — сравнение снова регистронезависимо. Протокол `local` добавлен в JSON-схему конфигурации (раньше валидный `"protocol": "local"` подчёркивался в редакторе). Документация: уточнено, что для `local` поля `host`/`username` не используются для соединения, но всё ещё обязательны для валидатора; примеры установки в README приведены к актуальной версии; убран висячий пункт оглавления FAQ.
+
+**English:** Fixed a 2.0.3 regression: after Windows paths were lowercased (the UNC fix #589), the local-vs-remote check in the `ignore` rules became case-sensitive, so on mixed-case Windows paths (`C:\Users\…`) the `ignore` patterns (`node_modules`, `.git` and custom ones) could fail to match and extra files were uploaded to the server — the comparison is case-insensitive again. The `local` protocol is now part of the config JSON-schema (a valid `"protocol": "local"` was previously flagged in the editor). Docs: clarified that for `local` the `host`/`username` fields aren't used for the connection but are still required by the validator; README install examples point at the current version; removed a dangling FAQ table-of-contents entry.
+
+---
+
 ## 2.0.3 — Исправления · Bug fixes
 
-**Русский:** Исправлена выгрузка при сохранении (`uploadOnSave`) для файлов на сетевых/UNC-путях Windows (`\\сервер\share\…`): из-за регистра имени хоста сервис конфигурации не находился при сохранении и появлялось «Config Not Found» (#589). Команда **«Синхронизация»** теперь дожидается завершения удаления файлов и не сообщает об успехе раньше времени; `chmod` по `dirPerm` тоже ожидается и больше не теряет ошибки. Документация и JSON-схема настроек приведены в соответствие с кодом: протокол `local`, опции `passive` и `defaultProfile`, значение `"confirm"` у `downloadOnOpen`, принудительный `concurrency = 1` для FTP; убран дубль и неверные значения по умолчанию.
+**Русский:** Исправлена выгрузка при сохранении (`uploadOnSave`) для файлов на сетевых/UNC-путях Windows (`\\сервер\share\…`): из-за регистра имени хоста сервис конфигурации не находился при сохранении и появлялось «Config Not Found» (#589). Команда **«Синхронизация»** теперь дожидается завершения удаления файлов и не сообщает об успехе раньше времени; `chmod` по `dirPerm` тоже ожидается и больше не теряет ошибки. Документация и JSON-схема настроек приведены в соответствие с кодом: протокол `local`, опции `passive` и `defaultProfile`, значение `"confirm"` у `downloadOnOpen`, принудительный `concurrency = 1` для FTP; убран дубль и неверные значения по умолчанию. Также убрана дублирующая настройка `wireferry.printDebugLog` — единственный переключатель отладки теперь `wireferry.debug`.
 
-**English:** Fixed upload-on-save (`uploadOnSave`) for files on Windows network/UNC paths (`\\server\share\…`): a host-name case mismatch meant the config service wasn't found on save, surfacing as "Config Not Found" (#589). The **Sync** command now waits for file deletions to finish before reporting success; the `dirPerm` `chmod` is awaited too and no longer swallows errors. Documentation and the settings JSON-schema were aligned with the code: the `local` protocol, the `passive` and `defaultProfile` options, the `"confirm"` value for `downloadOnOpen`, the forced `concurrency = 1` for FTP; removed a duplicate section and incorrect defaults.
+**English:** Fixed upload-on-save (`uploadOnSave`) for files on Windows network/UNC paths (`\\server\share\…`): a host-name case mismatch meant the config service wasn't found on save, surfacing as "Config Not Found" (#589). The **Sync** command now waits for file deletions to finish before reporting success; the `dirPerm` `chmod` is awaited too and no longer swallows errors. Documentation and the settings JSON-schema were aligned with the code: the `local` protocol, the `passive` and `defaultProfile` options, the `"confirm"` value for `downloadOnOpen`, the forced `concurrency = 1` for FTP; removed a duplicate section and incorrect defaults. The redundant `wireferry.printDebugLog` setting was also removed — `wireferry.debug` is now the single debug toggle.
 
 ---
 

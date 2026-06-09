@@ -90,7 +90,7 @@ When you define multiple server profiles (a `profiles` object in the config), th
 ```
 
 ### protocol
-Protocol to be used. Use `local` to sync to another folder on the same machine (no server connection — the `host`/`username` fields are ignored).
+Protocol to be used. Use `local` to sync to another folder on the same machine (no server connection). The `host` and `username` values aren't used for a local sync, but the config validator still requires them — set any placeholder (e.g. `"host": "localhost"`, `"username": "local"`).
 
 | Key | Value | Default |
 | --- | --- | --- |

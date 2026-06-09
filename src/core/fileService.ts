@@ -15,6 +15,8 @@ import { createRemoteIfNoneExist, removeRemoteFs } from './remoteFs';
 import TransferTask from './transferTask';
 import localFs from './localFs';
 
+const isWindows = process.platform === 'win32';
+
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>;
 
 interface Root {
@@ -600,8 +602,14 @@ export default class FileService {
     const ignoreFunc = fsPath => {
       // vscode will always return path with / as separator
       const normalizedPath = path.normalize(fsPath);
+      // baseDir is lowercased on Windows (#589); compare the prefix case-insensitively so a
+      // mixed-case local path (e.g. C:\Users\…) is still recognised as local instead of being
+      // misrouted to the remote branch — otherwise ignore patterns silently stop matching.
+      const isLocalPath = isWindows
+        ? normalizedPath.toLowerCase().indexOf(localContext.toLowerCase()) === 0
+        : normalizedPath.indexOf(localContext) === 0;
       let relativePath;
-      if (normalizedPath.indexOf(localContext) === 0) {
+      if (isLocalPath) {
         // local path — use upath so the relative path uses forward slashes. The `ignore`
         // package is POSIX-only; with Windows backslashes (`node_modules\foo.js`) directory
         // patterns like `node_modules`/`.git` would never match and nothing gets ignored.

@@ -19,6 +19,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 ## What's New · Что нового
 
 **English — in short**
+- **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression where `node_modules`/`.git` could slip through to the server); `local` protocol added to the config schema; documentation clarifications.
 - **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`) — no more "Config Not Found"; Sync now waits for file deletions; documentation & settings-schema accuracy fixes.
 - **2.0.2** — Russian localization of commands & settings (for Russian VS Code) + an "Open Extension Page" item in the server context menu.
 - **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
@@ -31,6 +32,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
 
 **Русский — коротко**
+- **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия 2.0.3 — `node_modules`/`.git` могли уйти на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
 - **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`) — больше нет «Config Not Found»; синхронизация теперь дожидается удаления файлов; уточнения в документации и схеме настроек.
 - **2.0.2** — русская локализация команд и настроек (для русского интерфейса VS Code) + пункт «Открыть страницу расширения» в контекстном меню сервера.
 - **2.0.1** — новая иконка на боковой панели (Activity Bar / «Remote Explorer»).
@@ -66,7 +68,7 @@ WireFerry is an independent VS Code extension built for everyday remote-developm
 
 WireFerry can also be installed from a `.vsix` file — download the latest from the
 **[releases page](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)**, named
-`wireferry-<version>.vsix` (e.g. `wireferry-2.0.3.vsix`).
+`wireferry-<version>.vsix` (e.g. `wireferry-2.0.4.vsix`).
 
 **English**
 
@@ -77,7 +79,7 @@ _Via the VS Code UI (buttons):_
 
 _Via the command line:_
 ```
-code --install-extension wireferry-2.0.2.vsix
+code --install-extension wireferry-2.0.4.vsix
 ```
 Run it from the folder where you downloaded the file (use the real version number).
 
@@ -92,7 +94,7 @@ _Через интерфейс VS Code (кнопками):_
 
 _Через консоль:_
 ```
-code --install-extension wireferry-2.0.2.vsix
+code --install-extension wireferry-2.0.4.vsix
 ```
 Запускайте из папки, куда скачали файл (подставьте актуальный номер версии).
 
