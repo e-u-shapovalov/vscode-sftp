@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.5** — удаление из дерева сервера теперь спрашивает, *где* удалять: **на сервере**, **на компьютере** или **и там и там** (локальная копия уходит в Корзину ОС, а не стирается). Создание папки с уже существующим именем показывает понятное сообщение вместо «Failure». Ошибки SFTP стали читаемее: код 4 расшифровывается, к сообщению добавляются операция и путь. Обновлены руководства (README/INSTALL/FAQ).
 - **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия после 2.0.3 — `node_modules`/`.git` могли выгружаться на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
 - **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
 - **2.0.2** — русская локализация команд и настроек (для русского интерфейса VS Code) + пункт «Открыть страницу расширения» в контекстном меню сервера.
@@ -20,6 +21,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.5** — deleting from the server tree now asks *where* to delete: **on the server**, **on the computer**, or **on both** (the local copy goes to the OS trash, it is not erased). Creating a folder whose name already exists now shows a clear message instead of "Failure". SFTP errors are more readable: status 4 is decoded and the failing operation and path are appended. Manuals updated (README/INSTALL/FAQ).
 - **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression — `node_modules`/`.git` could be uploaded to the server); the `local` protocol is now in the config schema; documentation clarifications.
 - **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
 - **2.0.2** — Russian localization of commands & settings (for Russian VS Code) + an "Open Extension Page" item in the server context menu.
@@ -31,6 +33,14 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.0.5 — Удаление по выбору · Choose where to delete
+
+**Русский:** Удаление файла или папки из дерева сервера («Remote Explorer») теперь спрашивает, **где** удалять: **на сервере**, **на компьютере** или **и там и там** — вместо прежнего единственного «удалить и на сервере, и локально». Локальная копия по-прежнему уходит в Корзину ОС (не стирается безвозвратно). Создание папки с уже существующим именем теперь показывает понятное сообщение «папка уже существует» вместо сырого «Failure» от сервера — раньше так вёл себя только «создать файл», а «создать папку» падало с непонятной ошибкой. Сообщения об ошибках SFTP стали диагностируемее: общий код 4 («Failure») расшифровывается (цель уже существует / ФС только для чтения / нет места / превышена квота), а к тексту добавляются операция и путь. Обновлены руководства: README разделён на русский (`README.md`) и английский (`README.en.md`), добавлен `INSTALL.md`, актуализирован `FAQ.md`.
+
+**English:** Deleting a file or folder from the server tree (Remote Explorer) now asks **where** to delete it: **on the server**, **on the computer**, or **on both** — instead of the previous single "delete on both the server and locally". The local copy still goes to the OS trash (not erased permanently). Creating a folder whose name already exists now shows a clear "folder already exists" message instead of the server's raw "Failure" — previously only "create file" behaved this way while "create folder" failed with a cryptic error. SFTP error messages are more diagnosable: the generic status 4 ("Failure") is decoded (target already exists / read-only filesystem / out of space / over quota) and the failing operation and path are appended. Manuals refreshed: the README is split into Russian (`README.md`) and English (`README.en.md`), an `INSTALL.md` was added, and `FAQ.md` was updated.
 
 ---
 

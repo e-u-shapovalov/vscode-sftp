@@ -7,30 +7,34 @@ import { FileHandleOption } from './option';
 import logger from '../logger';
 
 export const removeRemote = createFileHandler<
-  FileHandleOption & { skipDir?: boolean; removeLocalCopy?: boolean }
+  FileHandleOption & { skipDir?: boolean; removeLocalCopy?: boolean; skipRemote?: boolean }
 >({
   name: 'removeRemote',
   async handle(option) {
-    const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
-    const { remoteFsPath } = this.target;
-    const stat = await remoteFs.lstat(remoteFsPath);
-    let promise;
-    switch (stat.type) {
-      case FileType.Directory:
-        if (option.skipDir) {
-          return;
-        }
+    // skipRemote: delete only the local copy (the "On computer" choice). The server is left
+    // untouched and no remote connection is opened — so it works even if the host is unreachable.
+    if (!option.skipRemote) {
+      const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
+      const { remoteFsPath } = this.target;
+      const stat = await remoteFs.lstat(remoteFsPath);
+      let promise;
+      switch (stat.type) {
+        case FileType.Directory:
+          if (option.skipDir) {
+            return;
+          }
 
-        promise = fileOperations.removeDir(remoteFsPath, remoteFs, {});
-        break;
-      case FileType.File:
-      case FileType.SymbolicLink:
-        promise = fileOperations.removeFile(remoteFsPath, remoteFs, {});
-        break;
-      default:
-        logger.warn(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
+          promise = fileOperations.removeDir(remoteFsPath, remoteFs, {});
+          break;
+        case FileType.File:
+        case FileType.SymbolicLink:
+          promise = fileOperations.removeFile(remoteFsPath, remoteFs, {});
+          break;
+        default:
+          logger.warn(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
+      }
+      await promise;
     }
-    await promise;
 
     // Optionally mirror the deletion to the local copy. Only the Remote Explorer
     // "Delete" command opts in via removeLocalCopy; other callers (file watcher,

@@ -1,51 +1,87 @@
-# Contributing to vscode-sftp
+# Contributing to WireFerry
 
-After you've created a branch on your fork with your changes, [open a pull request][pr-link]. 
+## Русский
 
-*Please follow the guidelines given below while making a Pull Request to the vscode-sftp*
+WireFerry — независимо поддерживаемый форк [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), который сам является форком [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). Основная ветка разработки: `develop`.
 
-## Pull Request Guidelines
+Перед изменениями убедитесь, что понимаете текущий формат конфигурации (`.vscode/wireferry.json`), legacy-совместимость с `.vscode/sftp.json` и реальные команды из `package.json`.
 
-* The Description should not exceed 100 characters.
-* Make sure the PR title is in the format of `Add/Remove/Fix <feature>` *for e.g.*: `Add OpenSSH`
-* Use a short descriptive commit message. *for e.g.*: ❌`Update Readme.md`  ✔ `Add OpenSSH connection Method`
-* Search previous Pull Requests or Issues before making a new one, as yours may be a duplicate.
-* Please make sure the feature has proper documentation.
-* Please make sure you squash all commits together before opening a pull request. If your pull request requires changes upon review, please be sure to squash all additional commits as well. [This wiki page][squash-link] outlines the squash process.
-* Target your Pull Request to the `develop` branch of the `vscode-sftp`
+### Локальная разработка
 
-Once you've submitted a pull request, the collaborators can review your proposed changes and decide whether or not to incorporate (pull in) your changes.
+```bash
+git clone https://github.com/e-u-shapovalov/vscode-sftp.git
+cd vscode-sftp
+npm install
+npm run compile
+npm test
+npx tsc --noEmit
+```
 
-### Pull Request Pro Tips
+Упаковка локального `.vsix`:
 
-* [Fork][fork-link] the repository and [clone][clone-link] it locally.
-Connect your local repository to the original `upstream` repository by adding it as a [remote][remote-link].
-Pull in changes from `upstream` often so that you stay up to date and so when you submit your pull request,
-merge conflicts will be less likely. See more detailed instructions [here][syncing-link].
-* Create a [branch][branch-link] for your edits.
-* Contribute in the style of the project as outlined above. This makes it easier for the collaborators to merge
-and for others to understand and maintain in the future.
+```bash
+npx @vscode/vsce package
+```
 
-### Open Pull Requests
+### Что проверять перед pull request
 
-Once you've opened a pull request, a discussion will start around your proposed changes.
+- `npm run compile` завершается с exit code `0`.
+- `npx tsc --noEmit` проходит без ошибок.
+- `npm test` проходит; один тест для `remoteTimeOffsetInHours` может быть намеренно пропущен, пока функция не включена в transfer pipeline.
+- Документация обновлена вместе с изменением поведения.
+- Новые команды добавлены не только в код, но и в `package.json`, локализацию и документацию.
+- Изменения не ломают legacy `.vscode/sftp.json`, если задача не требует обратного.
 
-Other contributors and users may chime in, but ultimately the decision is made by the collaborators.
+### Стиль изменений
 
-During the discussion, you may be asked to make some changes to your pull request.
+- Делайте небольшие PR с одной темой.
+- Не смешивайте рефакторинг, обновление зависимостей и пользовательскую функцию без необходимости.
+- Для исправления бага добавляйте тест там, где это разумно.
+- Для пользовательских изменений обновляйте README, CHANGELOG или docs.
+- Если меняется релизная информация, держите русский раздел перед английским.
 
-If so, add more commits to your branch and push them – they will automatically go into the existing pull request. But don't forget to squash them.
+### Публикация
 
-Opening a pull request will trigger a build to check the validity of all links in the project. After the build completes, **please ensure that the build has passed**. If the build did not pass, please view the build logs and correct any errors that were found in your contribution. 
+Публикация и упаковка описаны в [PUBLISHING.md](PUBLISHING.md). Опубликованную версию нельзя заменить тем же номером: для нового пакета нужен bump версии.
 
-*Thanks for being a part of this project, and we look forward to hearing from you soon!*
+## English
 
-[branch-link]: <http://guides.github.com/introduction/flow/>
-[clone-link]: <https://help.github.com/articles/cloning-a-repository/>
-[fork-link]: <http://guides.github.com/activities/forking/>
-[oauth-link]: <https://en.wikipedia.org/wiki/OAuth>
-[pr-link]: <https://help.github.com/articles/creating-a-pull-request/>
-[remote-link]: <https://help.github.com/articles/configuring-a-remote-for-a-fork/>
-[syncing-link]: <https://help.github.com/articles/syncing-a-fork>
-[squash-link]: <https://github.com/todotxt/todo.txt-android/wiki/Squash-All-Commits-Related-to-a-Single-Issue-into-a-Single-Commit>
+WireFerry is an independently maintained fork of [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), which itself is a fork of [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). The main development branch is `develop`.
 
+### Local Development
+
+```bash
+git clone https://github.com/e-u-shapovalov/vscode-sftp.git
+cd vscode-sftp
+npm install
+npm run compile
+npm test
+npx tsc --noEmit
+```
+
+Package a local VSIX:
+
+```bash
+npx @vscode/vsce package
+```
+
+### Pull Request Checklist
+
+- `npm run compile` exits with code `0`.
+- `npx tsc --noEmit` passes.
+- `npm test` passes; one `remoteTimeOffsetInHours` test may remain intentionally skipped until that feature is re-enabled in the transfer pipeline.
+- Documentation is updated when behavior changes.
+- New commands are wired through code, `package.json`, localization and docs.
+- Legacy `.vscode/sftp.json` compatibility is preserved unless the change explicitly targets it.
+
+### Change Style
+
+- Keep PRs focused.
+- Avoid mixing refactoring, dependency upgrades and user-facing behavior in one change.
+- Add tests for bug fixes where practical.
+- Update README, CHANGELOG or docs for user-facing changes.
+- Keep Russian sections before English sections in release-facing documents.
+
+### Publishing
+
+Packaging and publishing are documented in [PUBLISHING.md](PUBLISHING.md). A published version cannot be overwritten; bump the version for every new package.

@@ -48,7 +48,16 @@ export function rename(srcPath: string, destPath: string, fs: FileSystem): Promi
   return fs.rename(srcPath, destPath);
 }
 
-export function createDir(path: string, fs: FileSystem, option): Promise<void> {
+export async function createDir(path: string, fs: FileSystem, option): Promise<void> {
+  try {
+    await fs.lstat(path);
+    logger.warn(`Can't create folder because it already exists`);
+    window.showErrorMessage(`Can't create folder because it already exists`);
+    return;
+  } catch (error) {
+    // folder doesn't exist — proceed to create it
+  }
+
   return fs.mkdir(path);
 }
 

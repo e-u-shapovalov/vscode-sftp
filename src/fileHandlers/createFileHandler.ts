@@ -98,14 +98,14 @@ export default function createFileHandler<T>(
     app.sftpBarItem.startSpinner();
     try {
       await handlerOption.handle.call(handleCtx, invokeOption);
-    // } catch (error) {
-    //   reportError(error, `when ${handlerOption.name} ${target.localFsPath}`);
-    //   Object.defineProperty(error, 'reported', {
-    //     configurable: false,
-    //     enumerable: false,
-    //     value: true,
-    //   });
-    //   throw error;
+    } catch (error) {
+      // Annotate the error with the operation + remote path so the single top-level reporter can
+      // turn a bare SFTP "Failure" into something diagnosable. We only tag and rethrow here — the
+      // actual reporting still happens once, at the command boundary.
+      if (error && typeof error === 'object' && !(error as any).ctx) {
+        (error as any).ctx = `${handlerOption.name} ${target.remoteFsPath}`;
+      }
+      throw error;
     } finally {
       app.sftpBarItem.stopSpinner();
     }
