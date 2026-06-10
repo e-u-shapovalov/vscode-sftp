@@ -13,7 +13,7 @@ import {
   disposeFileService,
 } from './serviceManager';
 import { reportError, isValidFile, isConfigFile, isInWorkspace } from '../helper';
-import { downloadFile, uploadFile } from '../fileHandlers';
+import { downloadFile, uploadFile, handleCtxFromUri } from '../fileHandlers';
 
 let workspaceWatcher: vscode.Disposable;
 
@@ -66,25 +66,47 @@ async function downloadOnOpen(uri: vscode.Uri) {
   }
 
   const config = fileService.getConfig();
-  if (config.downloadOnOpen) {
-    if (config.downloadOnOpen === 'confirm') {
-      const isConfirm = await showConfirmMessage(
-        L({
-          en: 'Do you want WireFerry to download this file?',
-          ru: 'Скачать этот файл с помощью WireFerry?',
-        })
-      );
-      if (!isConfirm) return;
-    }
+  if (!config.downloadOnOpen) {
+    return;
+  }
 
-    const fspath = uri.fsPath;
-    logger.info(`[file-open] ${fspath}`);
-    try {
-      await downloadFile(uri);
-    } catch (error) {
-      logger.error(error, `download ${fspath}`);
-      app.sftpBarItem.updateStatus(StatusBarItem.Status.error);
+  // The config file itself (.vscode/wireferry.json | sftp.json) does not live on the server — opening
+  // it must never trigger a download.
+  if (isConfigFile(uri)) {
+    return;
+  }
+
+  // Only act when the file actually EXISTS on the server. Without this, opening a local-only file
+  // (e.g. a freshly created config, or any file you haven't uploaded) prompted and then failed with
+  // "No such file" — and asking before knowing whether there is anything to download is what made it
+  // "ask for everything". The lstat runs BEFORE the confirm so "No" can't arrive after a download.
+  try {
+    const ctx = handleCtxFromUri(uri);
+    const remoteFs = await fileService.getRemoteFileSystem(config);
+    await remoteFs.lstat(ctx.target.remoteFsPath);
+  } catch (e) {
+    return; // not on the server (or unreachable) — nothing to download, stay silent
+  }
+
+  if (config.downloadOnOpen === 'confirm') {
+    const isConfirm = await showConfirmMessage(
+      L({
+        en: 'Download the server copy of this file (overwrites your local copy)?',
+        ru: 'Скачать серверную версию этого файла (перезапишет локальную копию)?',
+      })
+    );
+    if (!isConfirm) {
+      return;
     }
+  }
+
+  const fspath = uri.fsPath;
+  logger.info(`[file-open] ${fspath}`);
+  try {
+    await downloadFile(uri);
+  } catch (error) {
+    logger.error(error, `download ${fspath}`);
+    app.sftpBarItem.updateStatus(StatusBarItem.Status.error);
   }
 }
 

@@ -73,65 +73,65 @@
       },
       "downloadOnOpen": {
         "enum": ["confirm", true, false],
-        "description": "Download when a file opens: true / false, or \"confirm\" to ask first.",
+        "description": "When you open a local file that also exists on the server, download the server copy over it: true (always), \"confirm\" (ask first), or false. Files that don't exist on the server are left alone.",
         "default": false
       },
       "syncOption": {
         "type": "object",
-        "description": "Configuration the behavior of `Sync` command.",
+        "description": "Behaviour of the `Sync` command. `source` and `destination` depend on direction: `Sync Local -> Remote` makes your computer the source and the server the destination; `Sync Remote -> Local` is the reverse.",
         "properties": {
           "delete": {
             "type": "boolean",
-            "description": "Delete extraneous files from dest dirs.",
+            "description": "Delete files in the destination that don't exist in the source (mirror the source).",
             "default": true
           },
           "skipCreate": {
             "type": "boolean",
-            "description": "Skip creating new files on dest.",
+            "description": "Don't create files in the destination that exist only in the source.",
             "default": true
           },
           "ignoreExisting": {
             "type": "boolean",
-            "description": "Skip updating files that exist on dest.",
+            "description": "Don't touch files that already exist in the destination.",
             "default": true
           },
           "update": {
             "type": "boolean",
-            "description": "Update the dest only if a newer version is on the src filesystem.",
+            "description": "Overwrite an existing destination file only when the source copy is newer.",
             "default": true
           }
         }
       },
       "ignore": {
         "type": "array",
-        "description": "Files to ignore. Same behavior as gitignore.",
+        "description": "Files to skip in EVERY transfer — upload, download and sync (not deleted, just never transferred). gitignore-style patterns, matched relative to `context` for local files and to `remotePath` on the server.",
         "items": {
           "type": "string",
-          "description": "Ignore pattern."
+          "description": "gitignore-style pattern, e.g. \"node_modules\", \".git\", \"*.log\"."
         },
         "default": [".vscode", ".git", ".DS_Store"]
       },
       "ignoreFile": {
         "type": "string",
-        "description": "Absolute path to the ignore file or Relative path relative to the workspace root folder.",
+        "description": "Also read ignore patterns from this file (.gitignore format, one per line); they are added to `ignore`. Path relative to the workspace root folder, or absolute. Default: \".gitignore\".",
         "default": ".gitignore"
       },
       "remoteExplorer": {
         "type": "object",
-        "description": "Remote Explorer Setting.",
+        "description": "Affects ONLY how the Remote Explorer panel looks, not file transfers.",
         "properties": {
           "filesExclude": {
             "type": "array",
-            "description": "Configure patterns for excluding files and folders. The Remote Explorer decides which files and folders to show or hide based on this setting.",
+            "description": "Hide these files/folders in the server tree (visual only — does not affect upload/download). gitignore-style patterns, matched relative to `remotePath`. .git/.svn/.hg/CVS/.DS_Store are always hidden too.",
             "items": {
               "type": "string",
-              "description": "Exclude pattern."
+              "description": "gitignore-style pattern, e.g. \"*.log\", \"cache\"."
             },
             "default": []
           },
           "order": {
             "type": "number",
-            "description": "Remote Explorer will ascending sorting by this value. If the values are the same, sort by name.",
+            "description": "This server's position in the tree when several are configured: lower number sorts higher; equal values sort by name. No effect with a single server.",
             "default": 0
           }
         }
