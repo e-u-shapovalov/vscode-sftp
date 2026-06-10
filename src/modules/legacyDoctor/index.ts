@@ -20,11 +20,15 @@ import { openReportTab } from '../../ui/reportTab';
 import { scanSettings, scanConfig, Issue, IssueKind } from './scan';
 import { buildSummary, formatIssue, buildReportMarkdown } from './report';
 import { migrateSettingsText } from './autofix';
-import { CONFIG_TEMPLATE } from './template';
+import { getConfigTemplate } from './template';
 
 // Per-window-session dedup: the doctor's notifications fire at most once per VS Code window.
 let diagnosed = false;
 const renamePrompted = new Set<string>();
+const createPrompted = new Set<string>();
+
+// workspaceState key: the user answered "don't ask in this project" to the create-config prompt.
+const CREATE_DECLINED_KEY = (basePath: string) => `wireferry.createConfigDeclined:${basePath}`;
 
 // Orchestrates the legacy-config doctor at startup. Best-effort: any failure is swallowed so it
 // never blocks activation. Three independent concerns, in order:
@@ -35,34 +39,63 @@ export async function runLegacyDoctor(context: vscode.ExtensionContext): Promise
   const folders = getWorkspaceFolders();
   if (folders) {
     for (const folder of folders) {
-      await ensureConfigTemplate(context, folder.uri.fsPath);
+      await offerCreateConfig(context, folder.uri.fsPath);
       await offerConfigRename(folder.uri.fsPath);
     }
   }
   await diagnoseLegacyKeys(folders);
 }
 
-// --- Part 6: auto-create a commented template when a workspace has no config at all -----------
-async function ensureConfigTemplate(
+// --- Part 6: offer to create a config for a workspace that has none ---------------------------
+// Asks first — a project may not need SFTP/FTP at all — instead of creating silently. "Don't ask in
+// this project" is remembered in workspaceState; deleting the config and restarting asks again (the
+// answer can also differ by alert language, so the template is generated fresh each time).
+async function offerCreateConfig(
   context: vscode.ExtensionContext,
   basePath: string
 ): Promise<void> {
   const wfPath = path.join(basePath, CONFIG_PATH);
   const legacyPath = path.join(basePath, LEGACY_CONFIG_PATH);
   if (fse.existsSync(wfPath) || fse.existsSync(legacyPath)) {
-    return; // a config already exists — never overwrite or shadow it
+    return; // a config already exists — nothing to offer
   }
   if (getExtensionSetting().suppressLegacyConfigNotice) {
     return;
   }
-  // Only ever offer once per workspace, so a user who deletes it isn't pestered again.
-  const guardKey = `wireferry.templateCreated:${basePath}`;
-  if (context.workspaceState.get(guardKey)) {
-    return;
+  if (context.workspaceState.get(CREATE_DECLINED_KEY(basePath))) {
+    return; // user chose "don't ask in this project"
   }
+  if (createPrompted.has(basePath)) {
+    return; // already asked this window session
+  }
+  createPrompted.add(basePath);
+
+  const CREATE = L({ en: 'Create config', ru: 'Создать конфиг' });
+  const NOT_NOW = L({ en: 'Not now', ru: 'Не сейчас' });
+  const NEVER = L({ en: "Don't ask in this project", ru: 'Не спрашивать в этом проекте' });
+  const choice = await vscode.window.showInformationMessage(
+    L({
+      en: 'WireFerry: set up SFTP/FTP for this project? A commented config template will be created at .vscode/wireferry.json.',
+      ru: 'WireFerry: настроить SFTP/FTP для этого проекта? Будет создан шаблон .vscode/wireferry.json с комментариями.',
+    }),
+    CREATE,
+    NOT_NOW,
+    NEVER
+  );
+
+  if (choice === CREATE) {
+    await createConfigTemplate(wfPath);
+  } else if (choice === NEVER) {
+    await context.workspaceState.update(CREATE_DECLINED_KEY(basePath), true);
+  }
+  // NOT_NOW / dismissed: do nothing — it asks again next window session.
+}
+
+// Write the commented template (in the current alert language), open it, and prompt the user to fill
+// it in. Used by the create prompt above.
+async function createConfigTemplate(wfPath: string): Promise<void> {
   try {
-    await fse.outputFile(wfPath, CONFIG_TEMPLATE);
-    await context.workspaceState.update(guardKey, true);
+    await fse.outputFile(wfPath, getConfigTemplate(getAlertLang()));
     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(wfPath));
     await vscode.window.showTextDocument(doc);
     vscode.window.showInformationMessage(
@@ -72,7 +105,7 @@ async function ensureConfigTemplate(
       })
     );
   } catch (e) {
-    reportError(e, 'ensureConfigTemplate');
+    reportError(e, 'createConfigTemplate');
   }
 }
 

@@ -1,7 +1,7 @@
 const { parse: parseJsonc } = require('jsonc-parser');
 const { scanSettings, scanConfig, offsetToLine } = require('../src/modules/legacyDoctor/scan');
 const { migrateSettingsText } = require('../src/modules/legacyDoctor/autofix');
-const { CONFIG_TEMPLATE } = require('../src/modules/legacyDoctor/template');
+const { getConfigTemplate } = require('../src/modules/legacyDoctor/template');
 
 // These modules are pure (jsonc-parser only, no `vscode`), so they need no mock.
 const KNOWN_SETTINGS = [
@@ -103,9 +103,9 @@ describe('legacy doctor — autofix (settings migration)', () => {
 });
 
 describe('legacy doctor — config template', () => {
-  test('is valid JSONC and contains the required fields', () => {
+  test.each(['en', 'ru'])('%s template is valid JSONC with the required fields', lang => {
     const errors = [];
-    const parsed = parseJsonc(CONFIG_TEMPLATE, errors, { allowTrailingComma: true });
+    const parsed = parseJsonc(getConfigTemplate(lang), errors, { allowTrailingComma: true });
     expect(errors).toHaveLength(0);
     ['name', 'host', 'port', 'username', 'protocol', 'remotePath', 'context', 'uploadOnSave'].forEach(
       key => expect(parsed).toHaveProperty(key)

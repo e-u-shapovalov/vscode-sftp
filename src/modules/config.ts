@@ -6,6 +6,8 @@ import { parse as parseJsonc, printParseErrorCode, ParseError } from 'jsonc-pars
 import { CONFIG_PATH, LEGACY_CONFIG_PATH } from '../constants';
 import { reportError } from '../helper';
 import { showTextDocument } from '../host';
+import { getConfigTemplate } from './legacyDoctor/template';
+import { getAlertLang } from '../i18n';
 
 const nullable = schema => schema.optional().allow(null);
 
@@ -226,22 +228,9 @@ export function newConfig(basePath) {
       }
 
       const configPath = getConfigPath(basePath);
+      // Write the same fully-commented, localized template the startup doctor uses (JSONC).
       return fse
-        .outputJson(
-          configPath,
-          {
-            name: 'My Server',
-            host: 'localhost',
-            protocol: 'sftp',
-            port: 22,
-            username: 'username',
-            remotePath: '/',
-            uploadOnSave: false,
-            useTempFile: false,
-            openSsh: false,
-          },
-          { spaces: 4 }
-        )
+        .outputFile(configPath, getConfigTemplate(getAlertLang()))
         .then(() => showTextDocument(vscode.Uri.file(configPath)));
     })
     .catch(reportError);

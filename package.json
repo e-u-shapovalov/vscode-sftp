@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -87,8 +87,14 @@
         },
         "wireferry.alertLanguage": {
           "type": "string",
-          "enum": ["en", "ru"],
-          "enumDescriptions": ["English", "Русский"],
+          "enum": [
+            "en",
+            "ru"
+          ],
+          "enumDescriptions": [
+            "English",
+            "Русский"
+          ],
           "default": "en",
           "description": "%wireferry.alertLanguage.description%"
         }
@@ -514,6 +520,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "wireferry.config",
+          "group": "navigation@19",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
+        },
         {
           "command": "wireferry.revealInRemoteExplorer",
           "group": "navigation@20",
