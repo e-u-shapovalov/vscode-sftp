@@ -16,6 +16,7 @@ import {
 } from '../../constants';
 import { UResource, upath } from '../../core';
 import { toRemotePath } from '../../helper';
+import { L } from '../../i18n';
 import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
 import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
@@ -112,14 +113,17 @@ export default class RemoteExplorer {
     const roots = this._treeDataProvider.getRoots();
     if (roots.length === 0) {
       showWarningMessage(
-        'WireFerry: no remote is configured. Open a workspace with .vscode/wireferry.json first.'
+        L({
+          en: 'WireFerry: no remote is configured. Open a workspace with .vscode/wireferry.json first.',
+          ru: 'WireFerry: не настроен ни один сервер. Сначала откройте проект с .vscode/wireferry.json.',
+        })
       );
       return;
     }
 
     const input = await vscode.window.showInputBox({
       ignoreFocusOut: true,
-      prompt: 'Open a remote file by its full path',
+      prompt: L({ en: 'Open a remote file by its full path', ru: 'Открыть файл на сервере по полному пути' }),
       placeHolder: 'e.g. /etc/acpi/handler.sh',
     });
     if (input === undefined) {
@@ -139,8 +143,10 @@ export default class RemoteExplorer {
       const matching = roots.filter(r => isUnderRoot(r.resource.fsPath, abs));
       if (matching.length === 0) {
         showWarningMessage(
-          `WireFerry:"${abs}" is outside every configured remote root ` +
-            `(${roots.map(r => r.resource.fsPath).join(', ')}).`
+          L({
+            en: `WireFerry: "${abs}" is outside every configured remote root (${roots.map(r => r.resource.fsPath).join(', ')}).`,
+            ru: `WireFerry: «${abs}» вне всех настроенных корней сервера (${roots.map(r => r.resource.fsPath).join(', ')}).`,
+          })
         );
         return;
       }
@@ -161,11 +167,21 @@ export default class RemoteExplorer {
       item = await this._resolveByPath(root, remotePath);
     } catch (error) {
       const detail = error && (error as Error).message ? (error as Error).message : String(error);
-      showErrorMessage(`WireFerry:failed to reach "${remotePath}". ${detail}`);
+      showErrorMessage(
+        L({
+          en: `WireFerry: failed to reach "${remotePath}". ${detail}`,
+          ru: `WireFerry: не удалось получить доступ к «${remotePath}». ${detail}`,
+        })
+      );
       return;
     }
     if (!item) {
-      showWarningMessage(`WireFerry:"${remotePath}" was not found on the server.`);
+      showWarningMessage(
+        L({
+          en: `WireFerry: "${remotePath}" was not found on the server.`,
+          ru: `WireFerry: «${remotePath}» не найден на сервере.`,
+        })
+      );
       return;
     }
 
@@ -184,7 +200,7 @@ export default class RemoteExplorer {
       root: r,
     }));
     const picked = await vscode.window.showQuickPick(picks, {
-      placeHolder: 'Select the remote this path belongs to',
+      placeHolder: L({ en: 'Select the remote this path belongs to', ru: 'Выберите сервер, которому принадлежит путь' }),
     });
     return picked ? picked.root : undefined;
   }

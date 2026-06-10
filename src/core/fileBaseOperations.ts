@@ -2,6 +2,7 @@ import { FileSystem } from './fs';
 import { window } from 'vscode';
 import { Readable } from 'stream';
 import logger from '../logger';
+import { L } from '../i18n';
 
 interface FileOption {
   mode?: number;
@@ -52,7 +53,9 @@ export async function createDir(path: string, fs: FileSystem, option): Promise<v
   try {
     await fs.lstat(path);
     logger.warn(`Can't create folder because it already exists`);
-    window.showErrorMessage(`Can't create folder because it already exists`);
+    window.showErrorMessage(
+      L({ en: `Can't create folder because it already exists`, ru: 'Не удаётся создать папку: она уже существует' })
+    );
     return;
   } catch (error) {
     // folder doesn't exist — proceed to create it
@@ -65,7 +68,9 @@ export async function createFile(path: string, fs: FileSystem, option): Promise<
   try {
     await fs.lstat(path);
     logger.warn(`Can't create file because file already exists`);
-    window.showErrorMessage(`Can't create file because file already exists`);
+    window.showErrorMessage(
+      L({ en: `Can't create file because file already exists`, ru: 'Не удаётся создать файл: он уже существует' })
+    );
     return;
   } catch (error) {
     // file doesn't exist — proceed to create it

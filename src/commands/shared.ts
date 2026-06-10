@@ -5,6 +5,7 @@ import { getAllFileService } from '../modules/serviceManager';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { getActiveTextEditor } from '../host';
 import { listFiles, toLocalPath, simplifyPath } from '../helper';
+import { L } from '../i18n';
 
 function configIngoreFilterCreator(config) {
   if (!config || !config.ignore) {
@@ -62,7 +63,7 @@ export function selectContext(): Promise<Uri | undefined> {
 
     window
       .showQuickPick(projectsList, {
-        placeHolder: 'Select a folder...',
+        placeHolder: L({ en: 'Select a folder...', ru: 'Выберите папку...' }),
       })
       .then(selection => {
         if (selection) {

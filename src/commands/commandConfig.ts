@@ -9,6 +9,7 @@ import {
   addWorkspaceFolder,
 } from '../host';
 import { checkCommand } from './abstract/createCommand';
+import { L } from '../i18n';
 
 export default checkCommand({
   id: COMMAND_CONFIG,
@@ -17,9 +18,9 @@ export default checkCommand({
     const workspaceFolders = getWorkspaceFolders();
     if (!workspaceFolders) {
       const result = await showConfirmMessage(
-        'WireFerry expects to work at a folder.',
-        'Open Folder',
-        'Ok'
+        L({ en: 'WireFerry expects to work at a folder.', ru: 'WireFerry работает в открытой папке.' }),
+        L({ en: 'Open Folder', ru: 'Открыть папку' }),
+        L({ en: 'Ok', ru: 'Ок' })
       );
 
       if (!result) {
@@ -31,9 +32,12 @@ export default checkCommand({
 
     if (workspaceFolders.length <= 0) {
       const result = await showConfirmMessage(
-        'There are no available folders in current workspace.',
-        'Add Folder to Workspace',
-        'Ok'
+        L({
+          en: 'There are no available folders in current workspace.',
+          ru: 'В текущем рабочем пространстве нет доступных папок.',
+        }),
+        L({ en: 'Add Folder to Workspace', ru: 'Добавить папку в рабочее пространство' }),
+        L({ en: 'Ok', ru: 'Ок' })
       );
 
       if (!result) {
@@ -67,7 +71,7 @@ export default checkCommand({
 
     vscode.window
       .showQuickPick(initDirs, {
-        placeHolder: 'Select a folder...',
+        placeHolder: L({ en: 'Select a folder...', ru: 'Выберите папку...' }),
       })
       .then(item => {
         if (item === undefined) {

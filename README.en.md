@@ -11,7 +11,7 @@ Project lineage: WireFerry is a fork of [Natizyskunk/vscode-sftp](https://github
 
 Most users need the ready-to-install VS Code extension package:
 
-**[`wireferry-2.0.5.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/download/v2.0.5/wireferry-2.0.5.vsix)**
+**[`wireferry-<version>.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)**
 
 Install it in VS Code:
 
@@ -20,14 +20,14 @@ Install it in VS Code:
 3. Open **Extensions** (`Ctrl+Shift+X`).
 4. Click **...** in the top-right corner of the Extensions panel.
 5. Choose **Install from VSIX...**.
-6. Select `wireferry-2.0.5.vsix` and reload VS Code if prompted.
+6. Select `wireferry-<version>.vsix` and reload VS Code if prompted.
 
 > If you are not developing the extension itself, do **not** use `Code -> Download ZIP` and do **not** download `Source code`. Install the `.vsix` file from the release **Assets** section.
 
 CLI install:
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 ## Quick Start

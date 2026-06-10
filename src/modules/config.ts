@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import * as Joi from 'joi';
+import { parse as parseJsonc, printParseErrorCode, ParseError } from 'jsonc-parser';
 import { CONFIG_PATH, LEGACY_CONFIG_PATH } from '../constants';
 import { reportError } from '../helper';
 import { showTextDocument } from '../host';
@@ -66,6 +67,11 @@ const configScheme = {
       .items(Joi.string()),
     order: Joi.number(),
   },
+
+  // Opt-out marker written by the legacy-config migration prompt: when true, WireFerry stops
+  // offering to rename .vscode/sftp.json -> wireferry.json. Declared here so it isn't flagged
+  // as an unknown key by the legacy doctor's config scan.
+  keepLegacyConfigFormat: Joi.boolean(),
 };
 
 const defaultConfig = {
@@ -112,6 +118,20 @@ const defaultConfig = {
   },
 };
 
+// Top-level config keys WireFerry recognises. Single source of truth for the legacy doctor's
+// "unknown key" scan (src/modules/legacyDoctor). Derived from `configScheme` plus keys that
+// exist in the JSON schema (schema/definitions.json) / at runtime but aren't in the Joi shape.
+export const KNOWN_CONFIG_KEYS: ReadonlyArray<string> = [
+  ...Object.keys(configScheme),
+  'filePerm',
+  'dirPerm',
+  'defaultProfile',
+  'limitOpenFilesOnRemote',
+  'hop',
+  'profiles',
+  'remote',
+];
+
 function mergedDefault(config) {
   return {
     ...defaultConfig,
@@ -157,7 +177,20 @@ export function validateConfig(config) {
 }
 
 export function readConfigsFromFile(configPath): Promise<any[]> {
-  return fse.readJson(configPath).then(config => {
+  return fse.readFile(configPath, 'utf8').then((content: string) => {
+    // Parse as JSONC so a config may carry // and /* */ comments and trailing commas — the
+    // generated template (src/modules/legacyDoctor/template) ships with explanatory comments.
+    const errors: ParseError[] = [];
+    const config = parseJsonc(content, errors, {
+      allowTrailingComma: true,
+      disallowComments: false,
+    });
+    if (errors.length) {
+      const { error, offset } = errors[0];
+      throw new Error(
+        `Invalid JSON in ${configPath}: ${printParseErrorCode(error)} at offset ${offset}`
+      );
+    }
     const configs = Array.isArray(config) ? config : [config];
     return configs.map(mergedDefault);
   });

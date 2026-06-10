@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.6** — совместимость с легаси `sftp.*`: старые настройки снова работают (читаются как `wireferry.*`). При старте расширение проверяет `settings.json` и конфиг и подсказывает с номерами строк, что заменить (`sftp.*` → `wireferry.*`) или удалить; умеет починить `settings.json` автоматически и предложить переименовать `.vscode/sftp.json` в `wireferry.json`. Конфиг теперь допускает комментарии (JSONC), а для нового проекта создаётся подробный шаблон. Добавлена проверка обновлений на GitHub (с вашего согласия, один HTTPS-запрос, без телеметрии) и команда **«Проверить обновления»**. Появились настройка языка сообщений (`wireferry.alertLanguage`) и окно-отчёт диагностики, которое висит, пока не закроешь.
 - **2.0.5** — удаление из дерева сервера теперь спрашивает, *где* удалять: **на сервере**, **на компьютере** или **и там и там** (локальная копия уходит в Корзину ОС, а не стирается). Создание папки с уже существующим именем показывает понятное сообщение вместо «Failure». Ошибки SFTP стали читаемее: код 4 расшифровывается, к сообщению добавляются операция и путь. Обновлены руководства (README/INSTALL/FAQ).
 - **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия после 2.0.3 — `node_modules`/`.git` могли выгружаться на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
 - **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
@@ -21,6 +22,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.6** — legacy `sftp.*` compatibility: old settings work again (read as `wireferry.*`). On startup WireFerry checks your `settings.json` and config and points out, with line numbers, what to rename (`sftp.*` → `wireferry.*`) or remove; it can fix `settings.json` automatically and offer to rename `.vscode/sftp.json` to `wireferry.json`. Configs now allow comments (JSONC), and a fully-commented template is created for new projects. Added an opt-in GitHub update check (one HTTPS request, only after you agree, no telemetry) and a **"Check for Updates"** command. Plus a `wireferry.alertLanguage` setting and a persistent report tab for the config doctor.
 - **2.0.5** — deleting from the server tree now asks *where* to delete: **on the server**, **on the computer**, or **on both** (the local copy goes to the OS trash, it is not erased). Creating a folder whose name already exists now shows a clear message instead of "Failure". SFTP errors are more readable: status 4 is decoded and the failing operation and path are appended. Manuals updated (README/INSTALL/FAQ).
 - **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression — `node_modules`/`.git` could be uploaded to the server); the `local` protocol is now in the config schema; documentation clarifications.
 - **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
@@ -33,6 +35,30 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.0.6 — Совместимость с легаси и доктор конфигурации · Legacy compatibility & config doctor
+
+**Русский:** После вынужденного переименования `sftp-link → wireferry` (2.0.0) пользовательские настройки с префиксом `sftp.*` перестали читаться — например, файлы из дерева сервера открывались только на чтение, потому что игнорировался `sftp.downloadWhenOpenInRemoteExplorer`. Совместимость восстановлена и расширена:
+
+- **Настройки `sftp.*` снова работают** — читаются как запасной вариант для `wireferry.*` (явно заданный `wireferry.*` имеет приоритет).
+- **Доктор конфигурации при старте** один раз показывает сводку проблем: какие легаси `sftp.*` заменить на `wireferry.*` и какие неподдерживаемые ключи удалить — с путём и номером строки, по `settings.json` и `.vscode/{wireferry,sftp}.json`. Кнопки: открыть файл на нужной строке, «Подробности» в канал Output, «Исправить `settings.json`» автоматически (переносит `sftp.*` → `wireferry.*`, группируя ключи рядом), «Больше не напоминать» (`wireferry.suppressLegacyConfigNotice`).
+- **Переименование конфига** — если остался только `.vscode/sftp.json`, предлагается переименовать его в `.vscode/wireferry.json`; при отказе (подтверждение вводом `yes`) в конфиг пишется маркер `keepLegacyConfigFormat`, и напоминания прекращаются.
+- **Комментарии в конфиге (JSONC)** — `.vscode/{wireferry,sftp}.json` теперь читаются как JSONC, можно добавлять `//`-комментарии. Для нового проекта без конфигов создаётся подробный закомментированный шаблон, который сразу открывается.
+- **Проверка обновлений на GitHub** — по желанию. Перед первым запросом спрашивается разрешение; при согласии делается **один** HTTPS-запрос (GET) к `api.github.com` за номером последнего релиза — без телеметрии, никакие ваши данные не отправляются. Фоновая проверка при старте только скачивает `.vsix` (установку запускаете вы), а команда **«WireFerry: Проверить обновления»** (палитра и шапка Remote Explorer) проверяет вручную и может скачать и установить обновление. Отключается настройкой `wireferry.checkForUpdates`.
+- **Язык сообщений** — новая настройка `wireferry.alertLanguage` (по умолчанию English): всплывающие сообщения и запросы самого WireFerry можно переключить на русский независимо от языка интерфейса VS Code.
+- **Окно-отчёт** — диагностику конфигурации доктор дополнительно открывает отдельной вкладкой-отчётом (с путями и номерами строк), которая остаётся открытой, пока её не закроют, — чтобы успеть прочитать и скопировать пути (всплывающие окна исчезают слишком быстро).
+
+**English:** After the forced `sftp-link → wireferry` rename (2.0.0), user settings under the `sftp.*` prefix stopped being read — e.g. files from the server tree opened read-only because `sftp.downloadWhenOpenInRemoteExplorer` was ignored. Compatibility is restored and extended:
+
+- **`sftp.*` settings work again** — read as a fallback for `wireferry.*` (an explicit `wireferry.*` wins).
+- **A startup config doctor** shows a single summary of issues: which legacy `sftp.*` to rename to `wireferry.*` and which unsupported keys to remove — with file path and line number, across `settings.json` and `.vscode/{wireferry,sftp}.json`. Buttons: open the file at the line, "Details" in the Output channel, "Fix `settings.json`" automatically (migrates `sftp.*` → `wireferry.*`, keeping the keys clustered), "Don't remind me" (`wireferry.suppressLegacyConfigNotice`).
+- **Config rename** — if only `.vscode/sftp.json` remains, you're offered to rename it to `.vscode/wireferry.json`; declining (confirmed by typing `yes`) writes a `keepLegacyConfigFormat` marker into the config and stops the prompts.
+- **Comments in configs (JSONC)** — `.vscode/{wireferry,sftp}.json` are now parsed as JSONC, so `//` comments are allowed. A fully-commented template is created and opened for a fresh project that has no config.
+- **GitHub update check** — opt-in. You're asked once before the first request; on consent it makes **one** HTTPS GET to `api.github.com` for the latest release tag — no telemetry, nothing about you is sent. The background startup check only downloads the `.vsix` (you install it), while the **"WireFerry: Check for Updates"** command (palette and the Remote Explorer title bar) checks on demand and can download and install the update. Toggle with `wireferry.checkForUpdates`.
+- **Alert language** — a new `wireferry.alertLanguage` setting (default English): WireFerry's own popups and prompts can be switched to Russian independently of the VS Code display language.
+- **Report tab** — the config doctor also opens its findings in a persistent editor tab (with paths and line numbers) that stays open until you close it, so you can read and copy the paths at leisure (popups vanish too fast).
 
 ---
 

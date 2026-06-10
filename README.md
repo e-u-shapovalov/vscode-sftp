@@ -9,14 +9,14 @@
 
 ## Скачать
 
-**Обычному пользователю нужен готовый файл расширения: [`wireferry-2.0.5.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/download/v2.0.5/wireferry-2.0.5.vsix).**
+**Обычному пользователю нужен готовый файл расширения: [`wireferry-<version>.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
 
 1. Скачайте `.vsix` со страницы [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
 2. Откройте VS Code.
 3. Перейдите в **Extensions / Расширения** (`Ctrl+Shift+X`).
 4. Нажмите **...** в правом верхнем углу панели расширений.
 5. Выберите **Install from VSIX... / Установить из VSIX...**.
-6. Укажите скачанный файл `wireferry-2.0.5.vsix` и перезагрузите VS Code, если редактор попросит.
+6. Укажите скачанный файл `wireferry-<version>.vsix` и перезагрузите VS Code, если редактор попросит.
 
 > Если вы просто хотите установить расширение, **не нажимайте `Code -> Download ZIP`** и не скачивайте `Source code`. Эти архивы нужны разработчикам. Для установки скачивайте файл из блока **Assets** на странице релиза: `wireferry-<version>.vsix`.
 
@@ -85,6 +85,7 @@ Remote Explorer показывает удалённые файлы в боков
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.0.6** — совместимость с легаси `sftp.*`: старые настройки снова работают (читаются как `wireferry.*`). При старте расширение проверяет `settings.json` и конфиг и подсказывает с номерами строк, что заменить (`sftp.*` → `wireferry.*`) или удалить; умеет починить `settings.json` автоматически и предложить переименовать `.vscode/sftp.json` в `wireferry.json`. Конфиг теперь допускает комментарии (JSONC), а для нового проекта создаётся подробный шаблон. Добавлена проверка обновлений на GitHub (с вашего согласия, один HTTPS-запрос, без телеметрии) и команда **«Проверить обновления»**. Появились настройка языка сообщений (`wireferry.alertLanguage`) и окно-отчёт диагностики, которое висит, пока не закроешь.
 - **2.0.5** — удаление из дерева сервера теперь спрашивает, *где* удалять: **на сервере**, **на компьютере** или **и там и там** (локальная копия уходит в Корзину ОС, а не стирается). Создание папки с уже существующим именем показывает понятное сообщение вместо «Failure». Ошибки SFTP стали читаемее: код 4 расшифровывается, к сообщению добавляются операция и путь. Обновлены руководства (README/INSTALL/FAQ).
 - **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия после 2.0.3 — `node_modules`/`.git` могли выгружаться на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
 - **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
@@ -99,6 +100,7 @@ Remote Explorer показывает удалённые файлы в боков
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.0.6** — legacy `sftp.*` compatibility: old settings work again (read as `wireferry.*`). On startup WireFerry checks your `settings.json` and config and points out, with line numbers, what to rename (`sftp.*` → `wireferry.*`) or remove; it can fix `settings.json` automatically and offer to rename `.vscode/sftp.json` to `wireferry.json`. Configs now allow comments (JSONC), and a fully-commented template is created for new projects. Added an opt-in GitHub update check (one HTTPS request, only after you agree, no telemetry) and a **"Check for Updates"** command. Plus a `wireferry.alertLanguage` setting and a persistent report tab for the config doctor.
 - **2.0.5** — deleting from the server tree now asks *where* to delete: **on the server**, **on the computer**, or **on both** (the local copy goes to the OS trash, it is not erased). Creating a folder whose name already exists now shows a clear message instead of "Failure". SFTP errors are more readable: status 4 is decoded and the failing operation and path are appended. Manuals updated (README/INSTALL/FAQ).
 - **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression — `node_modules`/`.git` could be uploaded to the server); the `local` protocol is now in the config schema; documentation clarifications.
 - **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
@@ -140,7 +142,7 @@ GitHub Releases — это страница готовых выпусков пр
 На странице релиза найдите блок **Assets**. В нём должен быть файл вида:
 
 ```text
-wireferry-2.0.5.vsix
+wireferry-<version>.vsix
 ```
 
 Именно этот файл устанавливается в VS Code. Архивы **Source code (zip)** и **Source code (tar.gz)** не являются готовым расширением.
@@ -150,7 +152,7 @@ wireferry-2.0.5.vsix
 Если команда `code` доступна в терминале:
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 Запускайте команду из папки, куда скачан `.vsix`, или укажите полный путь к файлу.

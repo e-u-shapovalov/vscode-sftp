@@ -20,7 +20,7 @@
 Через терминал:
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 ### Почему команды WireFerry не появляются?
@@ -233,7 +233,7 @@ Do not download `Source code`, `Code -> Download ZIP`, `.zip` or `.tar.gz` if yo
 CLI install:
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 ### Commands do not appear

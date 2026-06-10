@@ -6,6 +6,18 @@ export const EXTENSION_NAME = 'wireferry';
 export const EXTENSION_DISPLAY_NAME = 'WireFerry';
 export const SETTING_KEY_REMOTE = 'remotefs.remote';
 
+// User-settings keys (package.json contributes.configuration), read via getExtensionSetting()
+// with sftp.* legacy fallback (src/modules/ext.ts).
+export const SETTING_CHECK_FOR_UPDATES = 'checkForUpdates';
+export const SETTING_SUPPRESS_LEGACY_NOTICE = 'suppressLegacyConfigNotice';
+// Language for WireFerry's own popups/prompts — an explicit choice, NOT the VS Code UI language.
+export const SETTING_ALERT_LANGUAGE = 'alertLanguage';
+// Config-file marker the migration prompt writes into .vscode/{wireferry,sftp}.json when the
+// user chooses to keep the legacy config name instead of renaming to wireferry.json.
+export const CONFIG_KEY_KEEP_LEGACY = 'keepLegacyConfigFormat';
+// GitHub repository used by the opt-in update check (Part 8).
+export const GITHUB_REPO = 'e-u-shapovalov/vscode-sftp';
+
 export const REMOTE_SCHEME = 'remote';
 
 export const CONGIF_FILENAME = 'wireferry.json';
@@ -23,6 +35,7 @@ export const COMMAND_SET_PROFILE = 'wireferry.setProfile';
 export const COMMAND_CANCEL_ALL_TRANSFER = 'wireferry.cancelAllTransfer';
 export const COMMAND_OPEN_CONNECTION_IN_TERMINAL = 'wireferry.openConnectInTerminal';
 export const COMMAND_OPEN_EXTENSION_PAGE = 'wireferry.openExtensionPage';
+export const COMMAND_CHECK_FOR_UPDATES = 'wireferry.checkForUpdatesNow';
 
 export const COMMAND_FORCE_UPLOAD = 'wireferry.forceUpload';
 export const COMMAND_UPLOAD = 'wireferry.upload';

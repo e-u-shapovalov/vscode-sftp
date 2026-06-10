@@ -4,6 +4,7 @@ import { upath, UResource } from '../core';
 import { checkFileCommand } from './abstract/createCommand';
 import { uriFromExplorerContextOrEditorContext } from './shared';
 import { window } from 'vscode';
+import { L } from '../i18n';
 
 export default checkFileCommand({
   id: COMMAND_CREATE_FOLDER,
@@ -16,7 +17,7 @@ export default checkFileCommand({
 
     const result = await window.showInputBox({
       value: '',
-      prompt: 'Please input folder name',
+      prompt: L({ en: 'Please input folder name', ru: 'Введите имя папки' }),
     });
     if (result === undefined) {
       return undefined;

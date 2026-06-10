@@ -5,6 +5,7 @@ import app from '../app';
 import StatusBarItem from '../ui/statusBarItem';
 import { onDidOpenTextDocument, onDidSaveTextDocument, showConfirmMessage } from '../host';
 import { readConfigsFromFile } from './config';
+import { L } from '../i18n';
 import {
   createFileService,
   getFileService,
@@ -67,7 +68,12 @@ async function downloadOnOpen(uri: vscode.Uri) {
   const config = fileService.getConfig();
   if (config.downloadOnOpen) {
     if (config.downloadOnOpen === 'confirm') {
-      const isConfirm = await showConfirmMessage('Do you want WireFerry to download this file?');
+      const isConfirm = await showConfirmMessage(
+        L({
+          en: 'Do you want WireFerry to download this file?',
+          ru: 'Скачать этот файл с помощью WireFerry?',
+        })
+      );
       if (!isConfirm) return;
     }
 

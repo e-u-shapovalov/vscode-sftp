@@ -4,6 +4,7 @@ import { getAllFileService } from '../modules/serviceManager';
 import { ExplorerRoot } from '../modules/remoteExplorer';
 import { interpolate } from '../utils';
 import { checkCommand } from './abstract/createCommand';
+import { L } from '../i18n';
 
 const isWindows = process.platform === 'win32';
 
@@ -16,7 +17,12 @@ const USERNAME_RE = /^[A-Za-z0-9._\-\\@]+$/;
 
 function assertNoShellControl(value: string, fieldName: string) {
   if (SHELL_CONTROL_CHARS.test(value)) {
-    throw new Error(`Cannot open SSH terminal: "${fieldName}" contains shell control characters.`);
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: "${fieldName}" contains shell control characters.`,
+        ru: `Не удаётся открыть SSH-терминал: «${fieldName}» содержит управляющие символы оболочки.`,
+      })
+    );
   }
 }
 
@@ -29,7 +35,12 @@ function assertNoDangerousSshOption(value: string, fieldName: string) {
   const lowered = value.toLowerCase();
   const hit = DANGEROUS_SSH_OPTIONS.find(opt => lowered.includes(opt));
   if (hit) {
-    throw new Error(`Cannot open SSH terminal: "${fieldName}" uses a disallowed ssh option (${hit}).`);
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: "${fieldName}" uses a disallowed ssh option (${hit}).`,
+        ru: `Не удаётся открыть SSH-терминал: «${fieldName}» использует запрещённую опцию ssh (${hit}).`,
+      })
+    );
   }
 }
 
@@ -40,19 +51,39 @@ function validateSshConfig(config: {
   privateKeyPath?: string;
 }) {
   if (!HOST_RE.test(String(config.host))) {
-    throw new Error(`Cannot open SSH terminal: invalid host "${config.host}".`);
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: invalid host "${config.host}".`,
+        ru: `Не удаётся открыть SSH-терминал: некорректный host «${config.host}».`,
+      })
+    );
   }
   if (!USERNAME_RE.test(String(config.username))) {
-    throw new Error(`Cannot open SSH terminal: invalid username "${config.username}".`);
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: invalid username "${config.username}".`,
+        ru: `Не удаётся открыть SSH-терминал: некорректный username «${config.username}».`,
+      })
+    );
   }
   const port = Number(config.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`Cannot open SSH terminal: invalid port "${config.port}".`);
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: invalid port "${config.port}".`,
+        ru: `Не удаётся открыть SSH-терминал: некорректный port «${config.port}».`,
+      })
+    );
   }
   if (config.privateKeyPath) {
     assertNoShellControl(config.privateKeyPath, 'privateKeyPath');
     if (config.privateKeyPath.indexOf('"') !== -1) {
-      throw new Error('Cannot open SSH terminal: privateKeyPath contains a double quote.');
+      throw new Error(
+        L({
+          en: 'Cannot open SSH terminal: privateKeyPath contains a double quote.',
+          ru: 'Не удаётся открыть SSH-терминал: privateKeyPath содержит двойную кавычку.',
+        })
+      );
     }
   }
 }
@@ -115,7 +146,7 @@ export default checkCommand({
       }
 
       const item = await vscode.window.showQuickPick(remoteItems, {
-        placeHolder: 'Select a folder...',
+        placeHolder: L({ en: 'Select a folder...', ru: 'Выберите папку...' }),
       });
       if (item === undefined) {
         return;

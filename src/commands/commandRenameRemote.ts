@@ -6,6 +6,7 @@ import { renameRemote, handleCtxFromUri } from '../fileHandlers';
 import { reportError } from '../helper';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { checkCommand } from './abstract/createCommand';
+import { L } from '../i18n';
 
 export default checkCommand({
   id: COMMAND_RENAME,
@@ -30,7 +31,7 @@ export default checkCommand({
 
       const newName = await window.showInputBox({
         value: oldName,
-        prompt: 'New name',
+        prompt: L({ en: 'New name', ru: 'Новое имя' }),
         // Reject path separators and `.`/`..` — otherwise upath.join would normalize them into a
         // parent-directory move (path traversal) instead of a rename in place.
         validateInput: v => {
@@ -43,7 +44,10 @@ export default checkCommand({
             name.includes('\\') ||
             upath.basename(name) !== name
           ) {
-            return 'Enter a valid name (no path separators, no "." or "..")';
+            return L({
+              en: 'Enter a valid name (no path separators, no "." or "..")',
+              ru: 'Введите корректное имя (без разделителей пути, без «.» и «..»)',
+            });
           }
           return undefined;
         },

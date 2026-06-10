@@ -4,6 +4,7 @@
   "wireferry.setProfile": "Выбрать профиль",
   "wireferry.openConnectInTerminal": "Открыть SSH в терминале",
   "wireferry.openExtensionPage": "Открыть страницу расширения",
+  "wireferry.checkForUpdatesNow": "Проверить обновления",
   "wireferry.cancelAllTransfer": "Отменить все передачи",
   "wireferry.upload.file": "Выгрузить файл",
   "wireferry.upload.changedFiles": "Выгрузить изменённые файлы",
@@ -46,5 +47,8 @@
   "wireferry.remoteExplorer.openByPath": "Открыть файл на сервере по пути",
   "wireferry.debug.description": "Выводить отладочный журнал в канал вывода WireFerry. (перезагрузите VS Code после изменения)",
   "wireferry.downloadWhenOpenInRemoteExplorer.description": "«Скачивать» вместо «Просмотреть содержимое» при открытии файла в удалённом проводнике",
+  "wireferry.checkForUpdates.description": "Проверять на GitHub наличие новой версии WireFerry при запуске. Делает один HTTPS-запрос (GET) к api.github.com (только номер версии — без телеметрии, никакие ваши данные не отправляются). Перед первой проверкой спрашивается разрешение.",
+  "wireferry.suppressLegacyConfigNotice.description": "Не напоминать про устаревшие настройки/конфиг sftp.* и неподдерживаемые параметры конфигурации.",
+  "wireferry.alertLanguage.description": "Язык всплывающих сообщений и запросов самого WireFerry, независимо от языка интерфейса VS Code. По умолчанию — английский.",
   "view.remoteExplorer.name": "Проводник"
 }

@@ -7,6 +7,7 @@ import { getGitService, GitAPI, Repository, Status, Change } from '../modules/gi
 import { checkCommand } from './abstract/createCommand';
 import logger from '../logger';
 import { simplifyPath } from '../helper';
+import { L } from '../i18n';
 
 export default checkCommand({
   id: COMMAND_UPLOAD_CHANGEDFILES,
@@ -152,7 +153,7 @@ async function getRepository(git: GitAPI): Promise<Repository | undefined> {
   }
 
   if (git.repositories.length === 0) {
-    throw new Error('There are no available repositories');
+    throw new Error(L({ en: 'There are no available repositories', ru: 'Нет доступных репозиториев' }));
   }
 
   const picks = git.repositories.map(repo => {
@@ -166,7 +167,9 @@ async function getRepository(git: GitAPI): Promise<Repository | undefined> {
     };
   });
 
-  const pick = await vscode.window.showQuickPick(picks, { placeHolder: 'Choose a repository' });
+  const pick = await vscode.window.showQuickPick(picks, {
+    placeHolder: L({ en: 'Choose a repository', ru: 'Выберите репозиторий' }),
+  });
 
   return pick && pick.repository;
 }

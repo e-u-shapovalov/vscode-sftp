@@ -4,6 +4,7 @@ import { upath } from '../../core';
 import { renameRemote, handleCtxFromUri } from '../../fileHandlers';
 import { showConfirmMessage, showWarningMessage } from '../../host';
 import { reportError } from '../../helper';
+import { L } from '../../i18n';
 import app from '../../app';
 import RemoteTreeData, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
 
@@ -45,7 +46,12 @@ export default class RemoteDragAndDropController
     // ENOENT at best, a wrong-server write at worst.
     const targetRemoteId = target.resource.remoteId;
     if (sources.some(s => s.resource.remoteId !== targetRemoteId)) {
-      showWarningMessage('WireFerry: you can only move items within the same remote.');
+      showWarningMessage(
+        L({
+          en: 'WireFerry: you can only move items within the same remote.',
+          ru: 'WireFerry: перемещать элементы можно только в пределах одного сервера.',
+        })
+      );
       return;
     }
 
@@ -101,11 +107,14 @@ export default class RemoteDragAndDropController
     }
 
     const names = moves.map(m => upath.basename(m.resource.fsPath)).join(', ');
+    const destName = upath.basename(destRemoteDir) || '/';
     const confirmed = await showConfirmMessage(
-      `Move ${moves.length} item(s) into '${upath.basename(destRemoteDir) ||
-        '/'}' on the server (and locally)? [${names}]`,
-      'Move',
-      'Cancel'
+      L({
+        en: `Move ${moves.length} item(s) into '${destName}' on the server (and locally)? [${names}]`,
+        ru: `Переместить элементов (${moves.length}) в «${destName}» на сервере (и локально)? [${names}]`,
+      }),
+      L({ en: 'Move', ru: 'Переместить' }),
+      L({ en: 'Cancel', ru: 'Отмена' })
     );
     if (!confirmed) {
       return;

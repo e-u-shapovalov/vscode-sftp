@@ -8,7 +8,7 @@ WireFerry устанавливается в Visual Studio Code как файл `
 
 Скачайте готовый файл расширения:
 
-**[`wireferry-2.0.5.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/download/v2.0.5/wireferry-2.0.5.vsix)**
+**[`wireferry-<version>.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)**
 
 Или откройте последнюю страницу релиза:
 
@@ -24,19 +24,19 @@ WireFerry устанавливается в Visual Studio Code как файл `
 2. Откройте **Extensions / Расширения** (`Ctrl+Shift+X`).
 3. Нажмите кнопку **...** в правом верхнем углу панели расширений.
 4. Выберите **Install from VSIX... / Установить из VSIX...**.
-5. Укажите скачанный файл `wireferry-2.0.5.vsix`.
+5. Укажите скачанный файл `wireferry-<version>.vsix`.
 6. Перезагрузите VS Code, если редактор попросит.
 
 ### Установка через терминал
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 Если файл лежит не в текущей папке, укажите полный путь:
 
 ```powershell
-code --install-extension C:\Users\You\Downloads\wireferry-2.0.5.vsix
+code --install-extension C:\Users\You\Downloads\wireferry-<version>.vsix
 ```
 
 ### Первый запуск
@@ -65,7 +65,7 @@ code --install-extension C:\Users\You\Downloads\wireferry-2.0.5.vsix
 Правильный файл:
 
 - заканчивается на `.vsix`;
-- называется примерно `wireferry-2.0.5.vsix`;
+- называется примерно `wireferry-<version>.vsix`;
 - находится в **Releases -> Assets**;
 - устанавливается через **Install from VSIX...**.
 
@@ -84,7 +84,7 @@ WireFerry is installed into Visual Studio Code from a `.vsix` file.
 
 Download the ready-to-install extension package:
 
-**[`wireferry-2.0.5.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/download/v2.0.5/wireferry-2.0.5.vsix)**
+**[`wireferry-<version>.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)**
 
 Or open the latest release page:
 
@@ -100,13 +100,13 @@ Find **Assets** and download `wireferry-<version>.vsix`.
 2. Open **Extensions** (`Ctrl+Shift+X`).
 3. Click **...** in the top-right corner.
 4. Choose **Install from VSIX...**.
-5. Pick `wireferry-2.0.5.vsix`.
+5. Pick `wireferry-<version>.vsix`.
 6. Reload VS Code if prompted.
 
 ### Install from Terminal
 
 ```bash
-code --install-extension wireferry-2.0.5.vsix
+code --install-extension wireferry-<version>.vsix
 ```
 
 ### First Run

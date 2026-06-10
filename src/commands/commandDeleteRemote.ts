@@ -5,22 +5,26 @@ import { removeRemote } from '../fileHandlers';
 import { reportError } from '../helper';
 import { checkCommand } from './abstract/createCommand';
 import { uriFromExplorerContextOrEditorContext } from './shared';
+import { L } from '../i18n';
 
 type DeleteScope = 'server' | 'local' | 'both';
 
 // Modal "where do you want to delete this?" prompt. Returns the chosen scope, or undefined when the
 // user cancels (Esc / Cancel / dialog dismissed).
 async function askDeleteScope(name: string): Promise<DeleteScope | undefined> {
-  const onServer = { title: 'On server' };
-  const onComputer = { title: 'On computer' };
-  const onBoth = { title: 'On both' };
-  const cancel = { title: 'Cancel', isCloseAffordance: true };
+  const onServer = { title: L({ en: 'On server', ru: 'На сервере' }) };
+  const onComputer = { title: L({ en: 'On computer', ru: 'На компьютере' }) };
+  const onBoth = { title: L({ en: 'On both', ru: 'И там, и там' }) };
+  const cancel = { title: L({ en: 'Cancel', ru: 'Отмена' }), isCloseAffordance: true };
 
   const picked = await vscode.window.showWarningMessage(
-    `Delete '${name}'?`,
+    L({ en: `Delete '${name}'?`, ru: `Удалить «${name}»?` }),
     {
       modal: true,
-      detail: 'Choose where to delete it. The local copy is moved to the OS trash, not erased.',
+      detail: L({
+        en: 'Choose where to delete it. The local copy is moved to the OS trash, not erased.',
+        ru: 'Выберите, где удалить. Локальная копия уходит в Корзину ОС, а не стирается безвозвратно.',
+      }),
     },
     onServer,
     onComputer,

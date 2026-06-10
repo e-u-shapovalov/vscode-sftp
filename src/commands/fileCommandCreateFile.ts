@@ -4,6 +4,7 @@ import { upath, UResource } from '../core';
 import { checkFileCommand } from './abstract/createCommand';
 import { uriFromExplorerContextOrEditorContext } from './shared';
 import { window } from 'vscode';
+import { L } from '../i18n';
 
 export default checkFileCommand({
   id: COMMAND_CREATE_FILE,
@@ -16,7 +17,7 @@ export default checkFileCommand({
 
     const result = await window.showInputBox({
       value: '',
-      prompt: 'Please input file name',
+      prompt: L({ en: 'Please input file name', ru: 'Введите имя файла' }),
     });
     if (result === undefined) {
       return undefined;

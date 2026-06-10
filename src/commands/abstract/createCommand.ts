@@ -1,6 +1,7 @@
 import { Uri, window } from 'vscode';
 import logger from '../../logger';
 import { reportError } from '../../helper';
+import { L } from '../../i18n';
 import { handleCtxFromUri, allHandleCtxFromUri, FileHandlerContext } from '../../fileHandlers';
 import {
   COMMAND_UPLOAD_FILE_TO_ALL_PROFILES,
@@ -52,8 +53,21 @@ export function createFileCommand(commandOption: FileCommandOption & { name: str
     }
 
     protected async doCommandRun(...args) {
-      if ((this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES || this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) 
-        && await window.showInformationMessage('Are you sure you want to upload to all profiles?', 'Yes', 'No').then(answer => answer !== 'Yes')) {
+      const yes = L({ en: 'Yes', ru: 'Да' });
+      if (
+        (this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES ||
+          this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) &&
+        (await window
+          .showInformationMessage(
+            L({
+              en: 'Are you sure you want to upload to all profiles?',
+              ru: 'Точно выгрузить во все профили?',
+            }),
+            yes,
+            L({ en: 'No', ru: 'Нет' })
+          )
+          .then(answer => answer !== yes))
+      ) {
         return;
       }
       
@@ -86,8 +100,21 @@ export function createFileMultiCommand(commandOption: FileCommandOption & { name
     }
 
     protected async doCommandRun(...args) {
-      if ((this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES || this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) 
-        && await window.showInformationMessage('Are you sure you want to upload to all profiles?', 'Yes', 'No').then(answer => answer !== 'Yes')) {
+      const yes = L({ en: 'Yes', ru: 'Да' });
+      if (
+        (this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES ||
+          this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) &&
+        (await window
+          .showInformationMessage(
+            L({
+              en: 'Are you sure you want to upload to all profiles?',
+              ru: 'Точно выгрузить во все профили?',
+            }),
+            yes,
+            L({ en: 'No', ru: 'Нет' })
+          )
+          .then(answer => answer !== yes))
+      ) {
         return;
       }
       

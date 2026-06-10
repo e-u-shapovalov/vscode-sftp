@@ -17,8 +17,11 @@ import {
 } from './modules/serviceManager';
 import { getWorkspaceFolders, setContextValue, showConfirmMessage } from './host';
 import { EXTENSION_DISPLAY_NAME } from './constants';
+import { L } from './i18n';
 import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
+import { runLegacyDoctor } from './modules/legacyDoctor';
+import { runUpdateCheck } from './modules/updateCheck';
 
 async function setupWorkspaceFolder(dir) {
   const configs = await tryLoadConfigs(dir);
@@ -47,9 +50,12 @@ function registerDeleteSync(context: vscode.ExtensionContext) {
       }
 
       const confirmed = await showConfirmMessage(
-        `Deleted locally. Delete on the server too? (${targets.length} file(s))`,
-        'Delete on server',
-        'Keep on server'
+        L({
+          en: `Deleted locally. Delete on the server too? (${targets.length} file(s))`,
+          ru: `Удалено локально. Удалить и на сервере? (файлов: ${targets.length})`,
+        }),
+        L({ en: 'Delete on server', ru: 'Удалить на сервере' }),
+        L({ en: 'Keep on server', ru: 'Оставить на сервере' })
       );
       if (!confirmed) {
         return;
@@ -94,11 +100,13 @@ function registerRenameSync(context: vscode.ExtensionContext) {
       const isMove = targets.some(
         f => path.dirname(f.oldUri.fsPath) !== path.dirname(f.newUri.fsPath)
       );
-      const verb = isMove ? 'Moved/renamed' : 'Renamed';
       const confirmed = await showConfirmMessage(
-        `${verb} locally. Apply on the server too? (${targets.length} item(s))`,
-        'Apply on server',
-        'Keep server as is'
+        L({
+          en: `${isMove ? 'Moved/renamed' : 'Renamed'} locally. Apply on the server too? (${targets.length} item(s))`,
+          ru: `${isMove ? 'Перемещено/переименовано' : 'Переименовано'} локально. Применить на сервере? (элементов: ${targets.length})`,
+        }),
+        L({ en: 'Apply on server', ru: 'Применить на сервере' }),
+        L({ en: 'Keep server as is', ru: 'Оставить сервер как есть' })
       );
       if (!confirmed) {
         return;
@@ -136,6 +144,9 @@ export async function activate(context: vscode.ExtensionContext) {
     reportError(error, 'initCommands');
   }
 
+  // Opt-in GitHub update check — independent of workspace/config; runs in the background.
+  runUpdateCheck().catch(error => reportError(error, 'updateCheck'));
+
   const workspaceFolders = getWorkspaceFolders();
   if (!workspaceFolders) {
     return;
@@ -161,6 +172,10 @@ export async function activate(context: vscode.ExtensionContext) {
   } catch (error) {
     reportError(error);
   }
+
+  // Legacy-config doctor: auto-template for an empty workspace, sftp.json -> wireferry.json rename
+  // offer, and legacy/unsupported key diagnostics. Background — must never block activation.
+  runLegacyDoctor(context).catch(error => reportError(error, 'legacyDoctor'));
 }
 
 export function deactivate() {

@@ -5,6 +5,7 @@ import app from '../app';
 import logger from '../logger';
 import { getAllFileService } from '../modules/serviceManager';
 import { checkCommand } from './abstract/createCommand';
+import { L } from '../i18n';
 
 export default checkCommand({
   id: COMMAND_SET_PROFILE,
@@ -21,7 +22,10 @@ export default checkCommand({
         service.getAvailableProfiles().forEach(profile => {
           acc.push({
             value: profile,
-            label: app.state.profile === profile ? `${profile} (active)` : profile,
+            label:
+              app.state.profile === profile
+                ? `${profile} ${L({ en: '(active)', ru: '(активный)' })}`
+                : profile,
           });
         });
         return acc;
@@ -29,13 +33,13 @@ export default checkCommand({
       [
         {
           value: null,
-          label: 'UNSET',
+          label: L({ en: 'UNSET', ru: 'НЕ ЗАДАН' }),
         },
       ]
     );
 
     if (profiles.length <= 1) {
-      showInformationMessage('No Available Profile.');
+      showInformationMessage(L({ en: 'No Available Profile.', ru: 'Нет доступных профилей.' }));
       return;
     }
 
@@ -50,7 +54,9 @@ export default checkCommand({
       return;
     }
 
-    const item = await vscode.window.showQuickPick(profiles, { placeHolder: 'select a profile' });
+    const item = await vscode.window.showQuickPick(profiles, {
+      placeHolder: L({ en: 'select a profile', ru: 'выберите профиль' }),
+    });
     if (item === undefined) return;
     app.state.profile = item.value;
   },
