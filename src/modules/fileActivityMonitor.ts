@@ -17,6 +17,16 @@ import { downloadFile, uploadFile, handleCtxFromUri } from '../fileHandlers';
 
 let workspaceWatcher: vscode.Disposable;
 
+// Files the Remote Explorer's "Edit in Local" just downloaded and is about to open. The
+// onDidOpenTextDocument that follows must NOT run downloadOnOpen for them — editInLocal already
+// fetched the file on purpose, so prompting again is wrong (and "No" couldn't undo it anyway).
+const justEditedInLocal = new Set<string>();
+export function suppressDownloadOnOpenOnce(fsPath: string): void {
+  justEditedInLocal.add(fsPath);
+  // Safety net in case the open event never arrives (file already visible, etc.).
+  setTimeout(() => justEditedInLocal.delete(fsPath), 3000);
+}
+
 async function handleConfigSave(uri: vscode.Uri) {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
   if (!workspaceFolder) {
@@ -67,6 +77,13 @@ async function downloadOnOpen(uri: vscode.Uri) {
 
   const config = fileService.getConfig();
   if (!config.downloadOnOpen) {
+    return;
+  }
+
+  // Opened via the Remote Explorer's "Edit in Local", which already downloaded it on purpose —
+  // don't prompt or re-download here (this is what made "No" still leave a downloaded file).
+  if (justEditedInLocal.has(uri.fsPath)) {
+    justEditedInLocal.delete(uri.fsPath);
     return;
   }
 
