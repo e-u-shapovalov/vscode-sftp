@@ -89,7 +89,14 @@ export default class LocalFileSystem extends FileSystem {
       }
 
       const writer = fs.createWriteStream(path, option as any);
-      writer.once('error', reject).once('finish', resolve); // transffered
+      writer
+        .once('error', err => {
+          // Detach the source from the dead writer so its fd/stream is released promptly.
+          input.unpipe(writer);
+          input.destroy();
+          reject(err);
+        })
+        .once('finish', resolve); // transffered
 
       input.once('error', err => {
         reject(err);

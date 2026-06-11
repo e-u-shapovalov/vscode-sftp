@@ -375,6 +375,9 @@ export default class FileService {
   private _profiles: string[];
   private _pendingTransferTasks: Set<TransferTask> = new Set();
   private _transferSchedulers: TransferScheduler[] = [];
+  // Host infos we actually opened a connection for, keyed for de-duplication. Used so dispose()
+  // can tear down connections from EVERY profile, not just the one active at dispose time.
+  private _openedHostInfos: Map<string, object> = new Map();
   private _config: FileServiceConfig;
   private _configValidator: ConfigValidator;
   private _watcherService: WatcherService = {
@@ -517,7 +520,12 @@ export default class FileService {
   }
 
   getRemoteFileSystem(config: ServiceConfig): Promise<FileSystem> {
-    return createRemoteIfNoneExist(getHostInfo(config));
+    const hostInfo = getHostInfo(config);
+    // Remember every host we actually open so dispose() can close them all. The connection cache
+    // is keyed by host info, which differs per profile — tearing down only the currently active
+    // profile (as the old code did) leaked the socket whenever the profile changed in between.
+    this._openedHostInfos.set(JSON.stringify(hostInfo), hostInfo);
+    return createRemoteIfNoneExist(hostInfo);
   }
 
   getConfig(useProfile = app.state.profile): ServiceConfig {
@@ -634,8 +642,20 @@ export default class FileService {
     this._watcherService.dispose(this.baseDir);
   }
 
-  // fixme: remote all profiles
   private _disposeFileSystem() {
-    return removeRemoteFs(getHostInfo(this.getConfig()));
+    const hostInfos = Array.from(this._openedHostInfos.values());
+    this._openedHostInfos.clear();
+
+    // Nothing was opened yet — fall back to the current profile's host info as a best effort.
+    // getConfig() can throw on an invalid/partial config; swallow it so dispose never throws.
+    if (hostInfos.length === 0) {
+      try {
+        hostInfos.push(getHostInfo(this.getConfig()));
+      } catch (e) {
+        return;
+      }
+    }
+
+    hostInfos.forEach(removeRemoteFs);
   }
 }

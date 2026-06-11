@@ -77,6 +77,26 @@ const fillFs = obj => {
 };
 const mapList = (list: any[], key: string) => list.map(t => t[key]);
 
+// Every collected task must be self-consistent: its direction has to agree with BOTH the
+// filesystem pair it carries AND the namespace of its paths. A `bothDirections` regression that
+// flipped only the direction label (without swapping the filesystems) passes a single shared-memfs
+// check but fails this one, because the "download" tasks would still read from `localFs`.
+function expectDirectionConsistent(
+  tasks: TransferTask[],
+  localFs: any,
+  remoteFs: any
+) {
+  const localRoot = path.normalize('/local');
+  const remoteRoot = path.normalize('/remote');
+  tasks.forEach(task => {
+    const toRemote = task.transferType === TransferDirection.LOCAL_TO_REMOTE;
+    expect(task.srcFs).toBe(toRemote ? localFs : remoteFs);
+    expect(task.targetFs).toBe(toRemote ? remoteFs : localFs);
+    expect(task.srcFsPath.startsWith(toRemote ? localRoot : remoteRoot)).toBe(true);
+    expect(task.targetFsPath.startsWith(toRemote ? remoteRoot : localRoot)).toBe(true);
+  });
+}
+
 describe('transfer algorithm', () => {
   describe('sync', () => {
     afterEach(() => {
@@ -441,13 +461,17 @@ describe('transfer algorithm', () => {
         },
       });
 
+      // Use a DISTINCT filesystem object for the remote side. With a single shared memfs the
+      // direction/filesystem swap can't be observed (both sides are the same object), which is
+      // exactly what hid the "downloads never happen" bug.
+      const remoteFs = createRemoteFs();
       const task: TransferTask[] = [];
       const collect = (a: TransferTask) => task.push(a);
       const deleted = await sync(
         {
           srcFsPath: '/local',
           srcFs: localFs,
-          targetFs: localFs,
+          targetFs: remoteFs,
           targetFsPath: '/remote',
           transferDirection: TransferDirection.LOCAL_TO_REMOTE,
           transferOption: {
@@ -471,6 +495,8 @@ describe('transfer algorithm', () => {
           '/local/c/d/d-c',
         ].formatSep().sort()
       );
+      // Downloads (server → local) must read from remoteFs and write to localFs, and vice versa.
+      expectDirectionConsistent(task, localFs, remoteFs);
     });
 
     test('sync both direction --skipCreate"', async () => {
@@ -532,6 +558,47 @@ describe('transfer algorithm', () => {
           '/local/c/d/d-b',
         ].formatSep().sort()
       );
+    });
+
+    test('sync both direction downloads remote-only files and folders', async () => {
+      // `up` lives only on local (upload); `down` and the whole `sub/` tree live only on the
+      // server (download). The remote-only DIRECTORY exercises the dir2trans reverse path, which
+      // must swap filesystems too — otherwise transferFolder lists the remote path on localFs and
+      // the folder is silently never downloaded.
+      fillFs({
+        local: {
+          up: file('up', 1),
+        },
+        remote: {
+          down: file('$down'),
+          sub: {
+            'sub-a': file('$sub-a'),
+          },
+        },
+      });
+
+      const remoteFs = createRemoteFs();
+      const task: TransferTask[] = [];
+      const collect = (a: TransferTask) => task.push(a);
+      await sync(
+        {
+          srcFsPath: '/local',
+          srcFs: localFs,
+          targetFs: remoteFs,
+          targetFsPath: '/remote',
+          transferDirection: TransferDirection.LOCAL_TO_REMOTE,
+          transferOption: {
+            bothDirections: true,
+            perserveTargetMode: false,
+          },
+        },
+        collect
+      );
+
+      expect(mapList(task, 'targetFsPath').sort()).toEqual(
+        ['/remote/up', '/local/down', '/local/sub/sub-a'].formatSep().sort()
+      );
+      expectDirectionConsistent(task, localFs, remoteFs);
     });
   });
 });

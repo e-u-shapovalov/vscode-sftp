@@ -265,10 +265,33 @@ function fetchLatestRelease(): Promise<LatestRelease | null> {
   });
 }
 
+// Only follow the download (and its redirects) to GitHub-owned hosts over https. The .vsix gets
+// installed afterwards, so a redirect to an arbitrary host would be a code-execution vector.
+function isTrustedGithubUrl(target: string): boolean {
+  try {
+    const u = new URL(target);
+    if (u.protocol !== 'https:') {
+      return false;
+    }
+    const host = u.hostname.toLowerCase();
+    return (
+      host === 'github.com' ||
+      host === 'api.github.com' ||
+      host === 'objects.githubusercontent.com' ||
+      host.endsWith('.githubusercontent.com')
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
 // Stream a URL to a file, following GitHub's redirect to the asset CDN.
 function downloadFile(url: string, dest: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const get = (target: string, redirects: number) => {
+      if (!isTrustedGithubUrl(target)) {
+        return reject(new Error(`refusing to download from untrusted URL: ${target}`));
+      }
       https
         .get(target, { headers: { 'User-Agent': 'WireFerry-VSCode' }, timeout: 30000 }, res => {
           const status = res.statusCode || 0;

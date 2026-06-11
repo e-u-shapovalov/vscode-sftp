@@ -6,6 +6,7 @@ import { reportError } from '../helper';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { checkCommand } from './abstract/createCommand';
 import { L } from '../i18n';
+import app from '../app';
 
 // `mode & 0o777` rendered as a 3-digit octal string, e.g. 0o755 -> "755".
 function toOctal(mode: number): string {
@@ -133,6 +134,12 @@ export default checkCommand({
       }
 
       await chmodRemote(ctx, { mode, recursive });
+      if (item && (item as ExplorerItem).resource) {
+        (item as ExplorerItem).mode = mode;
+        if (app.remoteExplorer) {
+          app.remoteExplorer.refreshItem(item as ExplorerItem);
+        }
+      }
 
       window.showInformationMessage(
         recursive

@@ -256,6 +256,7 @@ export default class SFTPFileSystem extends RemoteFileSystem {
       this.sftp.symlink(targetPath, path, err => {
         if (err) {
           reject(err);
+          return;
         }
         resolve();
       });
@@ -414,7 +415,16 @@ export default class SFTPFileSystem extends RemoteFileSystem {
       // write stream does not reliably emit 'finish' for a zero-byte write (e.g. creating an empty
       // file), but it does close the handle. 'error' is registered first, so a failed transfer
       // still rejects rather than resolves; for a normal upload 'finish' fires before 'close'.
-      writer.once('error', reject).once('finish', resolve).once('close', resolve); // transffered
+      writer
+        .once('error', err => {
+          // Detach and kill the source too: a dead writer otherwise leaves input piping into
+          // nowhere, with its server-side read handle never closed until GC.
+          input.unpipe(writer);
+          input.destroy();
+          reject(err);
+        })
+        .once('finish', resolve)
+        .once('close', resolve); // transffered
 
       input.once('error', err => {
         reject(err);

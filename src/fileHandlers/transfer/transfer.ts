@@ -7,10 +7,20 @@ import {
   TransferDirection,
   fileOperations,
 } from '../../core';
+import * as path from 'path';
 import { FileHandleOption } from '../option';
 import { flatten } from '../../utils';
 import logger from '../../logger';
 import { getOpenTextDocuments } from '../../host';
+
+// Windows paths are case-insensitive and VS Code does not guarantee a stable drive-letter case,
+// so an exact === between document.fileName and the config path can silently miss (cf. #589).
+const isWindows = process.platform === 'win32';
+function isSameLocalPath(a: string, b: string): boolean {
+  const na = path.normalize(a);
+  const nb = path.normalize(b);
+  return isWindows ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+}
 
 interface InternalTransferOption extends FileHandleOption, TransferTaskTransferOption {}
 
@@ -174,7 +184,7 @@ async function transferWithType(
       // <<< save before upload: start
       if (config.transferDirection === TransferDirection.LOCAL_TO_REMOTE) {
         const textDocuments = getOpenTextDocuments();
-        const document = textDocuments.find(doc => doc.fileName === config.srcFsPath);
+        const document = textDocuments.find(doc => isSameLocalPath(doc.fileName, config.srcFsPath));
         if (document && !document.isClosed && document.isDirty) {
           await document.save();
           // Update mtime after file was saved
@@ -228,6 +238,16 @@ async function _sync(
   }
 
   const altDirection = getAltDirection(transferDirection);
+
+  // For `bothDirections`, items that flow the OTHER way (e.g. server → local during a
+  // local → remote sync) must swap the filesystems too, not merely carry a flipped direction
+  // label. Without the swap we'd read the remote path from the local fs (ENOENT, so the file is
+  // silently never downloaded) and try to write the local path onto the remote fs.
+  const routeFsByDirection = (direction: TransferDirection) =>
+    direction === transferDirection
+      ? { srcFs, targetFs }
+      : { srcFs: targetFs, targetFs: srcFs };
+
   const syncFiles = (srcFileEntries: FileEntry[], desFileEntries: FileEntry[]) => {
     const srcFileTable = toHash(srcFileEntries, 'id', fileEntry => ({
       ...fileEntry,
@@ -240,7 +260,7 @@ async function _sync(
     }));
 
     const file2trans: [string, string, TransferDirection, InternalTransferOption][] = [];
-    const dir2trans: [string, string][] = [];
+    const dir2trans: [string, string, TransferDirection][] = [];
     const dir2sync: [string, string][] = [];
 
     const fileMissed: string[] = [];
@@ -310,7 +330,7 @@ async function _sync(
       const fspath = targetFs.pathResolver.join(targetFsPath, srcFile.name);
       switch (srcFile.type) {
         case FileType.Directory:
-          dir2trans.push([srcFile.fspath, fspath]);
+          dir2trans.push([srcFile.fspath, fspath, transferDirection]);
           break;
         case FileType.File:
         case FileType.SymbolicLink:
@@ -339,7 +359,7 @@ async function _sync(
           const fspath = srcFs.pathResolver.join(srcFsPath, file.name);
           switch (file.type) {
             case FileType.Directory:
-              dir2trans.push([file.fspath, fspath]);
+              dir2trans.push([file.fspath, fspath, altDirection]);
               break;
             case FileType.File:
             case FileType.SymbolicLink:
@@ -389,6 +409,7 @@ async function _sync(
       transferFile(
         {
           ...config,
+          ...routeFsByDirection(direction),
           transferDirection: direction,
           transferOption: option,
           srcFsPath: src,
@@ -399,10 +420,12 @@ async function _sync(
       )
     );
 
-    const transDirPromise = dir2trans.map(([src, target]) =>
+    const transDirPromise = dir2trans.map(([src, target, direction]) =>
       transferFolder(
         {
           ...config,
+          ...routeFsByDirection(direction),
+          transferDirection: direction,
           srcFsPath: src,
           targetFsPath: target,
         },
@@ -433,9 +456,18 @@ async function _sync(
   // create dir here so we don't have to ensure it for children files.
   await targetFs.ensureDir(targetFsPath);
 
+  // A failed list MUST abort the sync. Treating it as an empty directory is catastrophic with
+  // syncOption.delete: every file on the other side becomes "extraneous" and gets deleted.
+  const listOrFail = (fs: FileSystem, fsPath: string, side: string) =>
+    fs.list(fsPath).catch(err => {
+      throw new Error(
+        `sync aborted: cannot list ${side} directory "${fsPath}": ${err && err.message ? err.message : err}`
+      );
+    });
+
   const files = await Promise.all([
-    srcFs.list(srcFsPath).catch(err => []),
-    targetFs.list(targetFsPath).catch(err => []),
+    listOrFail(srcFs, srcFsPath, 'source'),
+    listOrFail(targetFs, targetFsPath, 'target'),
   ]);
   await syncFiles(...files);
 }

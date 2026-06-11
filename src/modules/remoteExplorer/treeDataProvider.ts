@@ -47,6 +47,7 @@ interface ExplorerChild {
   // Captured from the directory listing (the same readdir we already do — no extra request). Used to
   // build the hover tooltip. A snapshot from list time, like everything else in the tree.
   size?: number;
+  mode?: number;
   mtime?: number;
 }
 
@@ -82,6 +83,17 @@ function formatBytes(bytes: number): string {
   return `${text} ${units[i]}`;
 }
 
+function formatMode(mode: number): string {
+  // tslint:disable-next-line:no-bitwise
+  const simpleMode = mode & 0o777;
+  const octal = simpleMode.toString(8).padStart(3, '0');
+  const symbols = [0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001]
+    // tslint:disable-next-line:no-bitwise
+    .map((bit, index) => (simpleMode & bit ? 'rwx'[index % 3] : '-'))
+    .join('');
+  return `${octal} (${symbols})`;
+}
+
 // Local "YYYY-MM-DD HH:mm" from a millisecond timestamp (FS already adjusts for any time offset).
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -94,12 +106,15 @@ function formatTime(ms: number): string {
   )}`;
 }
 
-// Hover tooltip: full server path, plus size (files only) and modified time when the listing carried
-// them. All data comes from the listing already in memory — building this does no I/O.
+// Hover tooltip: full server path, plus size (files only), permissions, and modified time when the
+// listing carried them. All data comes from the listing already in memory — building this does no I/O.
 function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
   const lines = [item.resource.fsPath];
   if (!isRoot && !item.isDirectory && typeof item.size === 'number') {
     lines.push(`${L({ en: 'Size', ru: 'Размер' })}: ${formatBytes(item.size)}`);
+  }
+  if (!isRoot && typeof item.mode === 'number') {
+    lines.push(`${L({ en: 'Permissions', ru: 'Права' })}: ${formatMode(item.mode)}`);
   }
   if (typeof item.mtime === 'number' && item.mtime > 0) {
     lines.push(`${L({ en: 'Modified', ru: 'Изменён' })}: ${formatTime(item.mtime)}`);
@@ -149,6 +164,10 @@ export default class RemoteTreeData
       }
       this._onDidChangeFile.fire(makePreivewUrl(item.resource.uri));
     }
+  }
+
+  refreshItem(item: ExplorerItem): void {
+    this._onDidChangeFolder.fire(item);
   }
 
   getTreeItem(item: ExplorerItem): vscode.TreeItem {
@@ -211,8 +230,9 @@ export default class RemoteTreeData
         });
         const mapItem = this._map.get(newResource.uri.query);
         if (mapItem) {
-          // Keep the cached node's identity and pinned type, but refresh size/mtime from this listing.
+          // Keep the cached node's identity and pinned type, but refresh metadata from this listing.
           mapItem.size = file.size;
+          mapItem.mode = file.mode;
           mapItem.mtime = file.mtime;
           return mapItem;
         } else {
@@ -222,6 +242,7 @@ export default class RemoteTreeData
             }),
             isDirectory,
             size: file.size,
+            mode: file.mode,
             mtime: file.mtime,
           };
           this._map.set(newItem.resource.uri.query, newItem);

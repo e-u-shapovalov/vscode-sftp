@@ -11,10 +11,25 @@ import {
 } from './fs';
 import localFs from './localFs';
 
-function hashOption(opiton) {
-  return Object.keys(opiton)
-    .map(key => opiton[key])
-    .join('');
+// Stable serialization (sorted keys, nested objects included). The previous implementation glued
+// bare values together ('foo'+22 === 'foo2'+2), so two different hosts could collide on one cache
+// slot and commands could run against the wrong connection.
+function stableStringify(value: any): string {
+  if (value === null || typeof value !== 'object') {
+    return String(JSON.stringify(value));
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const body = Object.keys(value)
+    .sort()
+    .map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+    .join(',');
+  return `{${body}}`;
+}
+
+function hashOption(option) {
+  return stableStringify(option);
 }
 
 class KeepAliveRemoteFs {

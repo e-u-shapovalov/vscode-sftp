@@ -18,29 +18,31 @@ const serviceManager = new Trie<FileService>(
   }
 );
 
+// Recursive: secrets also live in nested objects — profiles.<name>.password, hop[].password —
+// which a top-level-only mask would print to the Output channel verbatim.
 function maskConfig(config) {
-  const copy = {};
   const MASK = '******';
-  Object.keys(config).forEach(key => {
-    const configValue = config[key];
-    switch (key) {
-      case 'username':
-      case 'password':
-      case 'passphrase':
-        copy[key] = MASK;
-        break;
-      case 'interactiveAuth':
-        if (Array.isArray(configValue)) {
-          copy[key] = configValue.map(phrase => MASK);
-        } else {
-          copy[key] = configValue;
-        }
-        break;
-      default:
-        copy[key] = configValue;
+  const SECRET_KEYS = ['username', 'password', 'passphrase', 'privateKey'];
+  const mask = (value: any, key?: string) => {
+    if (key !== undefined && SECRET_KEYS.indexOf(key) !== -1) {
+      return MASK;
     }
-  });
-  return copy;
+    if (key === 'interactiveAuth' && Array.isArray(value)) {
+      return value.map(() => MASK);
+    }
+    if (Array.isArray(value)) {
+      return value.map(item => mask(item));
+    }
+    if (value !== null && typeof value === 'object') {
+      const copy = {};
+      Object.keys(value).forEach(k => {
+        copy[k] = mask(value[k], k);
+      });
+      return copy;
+    }
+    return value;
+  };
+  return mask(config);
 }
 
 function normalizePathForTrie(pathname) {

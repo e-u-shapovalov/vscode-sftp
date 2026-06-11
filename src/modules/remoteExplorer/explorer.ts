@@ -86,7 +86,8 @@ export default class RemoteExplorer {
       }
       const config = fileService.getConfig();
       const localPath = item.resource.fsPath;
-      const remotePath = toRemotePath(localPath, config.context, config.remotePath);
+      // baseDir, not config.context: context is the raw user value (possibly undefined/relative).
+      const remotePath = toRemotePath(localPath, fileService.baseDir, config.remotePath);
       item.resource = UResource.makeResource({
         remote: {
           host: config.host,
@@ -98,6 +99,10 @@ export default class RemoteExplorer {
     }
 
     return this._treeDataProvider.refresh(item);
+  }
+
+  refreshItem(item: ExplorerItem): void {
+    this._treeDataProvider.refreshItem(item);
   }
 
   reveal(
@@ -156,6 +161,16 @@ export default class RemoteExplorer {
       root = roots.length === 1 ? roots[0] : await this._pickRoot(roots);
       if (root) {
         remotePath = upath.normalize(upath.join(root.resource.fsPath, raw));
+        // Same containment rule as the absolute branch: '../..' must not escape the root.
+        if (!isUnderRoot(root.resource.fsPath, remotePath)) {
+          showWarningMessage(
+            L({
+              en: `WireFerry: "${raw}" resolves outside the remote root (${root.resource.fsPath}).`,
+              ru: `WireFerry: «${raw}» выходит за пределы корня сервера (${root.resource.fsPath}).`,
+            })
+          );
+          return;
+        }
       }
     }
     if (!root || remotePath === undefined) {

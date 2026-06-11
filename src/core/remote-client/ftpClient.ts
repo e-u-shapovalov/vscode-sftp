@@ -57,7 +57,9 @@ export default class FTPClient extends RemoteClient {
 
     const { username, connectTimeout = 3 * 1000, ...option } = connectOption;
     return new Promise<void>((resolve, reject) => {
-      setTimeout(() => {
+      // Keep the handle and clear it once the connect settles — otherwise the callback still
+      // fires later and calls end() on a connection that is by then alive (or already replaced).
+      const connectTimer = setTimeout(() => {
         if (!this.connected) {
           this.end();
           reject(new Error('Timeout while connecting to server'));
@@ -66,6 +68,7 @@ export default class FTPClient extends RemoteClient {
 
       this._client
         .on('ready', () => {
+          clearTimeout(connectTimer);
           this.connected = true;
           if (option.passive) {
             this._client._pasv(resolve);
@@ -74,6 +77,7 @@ export default class FTPClient extends RemoteClient {
           }
         })
         .on('error', err => {
+          clearTimeout(connectTimer);
           reject(err);
         })
         .connect({

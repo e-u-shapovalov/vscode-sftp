@@ -57,13 +57,20 @@ async function handleFileSave(uri: vscode.Uri) {
 
   const config = fileService.getConfig();
   if (config.uploadOnSave) {
-    const fspath = await realpathSync.native(uri.fsPath);
+    // realpath normalizes the on-disk casing (#589), but it throws for paths that just vanished
+    // or live on flaky network drives — fall back to the original path instead of failing the save.
+    let fspath = uri.fsPath;
+    try {
+      fspath = realpathSync.native(uri.fsPath);
+    } catch (e) {
+      // keep uri.fsPath
+    }
     uri = vscode.Uri.file(fspath);
     logger.info(`[file-save] ${fspath}`);
     try {
       await uploadFile(uri);
     } catch (error) {
-      logger.error(error, `download ${fspath}`);
+      logger.error(error, `upload ${fspath}`);
       app.sftpBarItem.updateStatus(StatusBarItem.Status.error);
     }
   }

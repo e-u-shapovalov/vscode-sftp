@@ -5,7 +5,28 @@ import { getAllFileService } from '../modules/serviceManager';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { getActiveTextEditor } from '../host';
 import { listFiles, toLocalPath, simplifyPath } from '../helper';
+import { isUnsafeRemoteSegment } from '../utils';
 import { L } from '../i18n';
+
+// Input validator for "Create File"/"Create Folder". Nested names like `a/b` are allowed (the
+// handler ensureDir's the parents), but every segment must be a plain name: `../x` would create
+// the entry OUTSIDE the selected folder, and `\`, NUL or CR/LF are never legitimate here.
+export function validateRemoteEntryName(input: string): string | undefined {
+  const name = input || '';
+  if (!name.trim()) {
+    return L({ en: 'Name must not be empty', ru: 'Имя не может быть пустым' });
+  }
+  if (name.startsWith('/')) {
+    return L({ en: 'Enter a name, not an absolute path', ru: 'Введите имя, а не абсолютный путь' });
+  }
+  if (name.split('/').some(segment => isUnsafeRemoteSegment(segment))) {
+    return L({
+      en: 'Invalid name: ".." and special characters are not allowed',
+      ru: 'Недопустимое имя: «..» и спецсимволы запрещены',
+    });
+  }
+  return undefined;
+}
 
 function configIngoreFilterCreator(config) {
   if (!config || !config.ignore) {

@@ -3,11 +3,25 @@ import logger from '../../logger';
 import { reportError } from '../../helper';
 import { L } from '../../i18n';
 import { handleCtxFromUri, allHandleCtxFromUri, FileHandlerContext } from '../../fileHandlers';
-import {
-  COMMAND_UPLOAD_FILE_TO_ALL_PROFILES,
-  COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES,
-} from '../../constants';
 import Command from './command';
+
+// Every wireferry.upload.*.to.allProfiles command is a mass operation — they all get the same
+// safety prompt (previously only the file/folder variants asked; project/active/force did not).
+async function confirmUploadToAllProfiles(commandId: string): Promise<boolean> {
+  if (!commandId.endsWith('.to.allProfiles')) {
+    return true;
+  }
+  const yes = L({ en: 'Yes', ru: 'Да' });
+  const answer = await window.showInformationMessage(
+    L({
+      en: 'Are you sure you want to upload to all profiles?',
+      ru: 'Точно выгрузить во все профили?',
+    }),
+    yes,
+    L({ en: 'No', ru: 'Нет' })
+  );
+  return answer === yes;
+}
 
 interface BaseCommandOption {
   id: string;
@@ -39,7 +53,9 @@ export function createCommand(commandOption: CommandOption & { name: string }) {
     }
 
     doCommandRun(...args) {
-      commandOption.handleCommand.apply(this, args);
+      // Return the promise: Command.run() awaits it, so async errors reach reportError and
+      // commitCommandDone fires only after the command actually finishes.
+      return commandOption.handleCommand.apply(this, args);
     }
   };
 }
@@ -53,24 +69,10 @@ export function createFileCommand(commandOption: FileCommandOption & { name: str
     }
 
     protected async doCommandRun(...args) {
-      const yes = L({ en: 'Yes', ru: 'Да' });
-      if (
-        (this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES ||
-          this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) &&
-        (await window
-          .showInformationMessage(
-            L({
-              en: 'Are you sure you want to upload to all profiles?',
-              ru: 'Точно выгрузить во все профили?',
-            }),
-            yes,
-            L({ en: 'No', ru: 'Нет' })
-          )
-          .then(answer => answer !== yes))
-      ) {
+      if (!(await confirmUploadToAllProfiles(this.id))) {
         return;
       }
-      
+
       const target = await commandOption.getFileTarget(...args);
       if (!target) {
         logger.warn(`The "${this.name}" command get canceled because of missing targets.`);
@@ -100,24 +102,10 @@ export function createFileMultiCommand(commandOption: FileCommandOption & { name
     }
 
     protected async doCommandRun(...args) {
-      const yes = L({ en: 'Yes', ru: 'Да' });
-      if (
-        (this.id === COMMAND_UPLOAD_FILE_TO_ALL_PROFILES ||
-          this.id === COMMAND_UPLOAD_FOLDER_TO_ALL_PROFILES) &&
-        (await window
-          .showInformationMessage(
-            L({
-              en: 'Are you sure you want to upload to all profiles?',
-              ru: 'Точно выгрузить во все профили?',
-            }),
-            yes,
-            L({ en: 'No', ru: 'Нет' })
-          )
-          .then(answer => answer !== yes))
-      ) {
+      if (!(await confirmUploadToAllProfiles(this.id))) {
         return;
       }
-      
+
       const target = await commandOption.getFileTarget(...args);
       if (!target) {
         logger.warn(`The "${this.name}" command get canceled because of missing targets.`);

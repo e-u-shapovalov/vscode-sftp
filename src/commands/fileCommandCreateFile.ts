@@ -2,7 +2,7 @@ import { COMMAND_CREATE_FILE } from '../constants';
 import { createRemoteFile } from '../fileHandlers';
 import { upath, UResource } from '../core';
 import { checkFileCommand } from './abstract/createCommand';
-import { uriFromExplorerContextOrEditorContext } from './shared';
+import { uriFromExplorerContextOrEditorContext, validateRemoteEntryName } from './shared';
 import { window } from 'vscode';
 import { L } from '../i18n';
 
@@ -18,8 +18,9 @@ export default checkFileCommand({
     const result = await window.showInputBox({
       value: '',
       prompt: L({ en: 'Please input file name', ru: 'Введите имя файла' }),
+      validateInput: validateRemoteEntryName,
     });
-    if (result === undefined) {
+    if (result === undefined || validateRemoteEntryName(result) !== undefined) {
       return undefined;
     }
 

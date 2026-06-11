@@ -25,11 +25,13 @@ export const renameRemote = createFileHandler<{
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const { remoteFsPath } = this.target;
 
+    // baseDir is the service's normalized absolute local root; config.context is the raw user
+    // value and may be undefined or relative, which would derail the local→remote mapping.
     const destRemotePath =
       newRemotePath !== undefined
         ? newRemotePath
         : newLocalPath !== undefined
-        ? toRemotePath(newLocalPath, this.config.context, this.config.remotePath)
+        ? toRemotePath(newLocalPath, this.fileService.baseDir, this.config.remotePath)
         : undefined;
 
     const doRemote = destRemotePath !== undefined && destRemotePath !== remoteFsPath;
@@ -38,12 +40,25 @@ export const renameRemote = createFileHandler<{
       localRename.from !== localRename.to &&
       (await fse.pathExists(localRename.from));
 
+    // A pure case change (foo.txt → Foo.txt) is not a real collision: on a case-INSENSITIVE
+    // filesystem the destination resolves to the source itself, so the "already exists" preflight
+    // would otherwise block recasing entirely. On case-sensitive systems a same-name-but-different-
+    // case sibling is genuinely rare, and recasing is the operation the user actually asked for.
+    const isCaseOnlyRemoteRename =
+      doRemote && destRemotePath!.toLowerCase() === remoteFsPath.toLowerCase();
+    const isCaseOnlyLocalRename =
+      !!localRename && localRename.from.toLowerCase() === localRename.to.toLowerCase();
+
     // Preflight: fail BEFORE touching anything if a destination is already occupied, so we never end
     // up half-applied (server renamed but local left behind, or vice versa).
-    if (localFromExists && (await fse.pathExists(localRename!.to))) {
+    if (
+      localFromExists &&
+      !isCaseOnlyLocalRename &&
+      (await fse.pathExists(localRename!.to))
+    ) {
       throw new Error(`Local target already exists: ${localRename!.to}`);
     }
-    if (doRemote) {
+    if (doRemote && !isCaseOnlyRemoteRename) {
       let remoteDestExists = false;
       try {
         await remoteFs.lstat(destRemotePath!);
@@ -62,7 +77,13 @@ export const renameRemote = createFileHandler<{
       await fileOperations.rename(remoteFsPath, destRemotePath!, remoteFs);
     }
     if (localFromExists) {
-      await fse.move(localRename!.from, localRename!.to, { overwrite: false });
+      if (isCaseOnlyLocalRename) {
+        // fse.move(…, { overwrite: false }) refuses here because a case-insensitive disk reports
+        // the destination as already existing (it IS the source). A raw rename recases in place.
+        await fse.rename(localRename!.from, localRename!.to);
+      } else {
+        await fse.move(localRename!.from, localRename!.to, { overwrite: false });
+      }
     }
 
     if (!skipRefresh && app.remoteExplorer) {

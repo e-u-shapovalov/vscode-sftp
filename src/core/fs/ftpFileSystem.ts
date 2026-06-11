@@ -27,12 +27,29 @@ function toNumMode(rightObj) {
     const rightStr = rightObj[key];
     let cur = 0;
     for (const char of rightStr) {
-      cur += numMap[char];
+      const value = numMap[char];
+      if (value !== undefined) {
+        cur += value;
+      } else if (char === 's' || char === 't') {
+        // setuid/setgid/sticky with the execute bit set ('rws', 'rwt') — count the x bit;
+        // 'S'/'T' (no execute) and anything else unknown contribute nothing. Previously any
+        // unknown character produced NaN for the whole mode.
+        cur += numMap.x;
+      }
     }
     return modeStr + cur;
   }, '');
 
-  return parseInt(modeStr, 8);
+  const mode = parseInt(modeStr, 8);
+  return isNaN(mode) ? 0o666 : mode;
+}
+
+// FTP control-channel commands are CRLF-terminated lines; a path with '\r'/'\n' would smuggle in a
+// second command. Listing entries are already filtered, but guard the direct entry points too.
+function assertFtpSafePath(path: string): void {
+  if (/[\r\n\0]/.test(path)) {
+    throw new Error(`illegal characters in remote path: ${JSON.stringify(path)}`);
+  }
 }
 
 export default class FTPFileSystem extends RemoteFileSystem {
@@ -140,6 +157,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async chmod(path: string, mode: number): Promise<void> {
+    assertFtpSafePath(path);
     const command = `CHMOD ${mode.toString(8)} ${path}`;
     return await this.atomicSite(command);
   }
@@ -406,6 +424,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   private async atomicSetLastMod(path: string, date: Date): Promise<void> {
+    assertFtpSafePath(path);
     const task = () =>
       new Promise<void>((resolve, reject) => {
         this.ftp.setLastMod(path, date, err => {

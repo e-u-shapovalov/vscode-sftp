@@ -6,13 +6,17 @@ import { FileSystem, RemoteFileSystem, SFTPFileSystem } from '../fs';
 import logger from '../../logger';
 import CustomError from '../customError';
 
-let MAX_OPEN_FD_NUM = 222;
+const DEFAULT_MAX_OPEN_FD_NUM = 222;
 
 export default class SSHClient extends RemoteClient {
   private sftp: any;
   private hoppingClients: SSHClient[];
+  // Per-instance (was a module-level `let`): a second profile with its own limit must not
+  // silently change the limit of every already-connected client.
+  private _maxOpenFdNum: number = DEFAULT_MAX_OPEN_FD_NUM;
   private _opendFdNum: number = 0;
   private _queuedFdRequireCall: Array<(...args: any[]) => any> = [];
+  private _ended: boolean = false;
 
   _initClient() {
     return new Client();
@@ -93,9 +97,15 @@ export default class SSHClient extends RemoteClient {
     await this._connectSSHClient(this._client, { ...lastOption, sock }, config);
     this.sftp = await this._getSftp(this._client);
 
+    // Fresh connection — drop fd bookkeeping left over from a previous (re)connect, or the
+    // counter starts pre-inflated and the queue replays calls against a dead sftp stream.
+    this._opendFdNum = 0;
+    this._queuedFdRequireCall = [];
+    this._ended = false;
+
     if (lastOption.limitOpenFilesOnRemote) {
       if (typeof lastOption.limitOpenFilesOnRemote !== 'boolean') {
-        MAX_OPEN_FD_NUM = Math.max(127, lastOption.limitOpenFilesOnRemote);
+        this._maxOpenFdNum = Math.max(127, lastOption.limitOpenFilesOnRemote);
       }
       this._limitSftpFileDescriptor();
     }
@@ -198,7 +208,8 @@ export default class SSHClient extends RemoteClient {
         // 队列到下一周期执行, 确保 cb 先执行.
         Promise.resolve().then(() => {
           if (self._queuedFdRequireCall.length > 0) {
-            const queuedCall = self._queuedFdRequireCall.pop()!;
+            // FIFO: shift, not pop — under load a LIFO queue starves the earliest open() calls.
+            const queuedCall = self._queuedFdRequireCall.shift()!;
             queuedCall();
           }
         });
@@ -216,13 +227,17 @@ export default class SSHClient extends RemoteClient {
       const last = arguments.length - 1;
       const args = Array.prototype.slice.call(arguments, 0, last);
       const cb = arguments[last];
-      function wrapped() {
-        self._opendFdNum += 1;
+      function wrapped(err) {
+        // Count only successful opens: a failed open never gets a close, so counting it would
+        // ratchet the counter up until every request parks in the queue forever.
+        if (!err) {
+          self._opendFdNum += 1;
+        }
         cb.apply(this, arguments);
       }
       args.push(wrapped);
 
-      if (self._opendFdNum >= MAX_OPEN_FD_NUM) {
+      if (self._opendFdNum >= self._maxOpenFdNum) {
         self._queuedFdRequireCall.push(() => {
           fn.apply(this, args);
         });
@@ -325,7 +340,7 @@ export default class SSHClient extends RemoteClient {
     return new Promise((resolve, reject) => {
       client.sftp((err, sftp) => {
         if (err) {
-          reject(err);
+          return reject(err);
         }
 
         resolve(sftp);
@@ -354,11 +369,21 @@ export default class SSHClient extends RemoteClient {
   }
 
   end() {
+    // ssh2 emits both 'close' and 'end', and each handler calls end() — make it idempotent so
+    // the hop chain isn't torn down twice (and the in-place reverse() doesn't flip back).
+    if (this._ended) {
+      return;
+    }
+    this._ended = true;
+
     this._client.end();
 
     if (this.hoppingClients) {
       // last connect first end
-      this.hoppingClients.reverse().forEach(client => client.end());
+      this.hoppingClients
+        .slice()
+        .reverse()
+        .forEach(client => client.end());
     }
   }
 
