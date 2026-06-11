@@ -85,3 +85,4 @@ export const COMMAND_REMOTEEXPLORER_OPEN_BY_PATH = 'wireferry.remoteExplorer.ope
 export const COMMAND_CREATE_FOLDER = 'wireferry.create.folder';
 export const COMMAND_CREATE_FILE = 'wireferry.create.file';
 export const COMMAND_RENAME = 'wireferry.rename';
+export const COMMAND_CHMOD_REMOTE = 'wireferry.chmod.remote';

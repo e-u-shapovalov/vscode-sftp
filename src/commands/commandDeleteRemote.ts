@@ -62,12 +62,15 @@ export default checkCommand({
     }
 
     // 'server' → remote only; 'local' → local copy only (server untouched); 'both' → remote + local.
+    // `ignore: null` bypasses the sync `ignore` filter: this is an explicit delete of a file the user
+    // can see in the tree, so an ignore rule (e.g. `*.txt`) must not silently skip it. Auto-sync
+    // callers of removeRemote (file watcher, upload-changed-files) don't pass this and still honour it.
     const option =
       scope === 'server'
-        ? { removeLocalCopy: false }
+        ? { removeLocalCopy: false, ignore: null }
         : scope === 'local'
-        ? { removeLocalCopy: true, skipRemote: true }
-        : { removeLocalCopy: true };
+        ? { removeLocalCopy: true, skipRemote: true, ignore: null }
+        : { removeLocalCopy: true, ignore: null };
 
     await Promise.all(
       targetList.map(async uri => {

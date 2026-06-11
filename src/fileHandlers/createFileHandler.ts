@@ -90,6 +90,9 @@ export default function createFileHandler<T>(
     }
 
     if (invokeOption.ignore && invokeOption.ignore(target.localFsPath)) {
+      // Skipped because the path matches the sync `ignore` filter. Trace it so a silently dropped
+      // operation is at least visible in the log (explicit create/delete commands opt out of this).
+      logger.trace(`skip ${handlerOption.name} (ignored)`, target.localFsPath);
       return;
     }
 

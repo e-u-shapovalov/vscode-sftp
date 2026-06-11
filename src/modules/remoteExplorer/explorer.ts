@@ -236,33 +236,34 @@ export default class RemoteExplorer {
   // refresh: re-list the parent (which fires the tree-data change) and then reveal/select the
   // new entry.
   async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
-    const item: ExplorerItem = {
-      resource: UResource.makeResource(remoteUri),
-      isDirectory,
-    };
+    const resource = UResource.makeResource(remoteUri);
 
     let parent: ExplorerItem;
     try {
-      parent = await this._treeDataProvider.getParent(item);
+      parent = await this._treeDataProvider.getParent({ resource, isDirectory });
     } catch (e) {
       // Tree isn't initialized yet (no roots) — nothing to reveal into.
       return;
     }
 
-    // Re-list the parent: this runs the readdir, lands the new entry in the provider's map,
-    // and fires onDidChangeTreeData(parent). Returns the parent's children.
-    let created: ExplorerItem | undefined;
+    // Pin the type we just created BEFORE re-listing the parent. A re-list right after mkdir/create
+    // can momentarily report the new entry with the wrong type (some servers return stale attrs on the
+    // next readdir), which would paint a new folder as a file until a manual refresh. We created it, so
+    // its type is authoritative — pinning makes the re-list reuse our typed node instead of the listing.
+    const created = this._treeDataProvider.pinKnownType(resource, isDirectory);
+
+    // Re-list the parent: lands the new entry in the tree and fires onDidChangeTreeData(parent).
     try {
-      const children = (await this._treeDataProvider.refresh(parent)) as ExplorerItem[] | undefined;
-      created = children && children.find(c => c.resource.uri.query === item.resource.uri.query);
+      await this._treeDataProvider.refresh(parent);
     } catch (e) {
       // Couldn't re-list the parent; leave the tree as-is.
     }
 
-    // Reveal + select the new entry so it is visible without any manual action.
+    // Reveal + select the new entry so it is visible without any manual action. reveal() expands the
+    // ancestors implicitly; we don't expand the new node itself (a brand-new folder is empty).
     if (created) {
       try {
-        await this.reveal(created, { select: true, focus: false, expand: true });
+        await this.reveal(created, { select: true, focus: false });
       } catch (e) {
         // reveal() can throw if VS Code hasn't registered the node yet; the refresh already showed it.
       }

@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.1.0** — права доступа: команда **«Изменить права (chmod)»** в контекстном меню дерева (пресеты `644`/`755`/… + рекурсивно для папок) и подсказка с **размером и датой** при наведении на файл. Исправлено: явные «Создать»/«Удалить» больше не блокирует фильтр `ignore` (файлы под правилом вроде `*.txt` снова создаются и удаляются), а новая папка сразу показывается папкой, а не файлом.
 - **2.0.9** — убран лишний вопрос «скачать?» при открытии файла из дерева сервера: клик уже скачивал файл через «Edit in Local», и повторный вопрос (с бесполезным «Нет») больше не появляется.
 - **2.0.8** — исправлено «скачивание при открытии» (`downloadOnOpen`): больше не качает сам конфиг и файлы, которых нет на сервере (конец ошибок «No such file»), спрашивает только когда есть что качать. Описания полей в шаблоне и в подсказках стали понятными (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
 - **2.0.7** — конфиг создаётся **по запросу**: расширение спрашивает, нужен ли в проекте SFTP/FTP (с вариантом «не спрашивать в этом проекте»), а не создаёт молча; после удаления конфига спросит снова. Шаблон — на языке `wireferry.alertLanguage`. ПКМ по папке в проводнике → **WireFerry: Config**.
@@ -25,6 +26,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.1.0** — permissions: a **"Change Permissions (chmod)"** command in the tree context menu (presets `644`/`755`/… + recursive for folders) and a hover tooltip with **size and date** on files. Fixed: explicit Create/Delete are no longer blocked by the `ignore` filter (files matched by a rule like `*.txt` create/delete again), and a new folder shows as a folder, not a file.
 - **2.0.9** — removed the redundant "download?" prompt when opening a file from the server tree: the click already fetched it via "Edit in Local", so the duplicate question (with a useless "No") is gone.
 - **2.0.8** — fixed download-on-open (`downloadOnOpen`): it no longer tries to download the config itself or files absent on the server (no more "No such file"), and asks only when there is something to fetch. The config field descriptions (template + hover) are now clear (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
 - **2.0.7** — the config is created **on request**: WireFerry asks whether a project needs SFTP/FTP (with a "don't ask in this project" option) instead of creating it silently; delete the config and it asks again. The template follows `wireferry.alertLanguage`. Right-click a folder in the Explorer → **WireFerry: Config**.
@@ -41,6 +43,24 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.1.0 — Права доступа (chmod), размер в подсказке, фиксы создания/удаления · Permissions (chmod), size tooltip, create/delete fixes
+
+**Русский:**
+
+- **✨ Права доступа (chmod).** В контекстном меню дерева сервера (ПКМ по файлу или папке) появилась команда **«Изменить права (chmod)»**. Текущие права показываются сразу; выбор из пресетов (`644`, `755`, `600`, `700`, `777`) с расшифровкой `rwx` либо **«Своё значение…»** для ручного ввода в восьмеричном виде. Для папки спрашивается, применить **только к ней** или **рекурсивно** ко всему содержимому (как `chmod -R`). По SFTP — надёжно; по FTP — через `SITE CHMOD` (поддерживается не всеми серверами).
+- **✨ Размер и дата при наведении.** При наведении на файл в дереве во всплывающей подсказке показываются полный путь, **размер** (человекочитаемый) и **дата изменения**. Данные берутся из того же листинга каталога — **дополнительных запросов к серверу нет**.
+- **🐛 Явные «Создать»/«Удалить» больше не блокирует фильтр `ignore`.** Фильтр `ignore` предназначен для синхронизации (выгрузка/загрузка), но по ошибке применялся и к ручным командам: файл под правилом (например, `*.txt`) **молча** не создавался и не удалялся. Теперь явные действия в дереве выполняются всегда; авто-синхронизация (`uploadOnSave`, выгрузка папок) фильтр `ignore` по-прежнему уважает.
+- **🐛 Новая папка сразу показывается папкой.** Сразу после создания папка иногда рисовалась как файл (до ручного «Обновить») — некоторые серверы (в т.ч. встроенный SFTP на устройствах) отдают свежесозданную запись с «не осевшими» атрибутами в первом листинге. Тип теперь закрепляется по факту создания и не зависит от этого листинга.
+
+**English:**
+
+- **✨ Permissions (chmod).** The server-tree context menu (right-click a file or folder) gained a **"Change Permissions (chmod)"** command. The current mode is shown up front; pick from presets (`644`, `755`, `600`, `700`, `777`) with their `rwx` meaning, or **"Custom value…"** to type an octal mode by hand. For a folder you're asked whether to apply it **to the folder only** or **recursively** to all its contents (like `chmod -R`). Reliable over SFTP; over FTP it uses `SITE CHMOD` (not supported by every server).
+- **✨ Size & date on hover.** Hovering a file in the tree shows a tooltip with the full path, the **size** (human-readable) and the **modified date**. The data comes from the directory listing we already fetch — **no extra server requests**.
+- **🐛 Explicit Create/Delete are no longer blocked by the `ignore` filter.** The `ignore` filter is meant for sync (upload/download), but it was wrongly applied to manual commands too: a file matched by a rule (e.g. `*.txt`) **silently** failed to be created or deleted. Explicit tree actions now always run; auto-sync (`uploadOnSave`, folder uploads) still honours `ignore`.
+- **🐛 A new folder shows as a folder right away.** Just after creation a folder could be drawn as a file (until a manual Refresh) — some servers (including embedded SFTP on devices) return the freshly created entry with unsettled attrs in the first listing. The type is now pinned from the act of creation, independent of that listing.
 
 ---
 

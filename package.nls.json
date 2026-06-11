@@ -37,6 +37,7 @@
   "wireferry.delete.remote": "Delete",
   "wireferry.create.folder": "Create Folder",
   "wireferry.create.file": "Create File",
+  "wireferry.chmod": "Change Permissions (chmod)",
   "wireferry.revealInExplorer": "Reveal in Explorer",
   "wireferry.revealInRemoteExplorer": "Reveal in Remote Explorer",
   "wireferry.remoteExplorer.editInLocal": "Edit in Local",

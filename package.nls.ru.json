@@ -37,6 +37,7 @@
   "wireferry.delete.remote": "Удалить",
   "wireferry.create.folder": "Создать папку",
   "wireferry.create.file": "Создать файл",
+  "wireferry.chmod": "Изменить права (chmod)",
   "wireferry.revealInExplorer": "Показать в проводнике",
   "wireferry.revealInRemoteExplorer": "Показать в удалённом проводнике",
   "wireferry.remoteExplorer.editInLocal": "Редактировать локально",

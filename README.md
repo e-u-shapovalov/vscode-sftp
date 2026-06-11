@@ -85,6 +85,7 @@ Remote Explorer показывает удалённые файлы в боков
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.1.0** — права доступа: команда **«Изменить права (chmod)»** в контекстном меню дерева (пресеты `644`/`755`/… + рекурсивно для папок) и подсказка с **размером и датой** при наведении на файл. Исправлено: явные «Создать»/«Удалить» больше не блокирует фильтр `ignore` (файлы под правилом вроде `*.txt` снова создаются и удаляются), а новая папка сразу показывается папкой, а не файлом.
 - **2.0.9** — убран лишний вопрос «скачать?» при открытии файла из дерева сервера: клик уже скачивал файл через «Edit in Local», и повторный вопрос (с бесполезным «Нет») больше не появляется.
 - **2.0.8** — исправлено «скачивание при открытии» (`downloadOnOpen`): больше не качает сам конфиг и файлы, которых нет на сервере (конец ошибок «No such file»), спрашивает только когда есть что качать. Описания полей в шаблоне и в подсказках стали понятными (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
 - **2.0.7** — конфиг создаётся **по запросу**: расширение спрашивает, нужен ли в проекте SFTP/FTP (с вариантом «не спрашивать в этом проекте»), а не создаёт молча; после удаления конфига спросит снова. Шаблон — на языке `wireferry.alertLanguage`. ПКМ по папке в проводнике → **WireFerry: Config**.
@@ -103,6 +104,7 @@ Remote Explorer показывает удалённые файлы в боков
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.1.0** — permissions: a **"Change Permissions (chmod)"** command in the tree context menu (presets `644`/`755`/… + recursive for folders) and a hover tooltip with **size and date** on files. Fixed: explicit Create/Delete are no longer blocked by the `ignore` filter (files matched by a rule like `*.txt` create/delete again), and a new folder shows as a folder, not a file.
 - **2.0.9** — removed the redundant "download?" prompt when opening a file from the server tree: the click already fetched it via "Edit in Local", so the duplicate question (with a useless "No") is gone.
 - **2.0.8** — fixed download-on-open (`downloadOnOpen`): it no longer tries to download the config itself or files absent on the server (no more "No such file"), and asks only when there is something to fetch. The config field descriptions (template + hover) are now clear (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
 - **2.0.7** — the config is created **on request**: WireFerry asks whether a project needs SFTP/FTP (with a "don't ask in this project" option) instead of creating it silently; delete the config and it asks again. The template follows `wireferry.alertLanguage`. Right-click a folder in the Explorer → **WireFerry: Config**.

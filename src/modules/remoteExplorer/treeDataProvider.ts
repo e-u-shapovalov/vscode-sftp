@@ -16,6 +16,7 @@ import {
 } from '../../constants';
 import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
+import { L } from '../../i18n';
 
 type Id = number;
 
@@ -43,6 +44,10 @@ function makePreivewUrl(uri: vscode.Uri) {
 interface ExplorerChild {
   resource: Resource;
   isDirectory: boolean;
+  // Captured from the directory listing (the same readdir we already do — no extra request). Used to
+  // build the hover tooltip. A snapshot from list time, like everything else in the tree.
+  size?: number;
+  mtime?: number;
 }
 
 export interface ExplorerRoot extends ExplorerChild {
@@ -61,6 +66,45 @@ function dirFirstSort(fileA: ExplorerItem, fileB: ExplorerItem) {
   }
 
   return fileA.isDirectory ? -1 : 1;
+}
+
+// Human-readable byte size, e.g. 9525 -> "9.3 KB", 500 -> "500 B". Whole bytes show no decimals;
+// larger units show one decimal under 10 (9.3 MB) and none at/above (24 MB).
+function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  const text = i === 0 ? String(value) : value.toFixed(value < 10 ? 1 : 0);
+  return `${text} ${units[i]}`;
+}
+
+// Local "YYYY-MM-DD HH:mm" from a millisecond timestamp (FS already adjusts for any time offset).
+function formatTime(ms: number): string {
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) {
+    return '';
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
+    d.getMinutes()
+  )}`;
+}
+
+// Hover tooltip: full server path, plus size (files only) and modified time when the listing carried
+// them. All data comes from the listing already in memory — building this does no I/O.
+function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
+  const lines = [item.resource.fsPath];
+  if (!isRoot && !item.isDirectory && typeof item.size === 'number') {
+    lines.push(`${L({ en: 'Size', ru: 'Размер' })}: ${formatBytes(item.size)}`);
+  }
+  if (typeof item.mtime === 'number' && item.mtime > 0) {
+    lines.push(`${L({ en: 'Modified', ru: 'Изменён' })}: ${formatTime(item.mtime)}`);
+  }
+  return lines.join('\n');
 }
 
 export default class RemoteTreeData
@@ -119,6 +163,7 @@ export default class RemoteTreeData
     return {
       label: customLabel,
       resourceUri: item.resource.uri,
+      tooltip: buildTooltip(item, isRoot),
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
       contextValue: isRoot ? 'root' : item.isDirectory ? 'folder' : 'file',
       command: item.isDirectory
@@ -166,6 +211,9 @@ export default class RemoteTreeData
         });
         const mapItem = this._map.get(newResource.uri.query);
         if (mapItem) {
+          // Keep the cached node's identity and pinned type, but refresh size/mtime from this listing.
+          mapItem.size = file.size;
+          mapItem.mtime = file.mtime;
           return mapItem;
         } else {
           const newItem = {
@@ -173,12 +221,34 @@ export default class RemoteTreeData
               remotePath: file.fspath,
             }),
             isDirectory,
+            size: file.size,
+            mtime: file.mtime,
           };
           this._map.set(newItem.resource.uri.query, newItem);
           return newItem;
         }
       })
       .sort(dirFirstSort);
+  }
+
+  // Pin the type of a just-created node. Some servers (notably minimal embedded SFTP, e.g. on IoT /
+  // GSM gateways) return a freshly created entry with stale attrs on the very next readdir, so a
+  // re-list right after mkdir/create momentarily reports a new folder as a file — it only self-heals
+  // on a later refresh. The caller created the entry, so its type is authoritative: seed (or correct)
+  // the cached node here. getChildren reuses cached nodes (`if (mapItem) return mapItem`), so the racy
+  // listing can no longer flip the type back. Returns the cached node so it can be revealed.
+  pinKnownType(resource: Resource, isDirectory: boolean): ExplorerItem | undefined {
+    if (!this._map) {
+      return undefined;
+    }
+    const existing = this._map.get(resource.uri.query);
+    if (existing) {
+      existing.isDirectory = isDirectory;
+      return existing;
+    }
+    const node: ExplorerChild = { resource, isDirectory };
+    this._map.set(resource.uri.query, node);
+    return node;
   }
 
   async getParent(item: ExplorerChild): Promise<ExplorerItem> {
