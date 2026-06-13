@@ -70,6 +70,10 @@ const configScheme = {
     order: Joi.number(),
   },
 
+  // Skip files larger than this threshold (in megabytes) during batch transfers (folder upload /
+  // download / sync). A single explicit file command is never filtered. Absent or 0 = disabled.
+  maxFileSize: Joi.number(),
+
   // Opt-out marker written by the legacy-config migration prompt: when true, WireFerry stops
   // offering to rename .vscode/sftp.json -> wireferry.json. Declared here so it isn't flagged
   // as an unknown key by the legacy doctor's config scan.

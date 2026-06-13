@@ -43,6 +43,7 @@
   "wireferry.remoteExplorer.editInLocal": "Edit in Local",
   "wireferry.viewContent": "View Content",
   "wireferry.remoteExplorer.copyPath": "Copy Path",
+  "wireferry.remoteExplorer.calculateFolderSize": "Get Folder Size…",
   "wireferry.remoteExplorer.refresh": "Refresh",
   "wireferry.remoteExplorer.refreshActiveFile": "Refresh Active Remote File",
   "wireferry.remoteExplorer.openByPath": "Open Remote File by Path",

@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.2.0",
+  "version": "2.3.1",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -72,7 +72,7 @@
         },
         "wireferry.downloadWhenOpenInRemoteExplorer": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%wireferry.downloadWhenOpenInRemoteExplorer.description%"
         },
         "wireferry.checkForUpdates": {
@@ -327,6 +327,11 @@
       {
         "command": "wireferry.remoteExplorer.copyPath",
         "title": "%wireferry.remoteExplorer.copyPath%",
+        "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.remoteExplorer.calculateFolderSize",
+        "title": "%wireferry.remoteExplorer.calculateFolderSize%",
         "category": "WireFerry"
       },
       {
@@ -691,6 +696,11 @@
           "command": "wireferry.remoteExplorer.copyPath",
           "group": "2_files",
           "when": "view == remoteExplorer && viewItem != root"
+        },
+        {
+          "command": "wireferry.remoteExplorer.calculateFolderSize",
+          "group": "2_files",
+          "when": "view == remoteExplorer && viewItem != file"
         },
         {
           "command": "wireferry.upload.folder",

@@ -91,6 +91,23 @@ List a remote folder and pick a file to open.
 ### WireFerry: List All
 List all remote files reachable from the configuration `remotePath`.
 
+### Get Folder Size…
+
+![Remote Explorer folder context menu](../assets/showcase/folder-context-menu.png)
+
+Right-click a folder in the Remote Explorer to total its size. Opens a `folder-size.txt` report tab
+with the server path, permissions and size, plus — if the folder is downloaded locally — the local
+path, size and the difference. On SFTP the size is read with a single server-side `du -sb` (byte
+exact); FTP / servers without `du` fall back to a recursive walk with a live counter and Cancel. The
+local size is summed with Node's `fs` (Windows/Linux/macOS). Sizes show as exact grouped bytes and a
+human-readable form, e.g. `12 930 967 152 bytes (12 GB)`.
+
+### Open on click (Remote Explorer)
+By default (`wireferry.downloadWhenOpenInRemoteExplorer: true`) a single click on a server file
+downloads it with a byte progress bar and then opens it: text/source opens straight away, while a
+binary, an unrecognized type, or a file over 10 MB asks first (so VS Code doesn't choke on a blob).
+Set the option to `false` to get a read-only preview without downloading instead.
+
 
 ## Alt commands
 An alternative command can be found when pressing `Alt` while opening a menu.

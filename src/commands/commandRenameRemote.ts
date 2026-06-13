@@ -36,13 +36,23 @@ export default checkCommand({
         // parent-directory move (path traversal) instead of a rename in place.
         validateInput: v => {
           const name = (v || '').trim();
+          // Also reject control chars (CR/LF/NUL — control-channel/path injection) and Unicode
+          // separator look-alikes: NFKC folds fullwidth "／" (U+FF0F) / "＼" back to / and \, which
+          // a case-insensitive/Unicode-folding remote FS could treat as a real separator.
+          const nfkc = name.normalize('NFKC');
           if (
             !name ||
             name === '.' ||
             name === '..' ||
             name.includes('/') ||
             name.includes('\\') ||
-            upath.basename(name) !== name
+            upath.basename(name) !== name ||
+            // tslint:disable-next-line:no-control-regex
+            /[\x00-\x1f]/.test(name) ||
+            nfkc.includes('/') ||
+            nfkc.includes('\\') ||
+            nfkc === '.' ||
+            nfkc === '..'
           ) {
             return L({
               en: 'Enter a valid name (no path separators, no "." or "..")',

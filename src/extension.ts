@@ -22,6 +22,7 @@ import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
 import { runLegacyDoctor } from './modules/legacyDoctor';
 import { runUpdateCheck } from './modules/updateCheck';
+import { REPORT_SCHEME, reportProvider } from './ui/operationReport';
 
 async function setupWorkspaceFolder(dir) {
   const configs = await tryLoadConfigs(dir);
@@ -143,6 +144,12 @@ export async function activate(context: vscode.ExtensionContext) {
   } catch (error) {
     reportError(error, 'initCommands');
   }
+
+  // Virtual document provider for operation reports (upload.log / download.log / delete.log).
+  // Registered once at activation so every command that opens a report tab can share one provider.
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(REPORT_SCHEME, reportProvider)
+  );
 
   // Opt-in GitHub update check — independent of workspace/config; runs in the background.
   runUpdateCheck().catch(error => reportError(error, 'updateCheck'));

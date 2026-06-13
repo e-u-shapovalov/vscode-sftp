@@ -25,6 +25,13 @@ const TEMPLATE_EN = `{
     // "interactiveAuth": false,       // true to enable keyboard-interactive (2FA) prompts.
     // "sshConfigPath": "~/.ssh/config", // Read connection settings from an SSH config file.
 
+    // ---- Legacy SSH servers (since 2.2.1) ------------------------------------------------
+    // Old servers may only support obsolete key-exchange algorithms (e.g. diffie-hellman-group1-sha1).
+    // These are off by default; enable the one(s) your server needs. "append" keeps the modern
+    // algorithms working for other servers. Since 2.2.1 WireFerry can compute these even though
+    // VS Code's own crypto backend can't, so a server that failed with "Unknown DH group" now connects.
+    // "algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } },
+
     // ---- Transfer behaviour --------------------------------------------------------------
     // "useTempFile": false,           // Upload to a temp file then rename (avoids partial reads).
     // "openSsh": false,               // Atomic uploads on OpenSSH servers (requires useTempFile).
@@ -103,6 +110,13 @@ const TEMPLATE_RU = `{
     // "agent": "pageant",             // Сокет ssh-agent; в Windows "pageant" для Pageant.
     // "interactiveAuth": false,       // true для интерактивной аутентификации (2FA).
     // "sshConfigPath": "~/.ssh/config", // Брать настройки подключения из SSH-config.
+
+    // ---- Старые SSH-серверы (с версии 2.2.1) ---------------------------------------------
+    // Старые серверы могут поддерживать только устаревший обмен ключами (напр. diffie-hellman-group1-sha1).
+    // По умолчанию он выключен; включите нужный вашему серверу. "append" не ломает современные
+    // алгоритмы для других серверов. С версии 2.2.1 WireFerry считает такой обмен ключами сам, даже
+    // когда крипто-движок VS Code не умеет, — сервер, падавший с "Unknown DH group", теперь подключается.
+    // "algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } },
 
     // ---- Поведение передачи --------------------------------------------------------------
     // "useTempFile": false,           // Выгружать во временный файл, затем переименовывать.

@@ -49,7 +49,7 @@ export function getExtensionSetting(): ExtensionSetting {
     debug: readSetting<boolean>('debug', false),
     downloadWhenOpenInRemoteExplorer: readSetting<boolean>(
       'downloadWhenOpenInRemoteExplorer',
-      false
+      true
     ),
     suppressLegacyConfigNotice: readSetting<boolean>('suppressLegacyConfigNotice', false),
   };

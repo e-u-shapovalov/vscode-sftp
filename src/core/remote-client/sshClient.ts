@@ -1,3 +1,7 @@
+// MUST stay above the ssh2 import: ssh2's kex.js destructures createDiffieHellman* from 'crypto'
+// the moment it loads, so our crypto patch (applied as a side effect of this module) has to run
+// first. ssh2 is an external (see webpack.config.js), required at this point in source order.
+import './legacyDh';
 import { Client } from 'ssh2';
 import upath from '../upath';
 import RemoteClient, { ErrorCode, ConnectOption, Config } from './remoteClient';
@@ -15,7 +19,9 @@ export default class SSHClient extends RemoteClient {
   // silently change the limit of every already-connected client.
   private _maxOpenFdNum: number = DEFAULT_MAX_OPEN_FD_NUM;
   private _opendFdNum: number = 0;
-  private _queuedFdRequireCall: Array<(...args: any[]) => any> = [];
+  // Each queued fd request carries `exec` (run the real open when capacity frees up) and `fail`
+  // (reject the awaiting caller) so a disconnect can drain the queue instead of wedging it forever.
+  private _queuedFdRequireCall: Array<{ exec: () => any; fail: (err: Error) => void }> = [];
   private _ended: boolean = false;
 
   _initClient() {
@@ -207,10 +213,11 @@ export default class SSHClient extends RemoteClient {
       function wrapped() {
         // 队列到下一周期执行, 确保 cb 先执行.
         Promise.resolve().then(() => {
-          if (self._queuedFdRequireCall.length > 0) {
+          // Skip once the connection is gone — end() has already drained/failed the queue.
+          if (!self._ended && self._queuedFdRequireCall.length > 0) {
             // FIFO: shift, not pop — under load a LIFO queue starves the earliest open() calls.
             const queuedCall = self._queuedFdRequireCall.shift()!;
-            queuedCall();
+            queuedCall.exec();
           }
         });
         self._opendFdNum -= 1;
@@ -237,9 +244,17 @@ export default class SSHClient extends RemoteClient {
       }
       args.push(wrapped);
 
+      // Connection already closed: fail fast so the awaiting open()/opendir() rejects instead of
+      // queuing a call that can never run (which used to hang the transfer forever).
+      if (self._ended) {
+        wrapped.call(this, new Error('SFTP connection closed'));
+        return;
+      }
+
       if (self._opendFdNum >= self._maxOpenFdNum) {
-        self._queuedFdRequireCall.push(() => {
-          fn.apply(this, args);
+        self._queuedFdRequireCall.push({
+          exec: () => fn.apply(this, args),
+          fail: err => wrapped.call(this, err),
         });
         return;
       }
@@ -376,6 +391,19 @@ export default class SSHClient extends RemoteClient {
     }
     this._ended = true;
 
+    // Reject every queued fd request so its awaiting caller errors out instead of hanging forever;
+    // reset the counter so a future reconnect on this instance starts clean.
+    const queued = this._queuedFdRequireCall;
+    this._queuedFdRequireCall = [];
+    this._opendFdNum = 0;
+    queued.forEach(item => {
+      try {
+        item.fail(new Error('SFTP connection closed'));
+      } catch (e) {
+        // best-effort — never let queue teardown throw out of end()
+      }
+    });
+
     this._client.end();
 
     if (this.hoppingClients) {
@@ -389,5 +417,35 @@ export default class SSHClient extends RemoteClient {
 
   getFsClient() {
     return this.sftp;
+  }
+
+  // Run a command over an SSH exec channel and resolve its stdout. Rejects on a non-zero exit or a
+  // channel error. Used for cheap server-side aggregates (e.g. `du`) instead of walking over SFTP.
+  // The CALLER is responsible for shell-escaping any path it injects into the command.
+  exec(command: string): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      this._client.exec(command, (err: Error | undefined, stream: any) => {
+        if (err) {
+          return reject(err);
+        }
+        let stdout = '';
+        let stderr = '';
+        stream.on('data', (chunk: any) => {
+          stdout += chunk;
+        });
+        stream.stderr.on('data', (chunk: any) => {
+          stderr += chunk;
+        });
+        stream
+          .on('close', (code: number) => {
+            if (code === 0) {
+              resolve(stdout);
+            } else {
+              reject(new Error(`command exited with ${code}: ${(stderr || stdout).trim()}`));
+            }
+          })
+          .on('error', reject);
+      });
+    });
   }
 }

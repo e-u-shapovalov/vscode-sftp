@@ -1,7 +1,7 @@
 /* tslint:disable max-classes-per-file */
 import * as querystring from 'querystring';
 import { Uri } from 'vscode';
-import { toLocalPath, toRemotePath } from '../helper';
+import { toLocalPath, toRemotePath, isSubpathOf, isRemoteSubpathOf } from '../helper';
 import { REMOTE_SCHEME } from '../constants';
 
 function createUriString(authority: string, filepath: string, query: { [x: string]: any }) {
@@ -118,11 +118,20 @@ export default class UResource {
     let localResouce: Resource;
     let remoteResouce: Resource;
     if (uri.scheme === REMOTE_SCHEME) {
-      const localFsPath = toLocalPath(
-        UResource.makeResource(uri).fsPath,
-        remoteBasePath,
-        localBasePath
-      );
+      const remotePath = UResource.makeResource(uri).fsPath;
+      // Containment: a forged remote: URI (same remoteId, but an fsPath like /etc/passwd) would make
+      // toLocalPath emit a `..`-escaping local path. Reject anything outside the configured remote
+      // root, and re-check that the mapped local path stays inside the local context, so a crafted
+      // URI can't read outside the remote root or write outside the workspace.
+      if (!isRemoteSubpathOf(remoteBasePath, remotePath)) {
+        throw new Error(
+          `Refusing remote path outside the configured root (${remoteBasePath}): ${remotePath}`
+        );
+      }
+      const localFsPath = toLocalPath(remotePath, remoteBasePath, localBasePath);
+      if (!isSubpathOf(localBasePath, localFsPath)) {
+        throw new Error(`Refusing remote path that maps outside the local context: ${localFsPath}`);
+      }
       localResouce = new _Resource(Uri.file(localFsPath));
       remoteResouce = new _Resource(uri);
     } else {

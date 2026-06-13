@@ -76,6 +76,7 @@ export const sync2Remote = createFileHandler<SyncOption>({
       skipCreate: syncOption.skipCreate,
       ignoreExisting: syncOption.ignoreExisting,
       update: syncOption.update,
+      maxFileSize: config.maxFileSize,
     };
   },
   afterHandle() {
@@ -114,6 +115,7 @@ export const sync2Local = createFileHandler<SyncOption>({
       skipCreate: syncOption.skipCreate,
       ignoreExisting: syncOption.ignoreExisting,
       update: syncOption.update,
+      maxFileSize: config.maxFileSize,
     };
   },
 });
@@ -129,6 +131,7 @@ export const upload = createFileHandler<TransferOption>({
       openSsh: config.openSsh,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
   afterHandle() {
@@ -147,6 +150,7 @@ export const uploadFile = createFileHandler<TransferOption>({
       openSsh: config.openSsh,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
   afterHandle() {
@@ -165,6 +169,7 @@ export const uploadFolder = createFileHandler<TransferOption>({
       openSsh: config.openSsh,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
   afterHandle() {
@@ -181,6 +186,7 @@ export const download = createFileHandler<TransferOption>({
       perserveTargetMode: false,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
 });
@@ -194,6 +200,7 @@ export const downloadFile = createFileHandler<TransferOption>({
       perserveTargetMode: false,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
 });
@@ -207,6 +214,7 @@ export const downloadFolder = createFileHandler<TransferOption>({
       perserveTargetMode: false,
       // remoteTimeOffsetInHours: config.remoteTimeOffsetInHours,
       ignore: config.ignore,
+      maxFileSize: config.maxFileSize,
     };
   },
 });

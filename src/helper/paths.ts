@@ -57,6 +57,19 @@ export function isSubpathOf(possiableParentPath: string, pathname: string) {
   return child.indexOf(parentWithSep) === 0;
 }
 
+// Containment check for remote (always forward-slash) paths — the `path`/`isSubpathOf` version
+// would mangle Unix paths on Windows (it swaps / for \). Used to reject a forged remote: URI whose
+// fsPath points outside the configured remote root.
+export function isRemoteSubpathOf(possiableParentPath: string, pathname: string) {
+  const parent = upath.normalize(possiableParentPath).replace(/\/+$/, '') || '/';
+  const child = upath.normalize(pathname);
+  if (child === parent) {
+    return true;
+  }
+  const parentWithSep = parent === '/' ? '/' : parent + '/';
+  return child.indexOf(parentWithSep) === 0;
+}
+
 export function replaceHomePath(pathname: string) {
   return pathname.substr(0, 2) === '~/' ? path.join(os.homedir(), pathname.slice(2)) : pathname;
 }

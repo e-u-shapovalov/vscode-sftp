@@ -108,6 +108,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
       };
     }
 
+    assertFtpSafePath(path);
     const parentPath = this.pathResolver.dirname(path);
     const nameIdentity = this.pathResolver.basename(path);
     const stats = await this.list(parentPath);
@@ -147,6 +148,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async get(path, _option?: FileOption): Promise<Readable> {
+    assertFtpSafePath(path);
     const stream = await this.atomicGet(path);
 
     if (!stream) {
@@ -163,6 +165,9 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async put(input: Readable, path, _option?: FileOption): Promise<void> {
+    assertFtpSafePath(path);
+    // FTP byte progress не подключён: atomicPut делегирует в ftp.put() без ручного pipe,
+    // чистой точки для 'data'-листенера нет.
     let inputError: Error | undefined;
     input.once('error', err => {
       inputError = err;
@@ -190,6 +195,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async mkdir(dir: string): Promise<void> {
+    assertFtpSafePath(dir);
     return await this.atomicMakeDir(dir);
   }
 
@@ -266,6 +272,7 @@ export default class FTPFileSystem extends RemoteFileSystem {
     dir: string,
     { showHiddenFiles = false } = {}
   ): Promise<FileEntry[]> {
+    assertFtpSafePath(dir);
     // -al flag only get partially support
     const stats = await this.atomicList(dir);
 
@@ -289,10 +296,12 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async unlink(path: string): Promise<void> {
+    assertFtpSafePath(path);
     return await this.atomicDeleteFile(path);
   }
 
   async rmdir(path: string, recursive: boolean): Promise<void> {
+    assertFtpSafePath(path);
     return await this.atomicRemoveDir(path, recursive);
   }
 
@@ -301,6 +310,8 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   async renameAtomic(srcPath: string, destPath: string): Promise<void> {
+    assertFtpSafePath(srcPath);
+    assertFtpSafePath(destPath);
     const task = () =>
       new Promise<void>((resolve, reject) => {
         this.ftp.rename(srcPath, destPath, err => {

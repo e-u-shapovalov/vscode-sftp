@@ -16,6 +16,7 @@ import {
 } from '../../constants';
 import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
+import { isRemoteSubpathOf } from '../../helper';
 import { L } from '../../i18n';
 
 type Id = number;
@@ -324,8 +325,36 @@ export default class RemoteTreeData
     }
 
     const config = root.explorerContext.config;
+    const remotePath = UResource.makeResource(uri).fsPath;
+    // Preview reads the path directly (it doesn't go through UResource.from), so re-check containment
+    // here too — a forged preview URI must not read outside the configured remote root.
+    if (!isRemoteSubpathOf(config.remotePath, remotePath)) {
+      throw new Error(`Refusing to preview a path outside the configured root: ${remotePath}`);
+    }
+
     const remotefs = await root.explorerContext.fileService.getRemoteFileSystem(config);
-    const buffer = await remotefs.readFile(UResource.makeResource(uri).fsPath);
+
+    // Previewing reads the whole file into memory and renders it as text — a big or binary blob
+    // (e.g. a 200 MB log) freezes the editor, the same hazard smartOpen guards on download. Cap it
+    // and point the user at "Edit in Local" (which downloads and asks before opening).
+    const PREVIEW_LIMIT = 10 * 1024 * 1024;
+    let size = 0;
+    try {
+      size = (await remotefs.lstat(remotePath)).size;
+    } catch (e) {
+      // lstat may fail (permissions, race) — fall through and let readFile surface the real error.
+    }
+    if (size > PREVIEW_LIMIT) {
+      const mb = (size / (1024 * 1024)).toFixed(1);
+      throw new Error(
+        L({
+          en: `File is too large to preview (${mb} MB). Use "Edit in Local" to download it instead.`,
+          ru: `Файл слишком большой для предпросмотра (${mb} МБ). Используйте «Edit in Local», чтобы скачать его.`,
+        })
+      );
+    }
+
+    const buffer = await remotefs.readFile(remotePath);
     return buffer.toString();
   }
 

@@ -43,6 +43,7 @@
   "wireferry.remoteExplorer.editInLocal": "Редактировать локально",
   "wireferry.viewContent": "Просмотреть содержимое",
   "wireferry.remoteExplorer.copyPath": "Копировать путь",
+  "wireferry.remoteExplorer.calculateFolderSize": "Узнать размер папки…",
   "wireferry.remoteExplorer.refresh": "Обновить",
   "wireferry.remoteExplorer.refreshActiveFile": "Обновить активный удалённый файл",
   "wireferry.remoteExplorer.openByPath": "Открыть файл на сервере по пути",

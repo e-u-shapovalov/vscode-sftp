@@ -407,10 +407,17 @@ export default class SFTPFileSystem extends RemoteFileSystem {
       mode?: number;
       autoClose?: boolean;
       handle?: FileHandle;
+      onProgress?: (bytes: number) => void;
     }
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const writer: WriteStream = this.sftp.createWriteStream(path, option);
+      // Strip onProgress before passing to ssh2: it is not a valid stream option.
+      const { onProgress, ...streamOpt } = option || {};
+      const writer: WriteStream = this.sftp.createWriteStream(path, streamOpt);
+      // Named so we can detach it on error — otherwise a few chunks can still fire addBytes after
+      // the transfer already rejected, inflating the counter.
+      const onData = onProgress ? (chunk: any) => onProgress(chunk.length) : null;
+      const stopCounting = () => { if (onData) input.removeListener('data', onData); };
       // Resolve on 'finish' (all data flushed). Also resolve on 'close' as a fallback: ssh2's
       // write stream does not reliably emit 'finish' for a zero-byte write (e.g. creating an empty
       // file), but it does close the handle. 'error' is registered first, so a failed transfer
@@ -419,6 +426,7 @@ export default class SFTPFileSystem extends RemoteFileSystem {
         .once('error', err => {
           // Detach and kill the source too: a dead writer otherwise leaves input piping into
           // nowhere, with its server-side read handle never closed until GC.
+          stopCounting();
           input.unpipe(writer);
           input.destroy();
           reject(err);
@@ -427,9 +435,12 @@ export default class SFTPFileSystem extends RemoteFileSystem {
         .once('close', resolve); // transffered
 
       input.once('error', err => {
+        stopCounting();
         reject(err);
         writer.end();
       });
+      // Attach the progress listener in the same tick as pipe so no chunks can be lost.
+      if (onData) input.on('data', onData);
       input.pipe(writer);
     });
   }

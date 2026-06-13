@@ -4,6 +4,46 @@ import { reportError } from '../../helper';
 import { L } from '../../i18n';
 import { handleCtxFromUri, allHandleCtxFromUri, FileHandlerContext } from '../../fileHandlers';
 import Command from './command';
+import * as transferProgress from '../../ui/transferProgress';
+import * as operationReport from '../../ui/operationReport';
+import { findAllFileService } from '../../modules/serviceManager';
+
+// Map a command ID to the report kind, or null for commands that don't want a log tab
+// (e.g. delete, chmod — delete manages its own report in commandDeleteRemote).
+function reportKind(id: string): operationReport.ReportKind | null {
+  if (/^wireferry\.upload\./.test(id)) return 'upload';
+  if (/^wireferry\.download\./.test(id)) return 'download';
+  if (/^wireferry\.sync\.localToRemote/.test(id)) return 'upload';
+  if (/^wireferry\.sync\.remoteToLocal/.test(id)) return 'download';
+  if (/^wireferry\.sync\./.test(id)) return 'upload';
+  return null;
+}
+
+// Return a localised progress notification title for transfer commands, or null for others
+// (e.g. delete, chmod) so they don't get a progress bar.
+function transferTitle(id: string): string | null {
+  if (/^wireferry\.upload\./.test(id)) {
+    return L({ en: 'WireFerry: uploading…', ru: 'WireFerry: выгрузка…' });
+  }
+  if (/^wireferry\.download\./.test(id)) {
+    return L({ en: 'WireFerry: downloading…', ru: 'WireFerry: скачивание…' });
+  }
+  if (/^wireferry\.sync\./.test(id)) {
+    return L({ en: 'WireFerry: syncing…', ru: 'WireFerry: синхронизация…' });
+  }
+  // A plain click in the tree downloads via editInLocal — show the byte bar so the user sees it's
+  // fetching (the file is downloaded for real), but NOT a report tab: a single click just wants the
+  // progress, the report is reserved for explicit right-click transfers (reportKind excludes this).
+  if (/\.editInLocal$/.test(id)) {
+    return L({ en: 'WireFerry: downloading…', ru: 'WireFerry: скачивание…' });
+  }
+  return null;
+}
+
+// Cancel all in-progress transfers across every registered FileService.
+function cancelAllTransfers(): void {
+  findAllFileService(f => f.isTransferring()).forEach(f => f.cancelTransferTasks());
+}
 
 // Every wireferry.upload.*.to.allProfiles command is a mass operation — they all get the same
 // safety prompt (previously only the file/folder variants asked; project/active/force did not).
@@ -80,15 +120,25 @@ export function createFileCommand(commandOption: FileCommandOption & { name: str
       }
 
       const targetList: Uri[] = Array.isArray(target) ? target : [target];
-      const pendingTasks = targetList.map(async uri => {
+      // Tasks must be created inside work() so they start within the progress session.
+      const run = () => Promise.all(targetList.map(async uri => {
         try {
           await commandOption.handleFile(handleCtxFromUri(uri));
         } catch (error) {
           reportError(error);
         }
-      });
+      }));
 
-      await Promise.all(pendingTasks);
+      const title = transferTitle(this.id);
+      const kind = reportKind(this.id);
+      const runWithProgress = title
+        ? () => transferProgress.withTransferProgress(title, cancelAllTransfers, run)
+        : run;
+      if (kind) {
+        await operationReport.withReport(kind, runWithProgress);
+      } else {
+        await runWithProgress();
+      }
     }
   };
 }
@@ -113,15 +163,25 @@ export function createFileMultiCommand(commandOption: FileCommandOption & { name
       }
 
       const targetList: Uri[] = Array.isArray(target) ? target : [target];
-      const pendingTasks = targetList.map(async uri => {
+      // Tasks must be created inside work() so they start within the progress session.
+      const run = () => Promise.all(targetList.map(async uri => {
         try {
           await Promise.all(allHandleCtxFromUri(uri).map(commandOption.handleFile));
         } catch (error) {
           reportError(error);
         }
-      });
+      }));
 
-      await Promise.all(pendingTasks);
+      const title = transferTitle(this.id);
+      const kind = reportKind(this.id);
+      const runWithProgress = title
+        ? () => transferProgress.withTransferProgress(title, cancelAllTransfers, run)
+        : run;
+      if (kind) {
+        await operationReport.withReport(kind, runWithProgress);
+      } else {
+        await runWithProgress();
+      }
     }
   };
 }

@@ -58,6 +58,7 @@ interface ServiceOption {
   };
   remoteTimeOffsetInHours: number;
   limitOpenFilesOnRemote: number | true;
+  maxFileSize?: number;
 }
 
 interface WatcherConfig {

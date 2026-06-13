@@ -6,6 +6,7 @@ import { reportError } from '../helper';
 import { checkCommand } from './abstract/createCommand';
 import { uriFromExplorerContextOrEditorContext } from './shared';
 import { L } from '../i18n';
+import * as operationReport from '../ui/operationReport';
 
 type DeleteScope = 'server' | 'local' | 'both';
 
@@ -65,21 +66,24 @@ export default checkCommand({
     // `ignore: null` bypasses the sync `ignore` filter: this is an explicit delete of a file the user
     // can see in the tree, so an ignore rule (e.g. `*.txt`) must not silently skip it. Auto-sync
     // callers of removeRemote (file watcher, upload-changed-files) don't pass this and still honour it.
+    // `reportScope` is forwarded into removeRemote so each report row carries the chosen scope.
     const option =
       scope === 'server'
-        ? { removeLocalCopy: false, ignore: null }
+        ? { removeLocalCopy: false, ignore: null, reportScope: 'server' as const }
         : scope === 'local'
-        ? { removeLocalCopy: true, skipRemote: true, ignore: null }
-        : { removeLocalCopy: true, ignore: null };
+        ? { removeLocalCopy: true, skipRemote: true, ignore: null, reportScope: 'local' as const }
+        : { removeLocalCopy: true, ignore: null, reportScope: 'both' as const };
 
-    await Promise.all(
-      targetList.map(async uri => {
-        try {
-          await removeRemote(uri, option);
-        } catch (error) {
-          reportError(error);
-        }
-      })
+    await operationReport.withReport('delete', () =>
+      Promise.all(
+        targetList.map(async uri => {
+          try {
+            await removeRemote(uri, option);
+          } catch (error) {
+            reportError(error);
+          }
+        })
+      )
     );
   },
 });

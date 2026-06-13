@@ -28,10 +28,27 @@ function assertNoShellControl(value: string, fieldName: string) {
 
 // `ssh` runs ProxyCommand/LocalCommand as local programs and pulls in arbitrary config via
 // Include/ProxyJump — none of which need a shell metacharacter to fire. sshCustomParams comes
-// from the (untrusted) workspace config, so reject those options outright.
-const DANGEROUS_SSH_OPTIONS = ['proxycommand', 'localcommand', 'permitlocalcommand', 'proxyjump', 'include'];
+// from the (untrusted) workspace config, so reject those options outright. `-o <Option>=…` is
+// covered too because the option name itself ends up in the string.
+const DANGEROUS_SSH_OPTIONS = [
+  'proxycommand', 'localcommand', 'permitlocalcommand', 'proxyjump', 'include',
+  'pkcs11provider', 'userknownhostsfile', 'knownhostscommand', 'remotecommand',
+  'identityagent', 'controlpath', 'controlmaster',
+];
 
 function assertNoDangerousSshOption(value: string, fieldName: string) {
+  // `-F altconfig` makes ssh read an attacker-supplied config file (which can carry LocalCommand /
+  // ProxyCommand) — that bypasses the keyword scan below since the param string itself is just
+  // "-F path". Reject the alternate-config flag explicitly (case-sensitive: -F, not -f/background).
+  if (/(?:^|\s)-F(?:\s|=|$)/.test(value)) {
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: "${fieldName}" uses the disallowed -F flag (alternate ssh config).`,
+        ru: `Не удаётся открыть SSH-терминал: «${fieldName}» использует запрещённый флаг -F (альтернативный ssh-конфиг).`,
+      })
+    );
+  }
+
   const lowered = value.toLowerCase();
   const hit = DANGEROUS_SSH_OPTIONS.find(opt => lowered.includes(opt));
   if (hit) {

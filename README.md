@@ -80,11 +80,19 @@ WireFerry не заменяет CI/CD и не пытается быть полн
 
 Remote Explorer показывает удалённые файлы в боковой панели VS Code. Из него можно открывать, скачивать, выгружать, переименовывать, удалять и переносить файлы между папками сервера.
 
+### Контекстное меню сервера (ПКМ)
+
+![Контекстное меню папки в Remote Explorer](assets/showcase/folder-context-menu.png)
+
+Правый клик по папке: выгрузка/скачивание, **«Узнать размер папки…»**, права (chmod), создание/удаление/переименование, копирование пути. У файла набор свой (выгрузить/скачать/diff и т. д.).
+
 Для будущих релизов полезно добавить ещё два скриншота в `assets/showcase/`: установку `.vsix` через **Install from VSIX...** и пример `.vscode/wireferry.json`.
 
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.3.1** — видимость операций. **Прогресс-бар по байтам** при выгрузке/скачивании по ПКМ («45 МБ из 200» + **Отмена**) — большой файл больше не качается в тишине. После скачивания текст открывается сразу, а бинарь/файлы **больше 10 МБ** спрашивают — VS Code не виснет на exe/видео. **Отчёт** `delete/upload/download.log` после ПКМ-действий: что и куда, размер, дата, права; при удалении видно расхождение локальной и серверной копий. Необязательный пропуск файлов больше порога при передаче папки (`maxFileSize`). Удаление папки идёт пофайлово — с прогрессом и отменой.
+- **2.2.1** — подключение к **старым SSH-серверам** с устаревшим обменом ключами (`diffie-hellman-group1-sha1` и др.). Раньше такие падали с `Unknown DH group`, потому что крипто-движок VS Code (Electron/BoringSSL) не умеет классический Diffie-Hellman; теперь расширение считает обмен ключами само, когда движок отказывает. Современные подключения не затронуты. Включается явно в конфиге: `"algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } }`.
 - **2.2.0** — надёжность и безопасность. Исправлена **синхронизация в обе стороны**: файлы и папки, которые новее или есть только на сервере, теперь действительно скачиваются на компьютер (раньше эта половина молча не работала). Выгрузка больше не обнуляет файл на сервере, если локальный источник не удалось прочитать. Переименование со сменой только регистра (`foo`→`Foo`) работает на регистронезависимых серверах. Соединения всех профилей закрываются при смене конфига. Усилена безопасность: запрет `CR`/`LF` в именах (защита от инъекций в FTP-команды), маскировка паролей в логах в т.ч. во вложенных профилях и хопах, обновления качаются только с GitHub по HTTPS. В подсказке дерева теперь видны **права доступа**; имена при создании файла/папки проверяются.
 - **2.1.0** — права доступа: команда **«Изменить права (chmod)»** в контекстном меню дерева (пресеты `644`/`755`/… + рекурсивно для папок) и подсказка с **размером и датой** при наведении на файл. Исправлено: явные «Создать»/«Удалить» больше не блокирует фильтр `ignore` (файлы под правилом вроде `*.txt` снова создаются и удаляются), а новая папка сразу показывается папкой, а не файлом.
 - **2.0.9** — убран лишний вопрос «скачать?» при открытии файла из дерева сервера: клик уже скачивал файл через «Edit in Local», и повторный вопрос (с бесполезным «Нет») больше не появляется.
@@ -105,6 +113,8 @@ Remote Explorer показывает удалённые файлы в боков
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.3.1** — operation visibility. A **byte progress bar** for right-click uploads/downloads ("45 MB / 200 MB" + **Cancel**) — a big file no longer transfers in silence. After a download, text opens at once while binaries / files **over 10 MB** ask first — VS Code no longer freezes on an exe or video. An **operation report** `delete/upload/download.log` after right-click actions: what and where, size, date, permissions; for deletes it shows where the local and server copies differ. Optional skipping of files over a threshold during folder transfers (`maxFileSize`). Folder delete runs file-by-file, with progress and cancel.
+- **2.2.1** — connect to **legacy SSH servers** with obsolete key exchange (`diffie-hellman-group1-sha1` and friends). These used to fail with `Unknown DH group` because VS Code's crypto backend (Electron/BoringSSL) lacks classic Diffie-Hellman; the extension now computes the key exchange itself when the backend refuses. Modern connections are untouched. Enable it explicitly in the config: `"algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } }`.
 - **2.2.0** — reliability & security. Fixed **Sync Both Directions**: files and folders that are newer or exist only on the server now actually download to your computer (that half used to silently do nothing). An upload no longer empties the file on the server when the local source can't be read. A case-only rename (`foo`→`Foo`) works on case-insensitive servers. Connections from every profile are closed when the config changes. Security hardening: `CR`/`LF` rejected in names (guards against FTP command injection), passwords masked in logs including nested profiles and hops, and updates download only from GitHub over HTTPS. The tree hover now shows **permissions**; names are validated when creating a file/folder.
 - **2.1.0** — permissions: a **"Change Permissions (chmod)"** command in the tree context menu (presets `644`/`755`/… + recursive for folders) and a hover tooltip with **size and date** on files. Fixed: explicit Create/Delete are no longer blocked by the `ignore` filter (files matched by a rule like `*.txt` create/delete again), and a new folder shows as a folder, not a file.
 - **2.0.9** — removed the redundant "download?" prompt when opening a file from the server tree: the click already fetched it via "Edit in Local", so the duplicate question (with a useless "No") is gone.
@@ -257,6 +267,7 @@ code --install-extension wireferry-<version>.vsix
 | `WireFerry: Diff Active File with Remote` | сравнивает текущий файл с сервером |
 | `WireFerry: Open SSH in Terminal` | открывает SSH к серверу в терминале VS Code |
 | `WireFerry: Cancel All Transfers` | останавливает текущие передачи |
+| `Get Folder Size…` (ПКМ по папке в дереве) | считает размер папки (сервер через `du`, локаль через Node fs) и открывает отчёт-вкладку |
 
 Подробный список: [docs/commands.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/commands.md).
 

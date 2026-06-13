@@ -3,8 +3,8 @@ import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
 import * as fse from 'fs-extra';
-import { EXTENSION_NAME, SETTING_CHECK_FOR_UPDATES, GITHUB_REPO } from '../constants';
-import { getUserSetting } from '../host';
+import { EXTENSION_NAME, SETTING_CHECK_FOR_UPDATES, GITHUB_REPO, CONFIG_PATH } from '../constants';
+import { getUserSetting, getWorkspaceFolders } from '../host';
 import { isSettingExplicitlySet } from './ext';
 import { reportError } from '../helper';
 import { L } from '../i18n';
@@ -140,8 +140,9 @@ async function promptDownload(
     return;
   }
 
-  const dest = path.join(os.tmpdir(), `wireferry-${latest.version}.vsix`);
+  const dest = path.join(getDownloadDir(), `wireferry-${latest.version}.vsix`);
   try {
+    await fse.ensureDir(path.dirname(dest));
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -178,6 +179,13 @@ async function installVsix(vsixPath: string, version: string): Promise<void> {
       'workbench.extensions.installExtension',
       vscode.Uri.file(vsixPath)
     );
+    // VS Code has copied the .vsix into its own extensions dir by now, so the downloaded copy is
+    // spent — remove it so we don't leave a stray .vsix next to the user's config. Best-effort.
+    try {
+      await fse.remove(vsixPath);
+    } catch (e) {
+      // Leaving the file behind is harmless; never let cleanup failure surface as an install error.
+    }
     const RELOAD = L({ en: 'Reload window', ru: 'Перезагрузить окно' });
     const pick = await vscode.window.showInformationMessage(
       L({
@@ -203,6 +211,17 @@ async function installVsix(vsixPath: string, version: string): Promise<void> {
       vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(vsixPath));
     }
   }
+}
+
+// Where the downloaded .vsix lands: next to the config (the first workspace folder's .vscode,
+// alongside wireferry.json) so it's easy to find, instead of buried in the OS temp dir. Falls
+// back to the temp dir when no folder is open. The installer deletes it afterwards (see installVsix).
+function getDownloadDir(): string {
+  const folders = getWorkspaceFolders();
+  if (folders && folders.length > 0) {
+    return path.join(folders[0].uri.fsPath, path.dirname(CONFIG_PATH));
+  }
+  return os.tmpdir();
 }
 
 function getCurrentVersion(): string {
@@ -306,7 +325,12 @@ function downloadFile(url: string, dest: string): Promise<void> {
           const file = fse.createWriteStream(dest);
           res.pipe(file);
           file.on('finish', () => file.close(() => resolve()));
-          file.on('error', reject);
+          file.on('error', err => {
+            // Stop the response draining into a dead write stream before bailing out.
+            res.unpipe(file);
+            res.destroy();
+            reject(err);
+          });
         })
         .on('error', reject)
         .on('timeout', function (this: any) {

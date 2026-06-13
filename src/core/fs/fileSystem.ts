@@ -22,6 +22,8 @@ export interface FileOption {
   mode?: number;
   autoClose?: boolean;
   fd?: FileHandle;
+  // Per-chunk byte callback for progress reporting; optional so existing callers are unaffected.
+  onProgress?: (bytes: number) => void;
 }
 
 export interface FileStats {

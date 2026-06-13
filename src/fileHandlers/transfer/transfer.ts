@@ -8,10 +8,21 @@ import {
   fileOperations,
 } from '../../core';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { FileHandleOption } from '../option';
 import { flatten } from '../../utils';
 import logger from '../../logger';
 import { getOpenTextDocuments } from '../../host';
+import { L } from '../../i18n';
+
+// Per-operation skip counter, keyed by the root srcFsPath of the top-level transfer/sync call.
+// Recursive helpers accumulate here; the root exported function reads and clears the entry after
+// the operation finishes, then shows a single info message if any files were skipped.
+// Using a module-level Map avoids threading an extra mutable argument through every recursive call.
+const _skipCounters: Map<string, { count: number; thresholdMB: number }> = new Map();
+// Per-operation nonce so two concurrent transfers rooted at the same path don't share (and clobber)
+// one skip counter.
+let _skipKeySeq = 0;
 
 // Windows paths are case-insensitive and VS Code does not guarantee a stable drive-letter case,
 // so an exact === between document.fileName and the config path can silently miss (cf. #589).
@@ -22,7 +33,12 @@ function isSameLocalPath(a: string, b: string): boolean {
   return isWindows ? na.toLowerCase() === nb.toLowerCase() : na === nb;
 }
 
-interface InternalTransferOption extends FileHandleOption, TransferTaskTransferOption {}
+interface InternalTransferOption extends FileHandleOption, TransferTaskTransferOption {
+  // Maximum file size (megabytes) for batch transfers; absent/0 means the check is disabled.
+  // Set by each handler's transformOption() from config.maxFileSize. Single-file explicit commands
+  // leave this unset so they are never filtered regardless of size.
+  maxFileSize?: number;
+}
 
 type ExternalTransferOption<T extends InternalTransferOption> = Pick<
   T,
@@ -82,7 +98,8 @@ function toHash<T, R = T>(items: T[], key: string, transform?: (a: T) => R): { [
 
 async function transferFolder(
   config: TransferHandleConfig<TransferOption>,
-  collect: (t: TransferTask) => void
+  collect: (t: TransferTask) => void,
+  skipKey?: string
 ) {
   const { srcFsPath, targetFsPath, srcFs, targetFs, transferOption } = config;
 
@@ -104,9 +121,26 @@ async function transferFolder(
   }
 
   const fileEntries = await srcFs.list(srcFsPath);
+
+  // Resolve the byte threshold once per call; a maxFileSize of 0 or absent means no filtering.
+  const maxFileSizeMB: number = (transferOption as InternalTransferOption).maxFileSize || 0;
+  const bytesLimit: number = maxFileSizeMB > 0 ? maxFileSizeMB * 1024 * 1024 : 0;
+
   await Promise.all(
-    fileEntries.map(file =>
-      transferWithType(
+    fileEntries.map(file => {
+      // Only filter regular files (not directories or symlinks); bytesLimit 0 = disabled.
+      if (bytesLimit > 0 && file.type === FileType.File && file.size > bytesLimit) {
+        logger.info(`skip (too large) ${file.fspath} (${file.size} bytes > ${maxFileSizeMB} MB limit)`);
+        if (skipKey) {
+          const entry = _skipCounters.get(skipKey);
+          if (entry) {
+            entry.count += 1;
+          }
+        }
+        return Promise.resolve();
+      }
+
+      return transferWithType(
         {
           ...config,
           transferOption: {
@@ -119,9 +153,10 @@ async function transferFolder(
           ensureDirExist: false,
         },
         file.type,
-        collect
-      )
-    )
+        collect,
+        skipKey
+      );
+    })
   );
 
   logger.info('folder transfered.');
@@ -160,11 +195,14 @@ async function transferWithType(
     ensureDirExist: boolean;
   },
   fileType: FileType,
-  collect: (t: TransferTask) => void
+  collect: (t: TransferTask) => void,
+  // Key into _skipCounters for the current root operation; absent means no skip accounting
+  // (e.g. a single-file explicit command that was NOT called from transferFolder/_sync).
+  skipKey?: string
 ) {
   switch (fileType) {
     case FileType.Directory:
-      await transferFolder(config, collect);
+      await transferFolder(config, collect, skipKey);
       break;
     case FileType.File:
     case FileType.SymbolicLink:
@@ -229,7 +267,9 @@ async function removeFile(file: string, fs: FileSystem, fileType: FileType, opti
 async function _sync(
   config: TransferHandleConfig<SyncOption>,
   collect: (t: TransferTask) => void,
-  deleted: FileEntry[]
+  deleted: FileEntry[],
+  // Key into _skipCounters for the root sync operation (threaded through recursion).
+  skipKey?: string
 ) {
 
   const { srcFsPath, targetFsPath, srcFs, targetFs, transferOption, transferDirection } = config;
@@ -247,6 +287,28 @@ async function _sync(
     direction === transferDirection
       ? { srcFs, targetFs }
       : { srcFs: targetFs, targetFs: srcFs };
+
+  // Byte limit for this sync operation (0 = disabled).
+  const _syncMaxFileSizeMB: number = (transferOption as InternalTransferOption).maxFileSize || 0;
+  const _syncBytesLimit: number = _syncMaxFileSizeMB > 0 ? _syncMaxFileSizeMB * 1024 * 1024 : 0;
+
+  // Returns true when the file should be skipped due to size and records the skip.
+  const _isTooBig = (entry: FileEntry): boolean => {
+    if (_syncBytesLimit <= 0 || entry.type !== FileType.File) {
+      return false;
+    }
+    if (entry.size > _syncBytesLimit) {
+      logger.info(`skip (too large) ${entry.fspath} (${entry.size} bytes > ${_syncMaxFileSizeMB} MB limit)`);
+      if (skipKey) {
+        const counter = _skipCounters.get(skipKey);
+        if (counter) {
+          counter.count += 1;
+        }
+      }
+      return true;
+    }
+    return false;
+  };
 
   const syncFiles = (srcFileEntries: FileEntry[], desFileEntries: FileEntry[]) => {
     const srcFileTable = toHash(srcFileEntries, 'id', fileEntry => ({
@@ -302,7 +364,7 @@ async function _sync(
             }
 
             // only transfer changed files
-            if (isFileModified(from, to)) {
+            if (isFileModified(from, to) && !_isTooBig(from)) {
               file2trans.push([
                 from.fspath,
                 to.fspath,
@@ -334,17 +396,19 @@ async function _sync(
           break;
         case FileType.File:
         case FileType.SymbolicLink:
-          file2trans.push([
-            srcFile.fspath,
-            fspath,
-            transferDirection,
-            {
-              ...transferOption,
-              fallbackMode: srcFile.mode,
-              mtime: srcFile.mtime,
-              atime: srcFile.atime,
-            },
-          ]);
+          if (!_isTooBig(srcFile)) {
+            file2trans.push([
+              srcFile.fspath,
+              fspath,
+              transferDirection,
+              {
+                ...transferOption,
+                fallbackMode: srcFile.mode,
+                mtime: srcFile.mtime,
+                atime: srcFile.atime,
+              },
+            ]);
+          }
           break;
         default:
         // do not process
@@ -363,17 +427,19 @@ async function _sync(
               break;
             case FileType.File:
             case FileType.SymbolicLink:
-              file2trans.push([
-                file.fspath,
-                fspath,
-                altDirection,
-                {
-                  ...transferOption,
-                  fallbackMode: file.mode,
-                  mtime: file.mtime,
-                  atime: file.atime,
-                },
-              ]);
+              if (!_isTooBig(file)) {
+                file2trans.push([
+                  file.fspath,
+                  fspath,
+                  altDirection,
+                  {
+                    ...transferOption,
+                    fallbackMode: file.mode,
+                    mtime: file.mtime,
+                    atime: file.atime,
+                  },
+                ]);
+              }
               break;
             default:
             // do not process
@@ -429,7 +495,8 @@ async function _sync(
           srcFsPath: src,
           targetFsPath: target,
         },
-        collect
+        collect,
+        skipKey
       )
     );
 
@@ -441,7 +508,8 @@ async function _sync(
           targetFsPath: target,
         },
         collect,
-        deleted
+        deleted,
+        skipKey
       )
     );
 
@@ -474,6 +542,33 @@ async function _sync(
 
 export { TransferOption, SyncOption, TransferDirection };
 
+// Show an info message if any files were skipped due to the maxFileSize threshold.
+function _reportSkips(key: string): void {
+  const entry = _skipCounters.get(key);
+  _skipCounters.delete(key);
+  if (!entry || entry.count === 0) {
+    return;
+  }
+  const count = entry.count;
+  const mb = entry.thresholdMB;
+  // Canonical Russian plural for "файл" (mod-10/mod-100 rule): 21 → файл, 22-24 → файла,
+  // 11-14 and 5-20 → файлов.
+  const m10 = count % 10;
+  const m100 = count % 100;
+  const ruWord =
+    m10 === 1 && m100 !== 11
+      ? 'файл'
+      : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)
+      ? 'файла'
+      : 'файлов';
+  vscode.window.showInformationMessage(
+    L({
+      en: `Skipped ${count} file${count !== 1 ? 's' : ''} larger than ${mb} MB`,
+      ru: `Пропущено ${count} ${ruWord} больше ${mb} МБ`,
+    })
+  );
+}
+
 export async function transfer(
   config: TransferHandleConfig<TransferOption>,
   collect: (t: TransferTask) => void
@@ -487,7 +582,25 @@ export async function transfer(
     filePerm: config?.filePerm,
     dirPerm: config?.dirPerm
   };
-  await transferWithType({ ...config, transferOption, ensureDirExist: true }, stat.type, collect);
+
+  // For a folder transfer, enable skip-counting so oversized files inside are silently skipped
+  // and a single summary message is shown at the end. For a single-file explicit command we pass
+  // no skipKey, which means transferWithType/transferFile will never apply the size filter —
+  // the user explicitly asked for that one file, so we always honour it.
+  const maxFileSizeMB: number = (transferOption as InternalTransferOption).maxFileSize || 0;
+  const isFolderOp = stat.type === FileType.Directory;
+  const skipKey = (isFolderOp && maxFileSizeMB > 0) ? `${config.srcFsPath}#${++_skipKeySeq}` : undefined;
+  if (skipKey) {
+    _skipCounters.set(skipKey, { count: 0, thresholdMB: maxFileSizeMB });
+  }
+
+  try {
+    await transferWithType({ ...config, transferOption, ensureDirExist: true }, stat.type, collect, skipKey);
+  } finally {
+    if (skipKey) {
+      _reportSkips(skipKey);
+    }
+  }
 }
 
 export async function sync(
@@ -495,6 +608,21 @@ export async function sync(
   collect: (t: TransferTask) => void
 ): Promise<FileEntry[]> {
   const deleted: FileEntry[] = [];
-  await _sync(config, collect, deleted);
+
+  // Register a skip counter keyed by the root source path for the duration of this sync.
+  const maxFileSizeMB: number = (config.transferOption as InternalTransferOption).maxFileSize || 0;
+  const skipKey = maxFileSizeMB > 0 ? `${config.srcFsPath}#${++_skipKeySeq}` : undefined;
+  if (skipKey) {
+    _skipCounters.set(skipKey, { count: 0, thresholdMB: maxFileSizeMB });
+  }
+
+  try {
+    await _sync(config, collect, deleted, skipKey);
+  } finally {
+    if (skipKey) {
+      _reportSkips(skipKey);
+    }
+  }
+
   return deleted;
 }

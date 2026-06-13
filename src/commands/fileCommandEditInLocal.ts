@@ -1,7 +1,7 @@
 import { COMMAND_REMOTEEXPLORER_EDITINLOCAL } from '../constants';
 import { downloadFile } from '../fileHandlers';
-import { showTextDocument } from '../host';
 import { suppressDownloadOnOpenOnce } from '../modules/fileActivityMonitor';
+import { openDownloadedFile } from '../helper/smartOpen';
 import { uriFromExplorerContextOrEditorContext } from './shared';
 import { checkFileCommand } from './abstract/createCommand';
 
@@ -14,6 +14,8 @@ export default checkFileCommand({
     // editInLocal already fetched the file intentionally; tell the file-open watcher not to run
     // downloadOnOpen for the open that immediately follows.
     suppressDownloadOnOpenOnce(ctx.target.localUri.fsPath);
-    await showTextDocument(ctx.target.localUri, { preview: true });
+    // Open it — but a binary blob or a >10 MB file freezes the editor, so openDownloadedFile asks
+    // first in those cases instead of opening blindly.
+    await openDownloadedFile(ctx.target.localUri, { preview: true });
   },
 });

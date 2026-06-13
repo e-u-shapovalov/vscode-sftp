@@ -1,8 +1,10 @@
 import { Readable } from 'stream';
+import * as path from 'path';
 import * as fileOperations from './fileBaseOperations';
 import { FileSystem, FileType } from './fs';
 import { Task } from './scheduler';
 import logger from '../logger';
+import * as transferProgress from '../ui/transferProgress';
 
 let hasWarnedModifedTimePermission = false;
 
@@ -152,6 +154,21 @@ export default class TransferTask implements Task {
       mtime,
       filePerm
     } = this._TransferOption;
+
+    // Declare the file size to the progress bar before we start acquiring streams so the bar
+    // shows real movement for large files. Only pay the extra lstat when a session is active.
+    if (transferProgress.isActive()) {
+      let size = 0;
+      try {
+        size = (await srcFs.lstat(src)).size;
+      } catch {
+        // Ignore: size stays 0, bar shows transfer without a filled percentage.
+      }
+      // Don't inflate the bar's total for a file that was cancelled during enumeration.
+      if (!this._cancelled) {
+        transferProgress.addFile(size);
+      }
+    }
     // Set the mode if it's specified in the config, otherwise get mode from server.
     let mode = filePerm ? parseInt(String(filePerm), 8) : this._TransferOption.mode;
     let targetFd; // Destination file
@@ -221,6 +238,9 @@ export default class TransferTask implements Task {
         mode,
         fd: uploadFd,
         autoClose: false,
+        onProgress: transferProgress.isActive()
+          ? (n: number) => transferProgress.addBytes(n, path.basename(this.localFsPath))
+          : undefined,
       });
       if (atime && mtime) {
         try {
@@ -252,18 +272,26 @@ export default class TransferTask implements Task {
           try {
             await targetFs.rename(uploadTarget, target);
           } catch (renameError) {
-            try {
-              await targetFs.unlink(target);
-            } catch(error) {
-              // Just ignore
+            // ONLY unlink+retry when the server refused because the target already exists
+            // (SFTP SSH_FX_FAILURE = 4, FTP 550). For any other failure (network drop, permission)
+            // do NOT delete the target — that would destroy the original while the new content is
+            // still only in `.new`. uploadedOk is already true, so the finally keeps `.new`.
+            const code = renameError && (renameError as any).code;
+            if (code !== 4 && code !== 550) {
+              throw renameError;
             }
+            await targetFs.unlink(target);
             await targetFs.rename(uploadTarget, target);
           }
         }
       }
 
     } finally {
-      await targetFs.close(uploadFd);
+      // Guard against an undefined fd: if an open failed before this try, uploadFd is unset and
+      // close(undefined) would crash, masking the real error (mirrors the targetFd close above).
+      if (uploadFd !== undefined) {
+        await targetFs.close(uploadFd);
+      }
       // Don't leave a half-written *.new file behind when the upload itself failed. If the upload
       // succeeded but the final move failed, KEEP the temp file — it holds the only complete copy.
       if (!uploadedOk && useTempFile) {

@@ -81,6 +81,7 @@ export const COMMAND_REMOTEEXPLORER_EDITINLOCAL = 'wireferry.remoteExplorer.edit
 export const COMMAND_REMOTEEXPLORER_VIEW_CONTENT = 'wireferry.viewContent';
 export const COMMAND_REMOTEEXPLORER_COPY_PATH = 'wireferry.remoteExplorer.copyPath';
 export const COMMAND_REMOTEEXPLORER_OPEN_BY_PATH = 'wireferry.remoteExplorer.openByPath';
+export const COMMAND_REMOTEEXPLORER_CALC_FOLDER_SIZE = 'wireferry.remoteExplorer.calculateFolderSize';
 
 export const COMMAND_CREATE_FOLDER = 'wireferry.create.folder';
 export const COMMAND_CREATE_FILE = 'wireferry.create.file';

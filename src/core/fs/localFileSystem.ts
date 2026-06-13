@@ -88,10 +88,16 @@ export default class LocalFileSystem extends FileSystem {
         return reject(new Error('fd is not a number'));
       }
 
-      const writer = fs.createWriteStream(path, option as any);
+      // Strip onProgress before passing to Node's createWriteStream: it is not a valid stream option.
+      const { onProgress, ...streamOpt } = option || {};
+      const writer = fs.createWriteStream(path, streamOpt as any);
+      // Named so we can detach it on error — otherwise stray chunks keep calling addBytes after reject.
+      const onData = onProgress ? (chunk: any) => onProgress(chunk.length) : null;
+      const stopCounting = () => { if (onData) input.removeListener('data', onData); };
       writer
         .once('error', err => {
           // Detach the source from the dead writer so its fd/stream is released promptly.
+          stopCounting();
           input.unpipe(writer);
           input.destroy();
           reject(err);
@@ -99,9 +105,12 @@ export default class LocalFileSystem extends FileSystem {
         .once('finish', resolve); // transffered
 
       input.once('error', err => {
+        stopCounting();
         reject(err);
         writer.end();
       });
+      // Attach the progress listener in the same tick as pipe so no chunks can be lost.
+      if (onData) input.on('data', onData);
       input.pipe(writer);
     });
   }

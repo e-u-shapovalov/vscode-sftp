@@ -1,12 +1,16 @@
 import { Uri } from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import app from '../../app';
 import logger from '../../logger';
 import { simplifyPath, reportError } from '../../helper';
+import { L } from '../../i18n';
 import { UResource, FileService, TransferTask } from '../../core';
+import { TransferDirection } from '../../core/transferTask';
 import { validateConfig } from '../config';
 import watcherService from '../fileWatcher';
 import Trie from './trie';
+import * as operationReport from '../../ui/operationReport';
 
 const WIN_DRIVE_REGEX = /^([a-zA-Z]):/;
 const isWindows = process.platform === 'win32';
@@ -123,6 +127,28 @@ export function createFileService(config: any, workspace: string) {
     } else {
       logger.info(`${transferType} ${localFsPath}`);
       app.sftpBarItem.showMsg(`done ${filename}`, filepath, 2000 * 2);
+
+      // Feed completed transfers into the operation report when one is active.
+      // For upload the local file is the source; for download it was just written to disk.
+      // Either way, the local stat after the operation is the most informative snapshot.
+      if (operationReport.isActive()) {
+        // Determine the human-readable action verb from the transfer direction.
+        const isUpload = transferType === TransferDirection.LOCAL_TO_REMOTE;
+        const action = isUpload
+          ? L({ en: 'uploaded', ru: 'выгружено' })
+          : L({ en: 'downloaded', ru: 'скачано' });
+
+        // Snapshot the local file; don't crash the afterTransfer hook if stat fails.
+        let localStat: operationReport.FileSideStat | null = null;
+        try {
+          const s = fs.statSync(localFsPath);
+          localStat = { size: s.size, mode: s.mode, mtime: s.mtimeMs };
+        } catch {
+          // File may not exist yet (upload) or was cleaned up — proceed with null.
+        }
+
+        operationReport.addRow({ action, path: localFsPath, local: localStat });
+      }
     }
   });
 
