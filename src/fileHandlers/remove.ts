@@ -26,9 +26,20 @@ export const removeRemote = createFileHandler<
     if (!option.skipRemote) {
       const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
       const { remoteFsPath, localFsPath } = this.target;
-      const stat = await remoteFs.lstat(remoteFsPath);
       const scope = option.reportScope ?? 'server';
 
+      // Idempotent server delete: if the file is already absent on the server, that is NOT an error —
+      // skip the remote removal. (For "both", the local copy is still moved to trash below.)
+      let stat: any = null;
+      try {
+        stat = await remoteFs.lstat(remoteFsPath);
+      } catch (e) {
+        logger.info(
+          `removeRemote: '${remoteFsPath}' not on server (${(e && (e as Error).message) || String(e)}) — nothing to delete there`
+        );
+      }
+
+      if (stat) {
       // ── Top-level target: capture both sides for the comparison row ──────
       // For a single file this gives the user a clear local↔server diff.
       // For directories we still show the top-level, but only the server side
@@ -96,6 +107,7 @@ export const removeRemote = createFileHandler<
           logger.warn(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
       }
       await promise;
+      } // end if (stat) — server file existed
     } else if (operationReport.isActive()) {
       // skipRemote path: local-only delete — record the local side.
       const { localFsPath } = this.target;
@@ -129,7 +141,18 @@ export const removeRemote = createFileHandler<
             useTrash: true,
           });
         } catch (error) {
-          logger.warn(`Failed to move local copy '${localFsPath}' to trash: ${error.message}`);
+          // The OS trash can be unavailable (a subst / network drive has no Recycle Bin). Fall back to a
+          // permanent delete so the file is actually removed instead of silently left behind — the same
+          // thing VS Code's own delete offers ("Delete Permanently") in this situation.
+          logger.warn(`Local trash unavailable for '${localFsPath}' (${error.message}); deleting permanently`);
+          try {
+            await vscode.workspace.fs.delete(vscode.Uri.file(localFsPath), {
+              recursive: true,
+              useTrash: false,
+            });
+          } catch (err2) {
+            logger.warn(`Failed to delete local copy '${localFsPath}': ${err2.message}`);
+          }
         }
       }
     }

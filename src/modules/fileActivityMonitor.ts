@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import logger from '../logger';
-import { realpathSync } from 'fs';
 import app from '../app';
 import StatusBarItem from '../ui/statusBarItem';
 import { onDidOpenTextDocument, onDidSaveTextDocument, showConfirmMessage } from '../host';
@@ -12,7 +11,7 @@ import {
   findAllFileService,
   disposeFileService,
 } from './serviceManager';
-import { reportError, isValidFile, isConfigFile, isInWorkspace } from '../helper';
+import { reportError, isValidFile, isConfigFile, isInWorkspace, realpathIfCaseOnly } from '../helper';
 import { downloadFile, uploadFile, handleCtxFromUri } from '../fileHandlers';
 
 let workspaceWatcher: vscode.Disposable;
@@ -57,14 +56,12 @@ async function handleFileSave(uri: vscode.Uri) {
 
   const config = fileService.getConfig();
   if (config.uploadOnSave) {
-    // realpath normalizes the on-disk casing (#589), but it throws for paths that just vanished
-    // or live on flaky network drives — fall back to the original path instead of failing the save.
-    let fspath = uri.fsPath;
-    try {
-      fspath = realpathSync.native(uri.fsPath);
-    } catch (e) {
-      // keep uri.fsPath
-    }
+    // Normalise the on-disk casing so the upload uses the canonical name (#589), but ONLY when realpath
+    // differs by case alone. A structural realpath change — a resolved symlink (Linux/macOS) or an
+    // expanded subst/mapped drive (Windows) — is rejected: the service is registered under the path the
+    // workspace was opened with, so adopting a different real path makes the trie lookup miss and
+    // resurfaces as "Config Not Found" on save (#339, #397, #521). See test/realpath.spec.js.
+    const fspath = realpathIfCaseOnly(uri.fsPath);
     uri = vscode.Uri.file(fspath);
     logger.info(`[file-save] ${fspath}`);
     try {

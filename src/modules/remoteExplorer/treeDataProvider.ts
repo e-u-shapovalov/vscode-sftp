@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { showTextDocument } from '../../host';
+import { showTextDocument, setContextValue } from '../../host';
 import {
   upath,
   UResource,
@@ -9,6 +9,7 @@ import {
   FileEntry,
   Ignore,
   ServiceConfig,
+  FileSystem,
 } from '../../core';
 import {
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
@@ -18,6 +19,7 @@ import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
 import { isRemoteSubpathOf } from '../../helper';
 import { L } from '../../i18n';
+import { duSizes } from './folderSize';
 
 type Id = number;
 
@@ -50,6 +52,9 @@ interface ExplorerChild {
   size?: number;
   mode?: number;
   mtime?: number;
+  // Real folder size from a server-side `du`, populated only while sort-by-size is active (files use
+  // `size` from the listing; a directory's listing size is the inode size, not its contents).
+  folderBytes?: number;
 }
 
 export interface ExplorerRoot extends ExplorerChild {
@@ -128,6 +133,8 @@ export default class RemoteTreeData
   private _roots: ExplorerRoot[] | null;
   private _rootsMap: Map<Id, ExplorerRoot> | null;
   private _map: Map<vscode.Uri['query'], ExplorerItem>;
+  // Parent uri.query keys whose folder sizes a background `du` is currently measuring, to de-dupe.
+  private _measuring = new Set<string>();
 
   private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem | undefined> = new vscode.EventEmitter<
     ExplorerItem | undefined
@@ -137,6 +144,10 @@ export default class RemoteTreeData
   readonly onDidChange: vscode.Event<vscode.Uri> = this._onDidChangeFile.event;
 
   async refresh(item?: ExplorerItem): Promise<any> {
+    // A refresh re-measures folder sizes: drop cached `du` results so they recompute on demand.
+    this._map.forEach(node => {
+      node.folderBytes = undefined;
+    });
     // refresh root
     if (!item) {
       // clear cache
@@ -171,6 +182,13 @@ export default class RemoteTreeData
     this._onDidChangeFolder.fire(item);
   }
 
+  // Light re-render of the whole tree that KEEPS cached folder sizes — only refresh() re-measures. Used
+  // by the sort / show-size toggles so flipping them reuses known sizes instead of hitting the server;
+  // getChildren still `du`s only the folders it doesn't have a size for yet.
+  rerender(): void {
+    this._onDidChangeFolder.fire(undefined);
+  }
+
   getTreeItem(item: ExplorerItem): vscode.TreeItem {
     const isRoot = (item as ExplorerRoot).explorerContext !== undefined;
     let customLabel;
@@ -180,8 +198,21 @@ export default class RemoteTreeData
     if (!customLabel) {
       customLabel = upath.basename(item.resource.fsPath);
     }
+    // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of sort):
+    // files use the size from the listing; folders use the `du` size measured for this listing. No
+    // per-item requests here.
+    const setting = getExtensionSetting();
+    let description: string | undefined;
+    if (!isRoot && setting.showSizeInTree) {
+      if (!item.isDirectory && typeof item.size === 'number') {
+        description = formatBytes(item.size);
+      } else if (item.isDirectory && typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
+        description = formatBytes(item.folderBytes);
+      }
+    }
     return {
       label: customLabel,
+      description,
       resourceUri: item.resource.uri,
       tooltip: buildTooltip(item, isRoot),
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
@@ -222,35 +253,116 @@ export default class RemoteTreeData
       return !ignore.ignores(relativePath);
     }
 
-    return fileEntries
-      .filter(filterFile)
-      .map(file => {
-        const isDirectory = file.type === FileType.Directory;
-        const newResource = UResource.updateResource(item.resource, {
+    const filtered = fileEntries.filter(filterFile);
+
+    // Folder sizes (ONE server-side `du` for the whole listing, no client recursion) are needed to SORT
+    // folders by size and/or to DISPLAY their size — compute them when either toggle is on. Files never
+    // need `du` (their byte size is already in the listing). SFTP+exec only; on FTP / minimal servers
+    // duSizes returns an empty map (folders keep name order and show no size).
+    const items: ExplorerItem[] = filtered.map(file => {
+      const isDirectory = file.type === FileType.Directory;
+      const newResource = UResource.updateResource(item.resource, {
+        remotePath: file.fspath,
+      });
+      const mapItem = this._map.get(newResource.uri.query);
+      if (mapItem) {
+        // Keep the cached node's identity, pinned type and any cached folderBytes; refresh the rest.
+        mapItem.size = file.size;
+        mapItem.mode = file.mode;
+        mapItem.mtime = file.mtime;
+        return mapItem;
+      }
+      const newItem = {
+        resource: UResource.updateResource(item.resource, {
           remotePath: file.fspath,
-        });
-        const mapItem = this._map.get(newResource.uri.query);
-        if (mapItem) {
-          // Keep the cached node's identity and pinned type, but refresh metadata from this listing.
-          mapItem.size = file.size;
-          mapItem.mode = file.mode;
-          mapItem.mtime = file.mtime;
-          return mapItem;
-        } else {
-          const newItem = {
-            resource: UResource.updateResource(item.resource, {
-              remotePath: file.fspath,
-            }),
-            isDirectory,
-            size: file.size,
-            mode: file.mode,
-            mtime: file.mtime,
-          };
-          this._map.set(newItem.resource.uri.query, newItem);
-          return newItem;
+        }),
+        isDirectory,
+        size: file.size,
+        mode: file.mode,
+        mtime: file.mtime,
+      };
+      this._map.set(newItem.resource.uri.query, newItem);
+      return newItem;
+    });
+
+    // Folder sizes (for display and/or sort) are measured with ONE server-side `du`, but NOT awaited
+    // here: the tree shows folder names and file sizes immediately, while a background measurement fills
+    // in folder sizes (and re-sorts) when it returns — so a slow `du` on a deep tree never blocks the
+    // expand. Only folders without a cached size are (re)measured; refresh() clears the cache.
+    const setting = getExtensionSetting();
+    const sortBySize = setting.sortBySizeInTree;
+    if (sortBySize || setting.showSizeInTree) {
+      const unmeasured = items.filter(i => i.isDirectory && typeof i.folderBytes !== 'number');
+      if (unmeasured.length > 0) {
+        this._measureFolderSizes(remotefs, unmeasured, item).catch(() => undefined);
+      }
+    }
+
+    if (!sortBySize) {
+      return items.sort(dirFirstSort);
+    }
+    // Files and folders sort as SEPARATE groups (folders first, then files), each by size descending —
+    // so the biggest folder tops the folders and the biggest file tops the files, never intermixed.
+    const dirs = items.filter(i => i.isDirectory);
+    const files = items.filter(i => !i.isDirectory);
+    const folderBytesOf = (i: ExplorerItem) => (typeof i.folderBytes === 'number' ? i.folderBytes : -1);
+    dirs.sort(
+      (a, b) => folderBytesOf(b) - folderBytesOf(a) || a.resource.fsPath.localeCompare(b.resource.fsPath)
+    );
+    files.sort(
+      (a, b) => (b.size || 0) - (a.size || 0) || a.resource.fsPath.localeCompare(b.resource.fsPath)
+    );
+    return dirs.concat(files);
+  }
+
+  // Measure the given folders with one background `du` (status-bar spinner), store each size (or -1 when
+  // du can't size it, so it isn't retried forever), then re-render the parent so the tree updates without
+  // blocking the expand. De-duped per parent. getChildren only passes folders without a cached size, and
+  // the re-render finds them measured — so this never loops.
+  private async _measureFolderSizes(
+    remotefs: FileSystem,
+    folders: ExplorerItem[],
+    parent: ExplorerItem
+  ): Promise<void> {
+    const key = parent.resource.uri.query;
+    if (this._measuring.has(key)) {
+      return;
+    }
+    this._measuring.add(key);
+    // Show progress two ways while the server-side `du` runs: spin the toolbar size button (the
+    // `measuringSizes` context key swaps the eye for a spinner — right where the action is) AND a
+    // status-bar line with the descriptive text of what's happening.
+    setContextValue('measuringSizes', true);
+    try {
+      const sizes = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: L({
+            en: 'WireFerry: requesting folder sizes from your server — this takes a moment, please wait…',
+            ru: 'WireFerry: запрашиваю размеры папок на вашем сервере — это занимает время, подождите…',
+          }),
+        },
+        () => duSizes(remotefs, folders.map(f => f.resource.fsPath))
+      );
+      let changed = false;
+      for (const folder of folders) {
+        const bytes = sizes.has(folder.resource.fsPath)
+          ? (sizes.get(folder.resource.fsPath) as number)
+          : -1;
+        if (folder.folderBytes !== bytes) {
+          folder.folderBytes = bytes;
+          changed = true;
         }
-      })
-      .sort(dirFirstSort);
+      }
+      if (changed) {
+        this._onDidChangeFolder.fire(parent);
+      }
+    } finally {
+      this._measuring.delete(key);
+      if (this._measuring.size === 0) {
+        setContextValue('measuringSizes', false);
+      }
+    }
   }
 
   // Pin the type of a just-created node. Some servers (notably minimal embedded SFTP, e.g. on IoT /

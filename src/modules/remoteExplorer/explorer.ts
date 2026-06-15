@@ -12,6 +12,11 @@ import {
   COMMAND_REMOTEEXPLORER_COPY_PATH,
   COMMAND_REMOTEEXPLORER_OPEN_BY_PATH,
   COMMAND_REMOTEEXPLORER_EDITINLOCAL,
+  COMMAND_REMOTEEXPLORER_SORT_BY_SIZE,
+  COMMAND_REMOTEEXPLORER_SORT_BY_NAME,
+  COMMAND_REMOTEEXPLORER_SHOW_SIZES,
+  COMMAND_REMOTEEXPLORER_HIDE_SIZES,
+  COMMAND_REMOTEEXPLORER_MEASURING_SIZES,
   COMMAND_OPEN_EXTENSION_PAGE,
 } from '../../constants';
 import { UResource, upath } from '../../core';
@@ -71,6 +76,14 @@ export default class RemoteExplorer {
     // Toolbar "Open Remote File by Path": type a full server path, the tree expands down to it and
     // the file is downloaded + opened for editing.
     registerCommand(context, COMMAND_REMOTEEXPLORER_OPEN_BY_PATH, () => this.openByPath());
+    // Toolbar sort toggle (two state-reflecting buttons swap via the `config.` when-clause).
+    registerCommand(context, COMMAND_REMOTEEXPLORER_SORT_BY_SIZE, () => this._setSortBySize(true));
+    registerCommand(context, COMMAND_REMOTEEXPLORER_SORT_BY_NAME, () => this._setSortBySize(false));
+    // Toolbar show/hide-sizes toggle (independent of sort; two buttons swap via the `config.` when-clause).
+    registerCommand(context, COMMAND_REMOTEEXPLORER_SHOW_SIZES, () => this._setShowSize(true));
+    registerCommand(context, COMMAND_REMOTEEXPLORER_HIDE_SIZES, () => this._setShowSize(false));
+    // The spinning "measuring…" toolbar button is a pure indicator while a background `du` runs — no-op.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_MEASURING_SIZES, () => undefined);
     // Server root context menu: open WireFerry's own extension page locally (details / features).
     registerCommand(context, COMMAND_OPEN_EXTENSION_PAGE, () =>
       executeCommand('extension.open', 'EvgeniiShapovalov.wireferry')
@@ -103,6 +116,28 @@ export default class RemoteExplorer {
 
   refreshItem(item: ExplorerItem): void {
     this._treeDataProvider.refreshItem(item);
+  }
+
+  // Toolbar toggle: persist the sort preference, then re-list so getChildren re-sorts (and, for size,
+  // measures folders with one server-side `du`). getChildren reads the setting fresh, so a refresh is
+  // all that's needed; the two view/title buttons swap automatically via their `config.` when-clause.
+  private async _setSortBySize(value: boolean): Promise<void> {
+    await vscode.workspace
+      .getConfiguration('wireferry')
+      .update('remoteExplorer.sortBySize', value, vscode.ConfigurationTarget.Global);
+    // Light re-render: reuse cached folder sizes (only Refresh re-measures).
+    this._treeDataProvider.rerender();
+  }
+
+  // Toolbar toggle: persist the "show sizes" preference, then re-list. The refresh both re-renders the
+  // descriptions and (for folders) measures sizes with one server-side `du`. Independent of the sort
+  // toggle; the two view/title buttons swap via their `config.` when-clause.
+  private async _setShowSize(value: boolean): Promise<void> {
+    await vscode.workspace
+      .getConfiguration('wireferry')
+      .update('remoteExplorer.showSize', value, vscode.ConfigurationTarget.Global);
+    // Light re-render: reuse cached folder sizes (only Refresh re-measures).
+    this._treeDataProvider.rerender();
   }
 
   reveal(

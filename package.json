@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.3.1",
+  "version": "2.4.13",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -97,6 +97,16 @@
           ],
           "default": "en",
           "description": "%wireferry.alertLanguage.description%"
+        },
+        "wireferry.remoteExplorer.showSize": {
+          "type": "boolean",
+          "default": false,
+          "description": "%wireferry.remoteExplorer.showSize.description%"
+        },
+        "wireferry.remoteExplorer.sortBySize": {
+          "type": "boolean",
+          "default": false,
+          "description": "%wireferry.remoteExplorer.sortBySize.description%"
         }
       }
     },
@@ -333,6 +343,36 @@
         "command": "wireferry.remoteExplorer.calculateFolderSize",
         "title": "%wireferry.remoteExplorer.calculateFolderSize%",
         "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.remoteExplorer.sortTreeBySize",
+        "title": "%wireferry.remoteExplorer.sortTreeBySize%",
+        "category": "WireFerry",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.sortTreeByName",
+        "title": "%wireferry.remoteExplorer.sortTreeByName%",
+        "category": "WireFerry",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.showSizes",
+        "title": "%wireferry.remoteExplorer.showSizes%",
+        "category": "WireFerry",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.hideSizes",
+        "title": "%wireferry.remoteExplorer.hideSizes%",
+        "category": "WireFerry",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.measuringSizes",
+        "title": "%wireferry.remoteExplorer.measuringSizes%",
+        "category": "WireFerry",
+        "icon": "$(loading~spin)"
       },
       {
         "command": "wireferry.remoteExplorer.refresh",
@@ -596,6 +636,16 @@
           "group": "wireferry.trans@2",
           "alt": "wireferry.forceDownload",
           "when": "wireferry.enabled && explorerResourceIsFolder"
+        },
+        {
+          "command": "wireferry.remoteExplorer.calculateFolderSize",
+          "group": "3_compare",
+          "when": "wireferry.enabled && !explorerResourceIsRoot"
+        },
+        {
+          "command": "wireferry.delete.remote",
+          "group": "7_modification",
+          "when": "wireferry.enabled && !explorerResourceIsRoot"
         }
       ],
       "editor/context": [
@@ -642,6 +692,11 @@
           "command": "wireferry.revealInRemoteExplorer",
           "when": "wireferry.enabled && resourceScheme == file",
           "group": "2_files"
+        },
+        {
+          "command": "wireferry.delete.remote",
+          "group": "7_modification",
+          "when": "wireferry.enabled && resourceScheme == file"
         }
       ],
       "view/title": [
@@ -656,9 +711,29 @@
           "group": "navigation@2"
         },
         {
-          "command": "wireferry.checkForUpdatesNow",
-          "when": "view == remoteExplorer",
-          "group": "navigation@3"
+          "command": "wireferry.remoteExplorer.sortTreeBySize",
+          "when": "view == remoteExplorer && !config.wireferry.remoteExplorer.sortBySize",
+          "group": "navigation@4"
+        },
+        {
+          "command": "wireferry.remoteExplorer.sortTreeByName",
+          "when": "view == remoteExplorer && config.wireferry.remoteExplorer.sortBySize",
+          "group": "navigation@4"
+        },
+        {
+          "command": "wireferry.remoteExplorer.showSizes",
+          "when": "view == remoteExplorer && !config.wireferry.remoteExplorer.showSize && !wireferry.measuringSizes",
+          "group": "navigation@5"
+        },
+        {
+          "command": "wireferry.remoteExplorer.hideSizes",
+          "when": "view == remoteExplorer && config.wireferry.remoteExplorer.showSize && !wireferry.measuringSizes",
+          "group": "navigation@5"
+        },
+        {
+          "command": "wireferry.remoteExplorer.measuringSizes",
+          "when": "view == remoteExplorer && wireferry.measuringSizes",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -700,7 +775,7 @@
         {
           "command": "wireferry.remoteExplorer.calculateFolderSize",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem != file"
+          "when": "view == remoteExplorer"
         },
         {
           "command": "wireferry.upload.folder",
