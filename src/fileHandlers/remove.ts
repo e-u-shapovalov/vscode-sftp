@@ -17,6 +17,8 @@ export const removeRemote = createFileHandler<
       skipRemote?: boolean;
       /** Passed from commandDeleteRemote so report rows carry the chosen scope. */
       reportScope?: 'server' | 'local' | 'both';
+      /** Optional per-row note (e.g. "← host") so a fan-out delete across profiles names each server. */
+      reportNote?: string;
     }
 >({
   name: 'removeRemote',
@@ -67,6 +69,7 @@ export const removeRemote = createFileHandler<
           scope,
           server: serverStat,
           local: localStat,
+          note: option.reportNote,
         });
       }
 
@@ -90,6 +93,7 @@ export const removeRemote = createFileHandler<
                     path: entry.path,
                     scope,
                     server: serverEntryStat ?? null,
+                    note: option.reportNote,
                   });
                   // Also forward to any original caller-supplied onEntry.
                   option.onEntry?.(entry);
