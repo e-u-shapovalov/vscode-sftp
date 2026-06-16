@@ -13,6 +13,7 @@ export interface ExtensionSetting {
   suppressLegacyConfigNotice: boolean;
   showSizeInTree: boolean;
   sortBySizeInTree: boolean;
+  profilesAsRoots: boolean;
 }
 
 // A setting counts as "set by the user" only when it has a global/workspace/folder
@@ -56,6 +57,7 @@ export function getExtensionSetting(): ExtensionSetting {
     suppressLegacyConfigNotice: readSetting<boolean>('suppressLegacyConfigNotice', false),
     showSizeInTree: readSetting<boolean>('remoteExplorer.showSize', false),
     sortBySizeInTree: readSetting<boolean>('remoteExplorer.sortBySize', false),
+    profilesAsRoots: readSetting<boolean>('remoteExplorer.profilesAsRoots', true),
   };
 }
 

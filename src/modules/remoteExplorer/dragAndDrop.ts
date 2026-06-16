@@ -43,9 +43,11 @@ export default class RemoteDragAndDropController
 
     // All dragged items and the drop target must belong to the SAME remote (profile/root). A
     // cross-root move would run on the source's FS with a destination path from another root —
-    // ENOENT at best, a wrong-server write at worst.
-    const targetRemoteId = target.resource.remoteId;
-    if (sources.some(s => s.resource.remoteId !== targetRemoteId)) {
+    // ENOENT at best, a wrong-server write at worst. Profiles of one config share a remoteId, so the
+    // identity includes the profile (otherwise a prod→staging drag would slip past this guard).
+    const rootKeyOf = (r: ExplorerItem['resource']) => `${r.remoteId}|${r.profile || ''}`;
+    const targetKey = rootKeyOf(target.resource);
+    if (sources.some(s => rootKeyOf(s.resource) !== targetKey)) {
       showWarningMessage(
         L({
           en: 'WireFerry: you can only move items within the same remote.',

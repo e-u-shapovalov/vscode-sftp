@@ -59,5 +59,6 @@
   "wireferry.alertLanguage.description": "Language for WireFerry's own popup messages and prompts, independent of the VS Code display language. Default: English.",
   "wireferry.remoteExplorer.showSize.description": "Always show file size next to the name in the Remote Explorer tree (otherwise size is shown on hover only).",
   "wireferry.remoteExplorer.sortBySize.description": "Sort the Remote Explorer tree by size, largest first, with folders and files as separate groups. Folder sizes are measured on the server with `du` (SFTP only; FTP and servers without `du` keep name order for folders).",
+  "wireferry.remoteExplorer.profilesAsRoots.description": "When the config defines `profiles`, show every profile as its own root in the Remote Explorer (browse any server without switching the active profile). Turn off to keep a single root for the active profile only.",
   "view.remoteExplorer.name": "Explorer"
 }

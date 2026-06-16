@@ -26,6 +26,8 @@ export interface Row {
   local?: FileSideStat | null;
   /** Optional extra note shown after the path. */
   note?: string;
+  /** True for a failed operation — drives the ✖ marker and the result tally. */
+  failed?: boolean;
 }
 
 // ─── Module state ─────────────────────────────────────────────────────────────
@@ -162,9 +164,20 @@ function renderRows(kind: ReportKind, rows: Row[]): string {
 
   const lines: string[] = [heading, separator, ''];
 
+  // One-line tally up top when anything failed, so a fan-out run (e.g. Upload to All Profiles) shows
+  // "where it went / where it didn't" at a glance instead of scanning every row.
+  const failedCount = rows.filter(r => r.failed).length;
+  if (failedCount > 0) {
+    const okCount = rows.length - failedCount;
+    lines.push(
+      L({ en: `Result: ${okCount} ok, ${failedCount} failed`, ru: `Итог: успешно ${okCount}, с ошибкой ${failedCount}` }),
+      ''
+    );
+  }
+
   for (const row of rows) {
-    // Primary entry line: "ACTION  /some/path  [scope]  — note"
-    let primary = `${row.action.padEnd(12)}${row.path}`;
+    // Primary entry line: "✖ ACTION  /some/path  [scope]  — note"
+    let primary = `${row.failed ? '✖ ' : ''}${row.action.padEnd(12)}${row.path}`;
     if (row.scope) {
       primary += `  [${row.scope}]`;
     }

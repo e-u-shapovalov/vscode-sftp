@@ -17,10 +17,18 @@ export function fileDepth(file: string) {
   return upath.normalize(file).split('/').length;
 }
 
+// Tell tmp to remove the files it created when the process exits. We hand back only the path
+// (discardDescriptor) and drop tmp's per-file cleanup callback, so without this each diff would
+// leave a full copy of the remote file on disk indefinitely.
+tmp.setGracefulCleanup();
+
 export function makeTmpFile(option): Promise<string> {
   return new Promise((resolve, reject) => {
     tmp.file({ ...option, discardDescriptor: true }, (err, tmpPath) => {
-      if (err) reject(err);
+      if (err) {
+        reject(err);
+        return;
+      }
 
       resolve(tmpPath);
     });

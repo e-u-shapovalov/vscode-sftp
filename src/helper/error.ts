@@ -7,6 +7,22 @@ import { L } from '../i18n';
 // message "Failure" and no server-side detail, so we spell out the usual culprits. Computed per call
 // (not a module-level const) so it follows the current alert language.
 function sftpStatusHint(code: number): string | undefined {
+  if (code === 2) {
+    return L({
+      en: 'the path does not exist on the server — a parent directory is probably missing',
+      ru: 'путь не существует на сервере — скорее всего, нет родительской папки',
+    });
+  }
+  if (code === 3) {
+    return L({
+      en:
+        'the server user has no access to that path; check the owner, group and write permission of ' +
+        'the target and its parent directory (e.g. `ls -ld` on the server)',
+      ru:
+        'у пользователя на сервере нет прав на этот путь; проверьте владельца, группу и право на ' +
+        'запись у цели и её родительской папки (например, `ls -ld` на сервере)',
+    });
+  }
   if (code === 4) {
     return L({
       en:

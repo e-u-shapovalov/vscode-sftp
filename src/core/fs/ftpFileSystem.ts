@@ -190,8 +190,12 @@ export default class FTPFileSystem extends RemoteFileSystem {
   }
 
   symlink(_targetPath: string, _path: string): Promise<void> {
-    // TO-DO implement
-    return Promise.resolve();
+    // The legacy FTP protocol/library has no command to create a symlink. Returning success here
+    // silently dropped the link during a folder upload/sync — it just never appeared on the server.
+    // Reject (with a code transferSymlink won't swallow) so the entry is reported as failed instead.
+    return Promise.reject(
+      Object.assign(new Error('FTP does not support creating symbolic links'), { code: 'ENOSYS' })
+    );
   }
 
   async mkdir(dir: string): Promise<void> {

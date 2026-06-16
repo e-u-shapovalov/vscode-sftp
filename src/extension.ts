@@ -186,6 +186,6 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  fileActivityMonitor.destory();
+  fileActivityMonitor.destroy();
   getAllFileService().forEach(disposeFileService);
 }

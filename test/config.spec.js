@@ -280,5 +280,29 @@ describe("validation config", () => {
       });
       expect(result.error).not.toBe(null);
     });
+
+    test("uploadOnSave is a boolean (per-profile fan-out is driven by booleans, not a string)", () => {
+      const base = {
+        host: 'host',
+        port: 22,
+        username: 'username',
+        protocol: 'sftp',
+        remotePath: '/',
+        ignore: [],
+      };
+
+      [true, false].forEach(value => {
+        const result = Joi.validate({ ...base, uploadOnSave: value }, configScheme, {
+          convert: false,
+        });
+        expect(result.error).toBe(null);
+      });
+
+      // A string value is rejected — each profile opts in/out with a plain boolean.
+      const bad = Joi.validate({ ...base, uploadOnSave: 'allProfiles' }, configScheme, {
+        convert: false,
+      });
+      expect(bad.error).not.toBe(null);
+    });
   });
 });

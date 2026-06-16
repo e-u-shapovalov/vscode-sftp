@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.4.13",
+  "version": "2.4.17",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -107,6 +107,11 @@
           "type": "boolean",
           "default": false,
           "description": "%wireferry.remoteExplorer.sortBySize.description%"
+        },
+        "wireferry.remoteExplorer.profilesAsRoots": {
+          "type": "boolean",
+          "default": true,
+          "description": "%wireferry.remoteExplorer.profilesAsRoots.description%"
         }
       }
     },

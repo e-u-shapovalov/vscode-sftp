@@ -38,6 +38,7 @@ export default class TransferTask implements Task {
   private readonly _targetFs: FileSystem;
   private readonly _transferDirection: TransferDirection;
   private readonly _TransferOption: TransferOption;
+  private readonly _remoteHost?: string;
   private _handle: Readable;
   private _cancelled: boolean;
   // private _fileStatus: FileStatus;
@@ -49,6 +50,9 @@ export default class TransferTask implements Task {
       fileType: FileType;
       transferDirection: TransferDirection;
       transferOption: TransferOption;
+      // The remote server's host, carried so the completion hook can name WHICH server a transfer
+      // went to (or failed on) — essential for "Upload to All Profiles" reports.
+      remoteHost?: string;
     }
   ) {
     this._srcFsPath = src.fsPath;
@@ -57,7 +61,12 @@ export default class TransferTask implements Task {
     this._targetFs = target.fileSystem;
     this._TransferOption = option.transferOption;
     this._transferDirection = option.transferDirection;
+    this._remoteHost = option.remoteHost;
     this.fileType = option.fileType;
+  }
+
+  get remoteHost(): string | undefined {
+    return this._remoteHost;
   }
 
   get localFsPath() {
@@ -281,7 +290,17 @@ export default class TransferTask implements Task {
               throw renameError;
             }
             await targetFs.unlink(target);
-            await targetFs.rename(uploadTarget, target);
+            try {
+              await targetFs.rename(uploadTarget, target);
+            } catch (secondError) {
+              // The original target is already unlinked and the move of the complete temp copy failed.
+              // uploadedOk is true so `finally` keeps the .new file — point the user straight at it
+              // instead of surfacing a bare rename error that reads like nothing was written.
+              (secondError as any).message =
+                `${(secondError as any).message} — the uploaded copy is kept at "${uploadTarget}"; ` +
+                `rename it to "${target}" on the server to recover`;
+              throw secondError;
+            }
           }
         }
       }

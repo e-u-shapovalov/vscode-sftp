@@ -141,9 +141,15 @@ Upload on every save operation of VSCode.
 | --- | --- | --- |
 | *uploadOnSave* | *boolean* | `false` |
 
+With **profiles**, `uploadOnSave` is per-profile: a profile uses its own value or inherits the base one, and a save uploads to **every** profile whose effective value is `true`. So a base `true` reaches every profile (a fleet of mirrors; no active profile needs to be selected, and an unreachable host doesn't stop the rest); set a profile's `uploadOnSave` to `false` to skip it.
+
 ```json
 {
-  "uploadOnSave": true
+  "uploadOnSave": true,
+  "profiles": {
+    "prod": { "host": "10.0.0.1" },
+    "staging": { "host": "10.0.0.2", "uploadOnSave": false }
+  }
 }
 ```
 

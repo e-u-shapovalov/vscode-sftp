@@ -19,6 +19,7 @@ import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
 import { isRemoteSubpathOf } from '../../helper';
 import { L } from '../../i18n';
+import logger from '../../logger';
 import { duSizes } from './folderSize';
 
 type Id = number;
@@ -62,10 +63,19 @@ export interface ExplorerRoot extends ExplorerChild {
     fileService: FileService;
     config: ServiceConfig;
     id: Id;
+    // The profile this root represents, when the config defines `profiles` and each is shown as its
+    // own root. Undefined for a plain single-host config (one root, as before).
+    profile?: string;
   };
 }
 
 export type ExplorerItem = ExplorerRoot | ExplorerChild;
+
+// Identity of a tree root from a remote URI: a config's services share one numeric remoteId, so when
+// a config is split into one root per profile we disambiguate by (remoteId, profile).
+function rootKey(remoteId: Id, profile?: string): string {
+  return `${remoteId}|${profile || ''}`;
+}
 
 function dirFirstSort(fileA: ExplorerItem, fileB: ExplorerItem) {
   if (fileA.isDirectory === fileB.isDirectory) {
@@ -131,7 +141,7 @@ function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
 export default class RemoteTreeData
   implements vscode.TreeDataProvider<ExplorerItem>, vscode.TextDocumentContentProvider {
   private _roots: ExplorerRoot[] | null;
-  private _rootsMap: Map<Id, ExplorerRoot> | null;
+  private _rootsMap: Map<string, ExplorerRoot> | null;
   private _map: Map<vscode.Uri['query'], ExplorerItem>;
   // Parent uri.query keys whose folder sizes a background `du` is currently measuring, to de-dupe.
   private _measuring = new Set<string>();
@@ -191,23 +201,31 @@ export default class RemoteTreeData
 
   getTreeItem(item: ExplorerItem): vscode.TreeItem {
     const isRoot = (item as ExplorerRoot).explorerContext !== undefined;
-    let customLabel;
-    if (isRoot) {
-      customLabel = (item as ExplorerRoot).explorerContext.fileService.name;
-    }
-    if (!customLabel) {
-      customLabel = upath.basename(item.resource.fsPath);
-    }
-    // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of sort):
-    // files use the size from the listing; folders use the `du` size measured for this listing. No
-    // per-item requests here.
     const setting = getExtensionSetting();
+    let customLabel: string | undefined;
     let description: string | undefined;
-    if (!isRoot && setting.showSizeInTree) {
-      if (!item.isDirectory && typeof item.size === 'number') {
-        description = formatBytes(item.size);
-      } else if (item.isDirectory && typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
-        description = formatBytes(item.folderBytes);
+    if (isRoot) {
+      const ctx = (item as ExplorerRoot).explorerContext;
+      const host = ctx.config.host;
+      // Label priority: profile name (when profiles are shown as roots) → the config `name` → the
+      // host. Never the bare remote-path basename, which is rarely meaningful for a root.
+      customLabel = ctx.profile || ctx.fileService.name || host;
+      // Show the host dimmed on the right so you can tell which server each root points at — unless
+      // the label already IS the host (no name, no profile), which would just duplicate it.
+      if (host && host !== customLabel) {
+        description = host;
+      }
+    } else {
+      customLabel = upath.basename(item.resource.fsPath);
+      // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of
+      // sort): files use the size from the listing; folders use the `du` size measured for this
+      // listing. No per-item requests here.
+      if (setting.showSizeInTree) {
+        if (!item.isDirectory && typeof item.size === 'number') {
+          description = formatBytes(item.size);
+        } else if (item.isDirectory && typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
+          description = formatBytes(item.folderBytes);
+        }
       }
     }
     return {
@@ -423,8 +441,8 @@ export default class RemoteTreeData
       return null;
     }
 
-    const rootId = UResource.makeResource(uri).remoteId;
-    return this._rootsMap.get(rootId);
+    const resource = UResource.makeResource(uri);
+    return this._rootsMap.get(rootKey(resource.remoteId, resource.profile));
   }
 
   async provideTextDocumentContent(
@@ -486,30 +504,62 @@ export default class RemoteTreeData
     this._roots = [];
     this._rootsMap = new Map();
     this._map = new Map();
+    const profilesAsRoots = getExtensionSetting().profilesAsRoots;
     getAllFileService().forEach(fileService => {
-      const config = fileService.getConfig();
-      const id = fileService.id;
-      const item = {
-        resource: UResource.makeResource({
-          remote: {
-            host: config.host,
-            port: config.port,
-          },
-          fsPath: config.remotePath,
-          remoteId: id,
-        }),
-        isDirectory: true,
-        explorerContext: {
-          fileService,
-          config,
-          id,
-        },
-      };
-      this._roots!.push(item);
-      this._rootsMap!.set(id, item);
-      this._map.set(item.resource.uri.query, item);
+      const profiles = fileService.getAvailableProfiles();
+      if (profilesAsRoots && profiles.length > 0) {
+        // One root per profile: each browsable on its own host without Set Profile. getConfig(name)
+        // is explicit, so this works even when no profile is globally active. A single bad profile
+        // (e.g. failed validation) is skipped rather than allowed to break the whole tree.
+        profiles.forEach(profile => {
+          try {
+            this._addRoot(fileService, fileService.getConfig(profile), profile);
+          } catch (e) {
+            logger.warn(`remoteExplorer: skip profile root "${profile}": ${(e && (e as Error).message) || e}`);
+          }
+        });
+      } else {
+        // Plain config (or profiles-as-roots disabled): a single root for the active/only config.
+        try {
+          this._addRoot(fileService, fileService.getConfig(), undefined);
+        } catch (e) {
+          logger.warn(`remoteExplorer: skip root: ${(e && (e as Error).message) || e}`);
+        }
+      }
     });
-    this._roots.sort((a,b) => a.explorerContext.config.remoteExplorer.order - b.explorerContext.config.remoteExplorer.order || a.explorerContext.fileService.name.localeCompare(b.explorerContext.fileService.name));
+    this._roots.sort(
+      (a, b) =>
+        a.explorerContext.config.remoteExplorer.order - b.explorerContext.config.remoteExplorer.order ||
+        (a.explorerContext.fileService.name || '').localeCompare(b.explorerContext.fileService.name || '') ||
+        (a.explorerContext.profile || '').localeCompare(b.explorerContext.profile || '')
+    );
     return this._roots;
+  }
+
+  // Build one tree root for a (fileService, resolved config, optional profile) and register it in the
+  // lookup maps. Each root carries its own config so getChildren/operations target the right host.
+  private _addRoot(fileService: FileService, config: ServiceConfig, profile?: string): void {
+    const id = fileService.id;
+    const item: ExplorerRoot = {
+      resource: UResource.makeResource({
+        remote: {
+          host: config.host,
+          port: config.port,
+        },
+        fsPath: config.remotePath,
+        remoteId: id,
+        profile,
+      }),
+      isDirectory: true,
+      explorerContext: {
+        fileService,
+        config,
+        id,
+        profile,
+      },
+    };
+    this._roots!.push(item);
+    this._rootsMap!.set(rootKey(id, profile), item);
+    this._map.set(item.resource.uri.query, item);
   }
 }

@@ -22,6 +22,7 @@ import {
 import { UResource, upath } from '../../core';
 import { toRemotePath } from '../../helper';
 import { L } from '../../i18n';
+import app from '../../app';
 import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
 import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
@@ -101,6 +102,9 @@ export default class RemoteExplorer {
       const localPath = item.resource.fsPath;
       // baseDir, not config.context: context is the raw user value (possibly undefined/relative).
       const remotePath = toRemotePath(localPath, fileService.baseDir, config.remotePath);
+      // With profiles shown as roots, target the active profile's root so findRoot resolves it
+      // (getConfig() above already used the active profile, so the host/path match it).
+      const profile = fileService.getAvailableProfiles().length > 0 ? app.state.profile || undefined : undefined;
       item.resource = UResource.makeResource({
         remote: {
           host: config.host,
@@ -108,6 +112,7 @@ export default class RemoteExplorer {
         },
         fsPath: remotePath,
         remoteId: fileService.id,
+        profile,
       });
     }
 

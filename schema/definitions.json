@@ -46,7 +46,7 @@
       },
       "uploadOnSave": {
         "type": "boolean",
-        "description": "True to upload on every save operation of VS Code.",
+        "description": "Upload on every save. With profiles this is per-profile: a profile uses its own value or inherits this base one, and a save uploads to EVERY profile whose effective value is true (so a base true reaches every profile — a fleet of mirrors; set a profile's uploadOnSave to false to skip it).",
         "default": false
       },
       "useTempFile": {

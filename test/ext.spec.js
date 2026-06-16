@@ -56,9 +56,12 @@ describe('legacy sftp.* settings fallback', () => {
     expect(getExtensionSetting().downloadWhenOpenInRemoteExplorer).toBe(false);
   });
 
-  test('defaults to false when neither prefix is set', () => {
+  test('uses package.json defaults when neither prefix is set', () => {
     const setting = getExtensionSetting();
-    expect(setting.downloadWhenOpenInRemoteExplorer).toBe(false);
+    // Opt-out conveniences default true; opt-in/diagnostic settings default false.
+    expect(setting.downloadWhenOpenInRemoteExplorer).toBe(true);
+    expect(setting.profilesAsRoots).toBe(true);
     expect(setting.debug).toBe(false);
+    expect(setting.showSizeInTree).toBe(false);
   });
 });

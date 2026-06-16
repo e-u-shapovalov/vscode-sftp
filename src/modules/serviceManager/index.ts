@@ -116,14 +116,30 @@ export function createFileService(config: any, workspace: string) {
     const { localFsPath, transferType } = task;
     const filename = path.basename(localFsPath);
     const filepath = simplifyPath(localFsPath);
+    const isUpload = transferType === TransferDirection.LOCAL_TO_REMOTE;
+    // Which server this file went to / failed on. With profiles, one command fans out to several
+    // hosts, so naming the host turns "Permission denied" into "10.0.0.1: Permission denied".
+    const host = task.remoteHost;
+    const arrow = isUpload ? '→' : '←';
     if (task.isCancelled()) {
       logger.info(`cancel transfer ${localFsPath}`);
       app.sftpBarItem.showMsg(`cancelled ${filename}`, filepath, 2000 * 2);
     } else if (error) {
-      // if ((error as any).reported !== true) {
-      reportError(error, `when ${transferType} ${localFsPath}`);
-      // }
+      // Name the server in the popup so a multi-target run says WHO failed without guesswork.
+      reportError(error, host ? `${transferType} ${arrow} ${host} · ${filename}` : `when ${transferType} ${localFsPath}`);
       app.sftpBarItem.showMsg(`failed ${filename}`, filepath, 2000 * 2);
+
+      // Record the failure (server + reason) in the operation log so "Upload to All Profiles"
+      // shows ❌ which host failed and why — not just a transient popup.
+      if (operationReport.isActive()) {
+        const reason = (error && error.message) || String(error);
+        operationReport.addRow({
+          action: L({ en: 'FAILED', ru: 'ОШИБКА' }),
+          path: localFsPath,
+          failed: true,
+          note: host ? `${host}: ${reason}` : reason,
+        });
+      }
     } else {
       logger.info(`${transferType} ${localFsPath}`);
       app.sftpBarItem.showMsg(`done ${filename}`, filepath, 2000 * 2);
@@ -133,7 +149,6 @@ export function createFileService(config: any, workspace: string) {
       // Either way, the local stat after the operation is the most informative snapshot.
       if (operationReport.isActive()) {
         // Determine the human-readable action verb from the transfer direction.
-        const isUpload = transferType === TransferDirection.LOCAL_TO_REMOTE;
         const action = isUpload
           ? L({ en: 'uploaded', ru: 'выгружено' })
           : L({ en: 'downloaded', ru: 'скачано' });
@@ -147,7 +162,13 @@ export function createFileService(config: any, workspace: string) {
           // File may not exist yet (upload) or was cleaned up — proceed with null.
         }
 
-        operationReport.addRow({ action, path: localFsPath, local: localStat });
+        // Tag the row with the server so a fan-out report shows where each file landed.
+        operationReport.addRow({
+          action,
+          path: localFsPath,
+          local: localStat,
+          note: host ? `${arrow} ${host}` : undefined,
+        });
       }
     }
   });

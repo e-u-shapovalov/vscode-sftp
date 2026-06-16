@@ -12,6 +12,9 @@ export interface FileHandlerContext {
   target: UResource;
   fileService: FileService;
   config: ServiceConfig;
+  // Set when this context was built for a specific profile (e.g. by allHandleCtxFromUri); lets
+  // callers report which profile a per-profile result belongs to.
+  profile?: string;
 }
 
 type FileHandlerContextMethod<R = void> = (this: FileHandlerContext) => R;
@@ -30,7 +33,26 @@ export function handleCtxFromUri(uri: Uri): FileHandlerContext {
   if (!fileService) {
     throw new Error(`Config Not Found. (${uri.toString(true)})`);
   }
-  const config = fileService.getConfig();
+  // For a remote (tree) URI, operate against the config of the ROOT the node belongs to — that is the
+  // node's profile, which can differ from the globally-active profile (each profile is its own tree
+  // root). Local URIs have no profile dimension, so they keep using the active-profile config.
+  let config: ServiceConfig | undefined;
+  let profile: string | undefined;
+  if (UResource.isRemote(uri)) {
+    const root = app.remoteExplorer.findRoot(uri);
+    if (root) {
+      config = root.explorerContext.config;
+      profile = root.explorerContext.profile;
+    }
+  }
+  if (!config) {
+    config = fileService.getConfig();
+    // A local URI on a profiles config is associated with the active profile's root, so a reveal /
+    // refresh built from it lands on the right tree root.
+    if (fileService.getAvailableProfiles().length > 0) {
+      profile = app.state.profile || undefined;
+    }
+  }
   const target = UResource.from(uri, {
     localBasePath: fileService.baseDir,
     remoteBasePath: config.remotePath,
@@ -39,6 +61,7 @@ export function handleCtxFromUri(uri: Uri): FileHandlerContext {
       host: config.host,
       port: config.port,
     },
+    profile,
   });
 
   return {
@@ -54,9 +77,10 @@ export function allHandleCtxFromUri(uri: Uri): Array<FileHandlerContext> {
     throw new Error(`Config Not Found. (${uri.toString(true)})`);
   }
 
-  const configArr = fileService.getAllConfig();
-
-  return configArr.map(config => {
+  // One context per profile, each carrying that profile's merged config + name, so callers can both
+  // target the right host AND report which profile a per-profile result belongs to.
+  return fileService.getAvailableProfiles().map(profile => {
+    const config = fileService.getConfig(profile);
     const target = UResource.from(uri, {
       localBasePath: fileService.baseDir,
       remoteBasePath: config.remotePath,
@@ -65,14 +89,16 @@ export function allHandleCtxFromUri(uri: Uri): Array<FileHandlerContext> {
         host: config.host,
         port: config.port,
       },
+      profile,
     });
 
     return {
       fileService,
       config,
       target,
+      profile,
     };
-  })
+  });
 }
 
 export default function createFileHandler<T>(
@@ -106,7 +132,10 @@ export default function createFileHandler<T>(
       // turn a bare SFTP "Failure" into something diagnosable. We only tag and rethrow here — the
       // actual reporting still happens once, at the command boundary.
       if (error && typeof error === 'object' && !(error as any).ctx) {
-        (error as any).ctx = `${handlerOption.name} ${target.remoteFsPath}`;
+        // Name the server too — with profiles one command hits several hosts, so "→ 1.2.3.4" turns a
+        // bare "Permission denied" into something that says WHICH server rejected it.
+        const host = handleCtx.config && handleCtx.config.host;
+        (error as any).ctx = `${handlerOption.name}${host ? ` → ${host}` : ''} ${target.remoteFsPath}`;
       }
       throw error;
     } finally {

@@ -71,6 +71,9 @@ interface BaseTransferHandleConfig {
   srcFs: FileSystem;
   targetFs: FileSystem;
   transferDirection: TransferDirection;
+  // The remote server host. Threaded onto every TransferTask (via the config spread used throughout
+  // the recursive helpers) so the completion hook can report which server each file went to/failed on.
+  remoteHost?: string;
 }
 
 interface TransferHandleConfig<T> extends BaseTransferHandleConfig {
@@ -185,6 +188,7 @@ async function transferFile(
         fileType,
         transferDirection: config.transferDirection,
         transferOption: config.transferOption,
+        remoteHost: config.remoteHost,
       }
     )
   );

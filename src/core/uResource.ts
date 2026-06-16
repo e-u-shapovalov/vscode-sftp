@@ -18,6 +18,7 @@ class _Resource {
   private readonly _uri: Uri;
   private readonly _fsPath: string;
   private readonly _remoteId: number;
+  private readonly _profile?: string;
 
   constructor(uri: Uri) {
     this._uri = uri;
@@ -26,6 +27,9 @@ class _Resource {
       // string | string[] | undefined. Our remote URIs always carry plain strings.
       const query = querystring.parse(this._uri.query);
       this._remoteId = parseInt(query.remoteId as string, 10);
+      // Optional: which profile (tree root) this resource belongs to. Absent on plain (single-host)
+      // configs and on pre-profile URIs, so old URIs keep behaving exactly as before.
+      this._profile = (query.profile as string) || undefined;
 
       if (query.fsPath === undefined) {
         throw new Error(`fsPath is missing in remote uri ${this._uri}.`);
@@ -39,6 +43,10 @@ class _Resource {
 
   get remoteId(): number {
     return this._remoteId;
+  }
+
+  get profile(): string | undefined {
+    return this._profile;
   }
 
   get uri(): Uri {
@@ -56,6 +64,8 @@ interface RemoteResourceConfig {
     port: number;
   };
   remoteId: number;
+  // Which profile (tree root) the resource belongs to; omitted for plain single-host configs.
+  profile?: string;
 }
 
 type ResourceConfig = RemoteResourceConfig & {
@@ -87,12 +97,17 @@ export default class UResource {
       remote: { host, port },
       remoteId,
       fsPath,
+      profile,
     } = config;
     const remote = `${host}${port ? `:${port}` : ''}`;
-    const query = {
+    const query: { [x: string]: any } = {
       remoteId,
       fsPath,
     };
+    // Only carry the profile when set, so plain (single-host) URIs stay byte-identical to before.
+    if (profile) {
+      query.profile = profile;
+    }
 
     // uri.fsPath will always be current platform specific.
     // We need to store valid fsPath for remote platform.
@@ -113,7 +128,7 @@ export default class UResource {
       return new UResource(new _Resource(uri), root as Resource);
     }
 
-    const { localBasePath, remoteBasePath, remote, remoteId } = root as ResourceConfig;
+    const { localBasePath, remoteBasePath, remote, remoteId, profile } = root as ResourceConfig;
 
     let localResouce: Resource;
     let remoteResouce: Resource;
@@ -140,6 +155,7 @@ export default class UResource {
         remote,
         fsPath: remoteFsPath,
         remoteId,
+        profile,
       });
       localResouce = new _Resource(uri);
     }

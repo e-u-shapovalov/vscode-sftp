@@ -12,7 +12,7 @@ import {
   disposeFileService,
 } from './serviceManager';
 import { reportError, isValidFile, isConfigFile, isInWorkspace, realpathIfCaseOnly } from '../helper';
-import { downloadFile, uploadFile, handleCtxFromUri } from '../fileHandlers';
+import { downloadFile, uploadFile, handleCtxFromUri, allHandleCtxFromUri, FileHandlerContext } from '../fileHandlers';
 
 let workspaceWatcher: vscode.Disposable;
 
@@ -51,6 +51,68 @@ async function handleConfigSave(uri: vscode.Uri) {
 async function handleFileSave(uri: vscode.Uri) {
   const fileService = getFileService(uri);
   if (!fileService) {
+    return;
+  }
+
+  // With profiles, upload on save to every profile whose EFFECTIVE uploadOnSave is true — the
+  // profile's own value, or the base value it inherits when it doesn't set one. So a base `true`
+  // reaches every profile (a fleet of mirrors), and a profile opts out with `uploadOnSave: false`
+  // (or in with `true` when the base is false). No active profile needs to be selected.
+  if (fileService.getAvailableProfiles().length > 0) {
+    // Normalise the on-disk casing so the upload uses the canonical name (#589) — only a case-only
+    // realpath change is adopted; a structural one (symlink / subst) is left as-is (see
+    // test/realpath.spec.js and the single-host branch below for the full rationale).
+    const fspath = realpathIfCaseOnly(uri.fsPath);
+    const fileUri = vscode.Uri.file(fspath);
+    let targets: FileHandlerContext[];
+    try {
+      targets = allHandleCtxFromUri(fileUri).filter(ctx => ctx.config.uploadOnSave === true);
+    } catch (error) {
+      logger.error(error, `upload-on-save ${fspath}`);
+      return;
+    }
+    if (targets.length === 0) {
+      return;
+    }
+    logger.info(`[file-save] [profiles: ${targets.map(c => c.profile).join(', ')}] ${fspath}`);
+    // Upload to each target profile independently so one unreachable host can't stop the rest. Keep
+    // the (profile, host) of every failure so the log AND the status bar name WHICH server rejected
+    // the save — otherwise a multi-profile fan-out surfaces a bare error and the user has to guess.
+    const results = await Promise.all(
+      targets.map(ctx =>
+        uploadFile(ctx).then(
+          () => ({ ctx, error: null as any }),
+          (error: any) => ({ ctx, error })
+        )
+      )
+    );
+    const failures = results.filter(r => r.error != null);
+    if (failures.length) {
+      const labelOf = (ctx: FileHandlerContext) =>
+        ctx.profile || (ctx.config && ctx.config.host) || '?';
+      failures.forEach(({ ctx, error }) => {
+        const host = ctx.config && ctx.config.host;
+        logger.error(error, `upload → ${labelOf(ctx)}${host ? ` (${host})` : ''} ${fspath}`);
+      });
+      const total = targets.length;
+      const failedNames = failures.map(({ ctx }) => labelOf(ctx)).join(', ');
+      const allFailed = failures.length === total;
+      // Partial success is a warning, not a hard error: most mirrors got the file, name the ones that
+      // didn't. Only an all-profiles failure flips the status bar to the error state.
+      app.sftpBarItem.updateStatus(
+        allFailed ? StatusBarItem.Status.error : StatusBarItem.Status.warn
+      );
+      app.sftpBarItem.showMsg(
+        allFailed
+          ? L({ en: `upload failed: ${failedNames}`, ru: `ошибка загрузки: ${failedNames}` })
+          : L({
+              en: `uploaded to ${total - failures.length}/${total}, failed: ${failedNames}`,
+              ru: `загружено ${total - failures.length}/${total}, не удалось: ${failedNames}`,
+            }),
+        fspath,
+        5000
+      );
+    }
     return;
   }
 
@@ -177,7 +239,7 @@ function init() {
   });
 }
 
-function destory() {
+function destroy() {
   if (workspaceWatcher) {
     workspaceWatcher.dispose();
   }
@@ -185,5 +247,5 @@ function destory() {
 
 export default {
   init,
-  destory,
+  destroy,
 };

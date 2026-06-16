@@ -37,6 +37,19 @@ const DANGEROUS_SSH_OPTIONS = [
 ];
 
 function assertNoDangerousSshOption(value: string, fieldName: string) {
+  // Quotes and backslashes have no legitimate use in the space-joined params we build, but the shell
+  // strips them when the command is sent to the terminal — so `-oProx"yCommand=…` slips past the
+  // keyword scan below (the raw string doesn't contain "proxycommand") and reassembles into a blocked
+  // option once the shell removes the quote. Reject them outright before the keyword scan.
+  if (/["'\\]/.test(value)) {
+    throw new Error(
+      L({
+        en: `Cannot open SSH terminal: "${fieldName}" contains quotes or backslashes.`,
+        ru: `Не удаётся открыть SSH-терминал: «${fieldName}» содержит кавычки или обратные слэши.`,
+      })
+    );
+  }
+
   // `-F altconfig` makes ssh read an attacker-supplied config file (which can carry LocalCommand /
   // ProxyCommand) — that bypasses the keyword scan below since the param string itself is just
   // "-F path". Reject the alternate-config flag explicitly (case-sensitive: -F, not -f/background).

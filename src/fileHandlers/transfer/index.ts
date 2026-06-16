@@ -18,6 +18,7 @@ function createTransferHandle(direction: TransferDirection) {
         targetFs: localFs,
         transferOption: option,
         transferDirection: TransferDirection.REMOTE_TO_LOCAL,
+        remoteHost: this.config.host,
       };
     } else {
       transferConfig = {
@@ -29,6 +30,7 @@ function createTransferHandle(direction: TransferDirection) {
         filePerm: this.config.filePerm,
         dirPerm: this.config.dirPerm,
         transferDirection: TransferDirection.LOCAL_TO_REMOTE,
+        remoteHost: this.config.host,
       };
     }
     // todo: abort at here. we should stop collect task
@@ -58,6 +60,7 @@ export const sync2Remote = createFileHandler<SyncOption>({
         targetFs: remoteFs,
         transferOption: option,
         transferDirection: TransferDirection.LOCAL_TO_REMOTE,
+        remoteHost: this.config.host,
       },
       t => scheduler.add(t)
     );
@@ -99,6 +102,7 @@ export const sync2Local = createFileHandler<SyncOption>({
         targetFs: localFs,
         transferOption: option,
         transferDirection: TransferDirection.REMOTE_TO_LOCAL,
+        remoteHost: this.config.host,
       },
       t => scheduler.add(t)
     );
