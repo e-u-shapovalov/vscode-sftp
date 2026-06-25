@@ -234,7 +234,14 @@ export default class RemoteTreeData
       resourceUri: item.resource.uri,
       tooltip: buildTooltip(item, isRoot),
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
-      contextValue: isRoot ? 'root' : item.isDirectory ? 'folder' : 'file',
+      // Encode the protocol into a root's contextValue (root.sftp / root.ftp / root.local) so menus
+      // can offer SSH-only actions (e.g. Generate SSH Key) on SFTP roots only. Non-root items stay
+      // exactly 'file' / 'folder'. when-clauses match roots via the /^root/ prefix.
+      contextValue: isRoot
+        ? `root.${(item as ExplorerRoot).explorerContext.config.protocol || 'sftp'}`
+        : item.isDirectory
+        ? 'folder'
+        : 'file',
       command: item.isDirectory
         ? undefined
         : {

@@ -56,10 +56,12 @@ export default class SSHClient extends RemoteClient {
       (hop && Object.keys(hop).length > 0)
     ) {
       this.hoppingClients = [];
-      const connectOptions = Array.isArray(hop)
-        ? [option].concat(hop)
-        : [option, hop];
-      lastOption = connectOptions.pop()!;
+      // IMPORTANT: hop entries are the prefix (jumps/bastions) we connect through first.
+      // The de-hopped `option` (target) is always the final destination (lastOption).
+      // Previous construction put `option` first which inverted the chain and caused
+      // wrong hosts, wrong fs used for key reads, and auth mix-ups.
+      const hopList: ConnectOption[] = Array.isArray(hop) ? hop : [hop];
+      const connectOptions = hopList;
 
       for (let index = 0; index < connectOptions.length; index++) {
         const curOpt = connectOptions[index];
@@ -81,18 +83,26 @@ export default class SSHClient extends RemoteClient {
 
         const client = new SSHClient(curOpt);
         this.hoppingClients.push(client);
-        await client.connect({ ...curOpt, sock }, config);
+        // Use a config without onPasswordEntered/onPassphraseEntered for hops.
+        // Hops intentionally do not support keychain "secretStorage" save yet
+        // (see sanitize + warn in fileService). Forwarding the callbacks would
+        // overwrite the *target's* entered values captured for post-success offer-to-save,
+        // causing the wrong secret to be offered/stored under the target's identity.
+        const hopConnectConfig = { askForPasswd: config.askForPasswd };
+        await client.connect({ ...curOpt, sock }, hopConnectConfig);
       }
 
-      const lastClient = this.hoppingClients[this.hoppingClients.length - 1];
-      sock = await this._makeHopping(
-        lastClient,
-        lastOption.host,
-        lastOption.port
-      );
-      fs = new SFTPFileSystem(upath, {
-        client: lastClient,
-      });
+      if (this.hoppingClients.length > 0) {
+        const lastClient = this.hoppingClients[this.hoppingClients.length - 1];
+        sock = await this._makeHopping(
+          lastClient,
+          lastOption.host,
+          lastOption.port
+        );
+        fs = new SFTPFileSystem(upath, {
+          client: lastClient,
+        });
+      }
     }
 
     if (lastOption.privateKeyPath) {
@@ -274,13 +284,18 @@ export default class SSHClient extends RemoteClient {
       ...option // tslint:disable-line
     } = remoteOption;
 
-    // explict compare to true, cause we want to distinct between string and true
+    // Compare to `true` explicitly: a real passphrase is a string, `true` means "ask". Keychain
+    // sentinels never reach here — resolveCredentials() (fileService) has already turned
+    // "secretStorage"/"prompt" into either a real string or `true` before connect.
     if (option.passphrase === true) {
       option.passphrase = await config.askForPasswd(
         `[${option.host}]: Enter your passphrase`
       );
       if (option.passphrase === undefined) {
         throw new CustomError(ErrorCode.CONNECT_CANCELLED, 'cancelled');
+      }
+      if (config.onPassphraseEntered) {
+        config.onPassphraseEntered(option.passphrase as string);
       }
     }
 

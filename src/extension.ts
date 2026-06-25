@@ -22,6 +22,7 @@ import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
 import { runLegacyDoctor } from './modules/legacyDoctor';
 import { runUpdateCheck } from './modules/updateCheck';
+import { initSecrets } from './modules/secrets';
 import { REPORT_SCHEME, reportProvider } from './ui/operationReport';
 
 async function setupWorkspaceFolder(dir) {
@@ -139,6 +140,9 @@ function registerRenameSync(context: vscode.ExtensionContext) {
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+  // Wire the OS keychain (SecretStorage) before anything reads/writes credentials.
+  initSecrets(context);
+
   try {
     initCommands(context);
   } catch (error) {

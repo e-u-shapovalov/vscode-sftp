@@ -4,14 +4,26 @@ import * as path from 'path';
 import * as sshConfig from 'ssh-config';
 import app from '../app';
 import logger from '../logger';
-import { getUserSetting } from '../host';
+import { getUserSetting, isWorkspaceTrusted, showWarningMessage } from '../host';
+import { L } from '../i18n';
 import { replaceHomePath, resolvePath } from '../helper';
 import { SETTING_KEY_REMOTE } from '../constants';
 import upath from './upath';
 import Ignore from './ignore';
 import { FileSystem } from './fs';
 import Scheduler from './scheduler';
-import { createRemoteIfNoneExist, removeRemoteFs } from './remoteFs';
+import {
+  createRemoteIfNoneExist,
+  removeRemoteFs,
+  hostIdentity,
+  stripSecretsForIdentity,
+} from './remoteFs';
+import {
+  getCredential,
+  registerPendingSave,
+  CredentialDescriptor,
+  CredentialType,
+} from '../modules/secrets';
 import TransferTask from './transferTask';
 import localFs from './localFs';
 
@@ -174,6 +186,149 @@ function chooseDefaultPort(protocol) {
   return protocol === 'ftp' ? 21 : 22;
 }
 
+// Keychain sentinels a config may use in place of a plaintext secret.
+const SENTINEL_KEYCHAIN = 'secretStorage';
+const SENTINEL_PROMPT = 'prompt';
+
+function credentialDescriptor(hostInfo: any, type: CredentialType): CredentialDescriptor {
+  return {
+    protocol: hostInfo.protocol,
+    host: hostInfo.host,
+    port: hostInfo.port,
+    username: hostInfo.username,
+    type,
+  };
+}
+
+// Resolve keychain sentinels in-place BEFORE the host info is hashed, cached, or connected. A
+// sentinel must never reach RemoteClient: ftpClient/sshClient treat any non-undefined password as
+// "auth provided", so the literal string "secretStorage" would be sent to the server as the
+// password. Protocol-agnostic (covers SFTP and FTP). Only EXPLICIT sentinels touch the keychain;
+// a real string (incl. ""), null, or absent field is left exactly as today (back-compat).
+async function resolveCredentials(hostInfo: any): Promise<void> {
+  warnOnceAboutHopPlaintext(hostInfo);
+  // Neutralise hop sentinels FIRST so the identity hash (computed next) is stable across
+  // register/take/create/dispose, and so a literal "secretStorage" never reaches the jump host.
+  sanitizeHopCredentials(hostInfo);
+  // In an untrusted workspace the config may be attacker-supplied, so we never silently read or
+  // write the keychain — sentinels just fall back to a plain prompt.
+  const trusted = isWorkspaceTrusted();
+  const identity = hostIdentity(hostInfo);
+  await resolveCredentialField(hostInfo, 'password', identity, trusted);
+  await resolveCredentialField(hostInfo, 'passphrase', identity, trusted);
+}
+
+// hop/jump-host entries are NOT covered by the keychain (see warnOnceAboutHopPlaintext). Replace
+// each hop with a shallow COPY — so we never mutate the user's live config object — and turn any
+// sentinel there into a plain prompt: otherwise the literal "secretStorage"/"prompt" string would
+// be sent to the jump host as its password. Copying also stops SSHClient's later
+// `curOpt.privateKey = …` from writing raw key bytes back into the config tree.
+function sanitizeHopCredentials(hostInfo: any): void {
+  if (!hostInfo.hop) {
+    return;
+  }
+  const wasArray = Array.isArray(hostInfo.hop);
+  const hops = wasArray ? hostInfo.hop : [hostInfo.hop];
+  const sanitized = hops.map((h: any) => {
+    if (!h || typeof h !== 'object') {
+      return h;
+    }
+    const copy = { ...h };
+    if (copy.password === SENTINEL_KEYCHAIN || copy.password === SENTINEL_PROMPT) {
+      delete copy.password;
+    }
+    if (copy.passphrase === SENTINEL_KEYCHAIN || copy.passphrase === SENTINEL_PROMPT) {
+      copy.passphrase = true;
+    }
+    return copy;
+  });
+  hostInfo.hop = wasArray ? sanitized : sanitized[0];
+}
+
+async function resolveCredentialField(
+  hostInfo: any,
+  field: CredentialType,
+  identity: string,
+  trusted: boolean
+): Promise<void> {
+  const value = hostInfo[field];
+  const isPassphrase = field === 'passphrase';
+  // Fall back to the normal prompt: password → drop the field so RemoteClient asks; passphrase →
+  // set `true` so SSHClient asks.
+  const fallbackToPrompt = () => {
+    if (isPassphrase) {
+      hostInfo[field] = true;
+    } else {
+      delete hostInfo[field];
+    }
+  };
+
+  if (value === SENTINEL_KEYCHAIN) {
+    if (!trusted) {
+      fallbackToPrompt();
+      return;
+    }
+    const descriptor = credentialDescriptor(hostInfo, field);
+    let stored: string | undefined;
+    try {
+      stored = await getCredential(descriptor);
+    } catch {
+      // A flaky keychain must never break connecting — fall back to a prompt.
+      stored = undefined;
+    }
+    if (stored !== undefined) {
+      hostInfo[field] = stored;
+    } else {
+      // Nothing saved yet: prompt, and offer to save the typed value once the connection succeeds.
+      // The 'local' protocol never authenticates, so it would only leave a pending entry that is
+      // never taken — skip it.
+      fallbackToPrompt();
+      if (hostInfo.protocol !== 'local') {
+        registerPendingSave(identity, descriptor);
+      }
+    }
+  } else if (value === SENTINEL_PROMPT) {
+    // Always prompt, never persist.
+    fallbackToPrompt();
+  }
+}
+
+// hop / jump-host blocks carry their own password/passphrase, which Phase 1 does NOT move to the
+// keychain. Tell the user once per session so a partly-covered config isn't silently misleading.
+let _hopPlaintextWarned = false;
+
+function warnOnceAboutHopPlaintext(hostInfo: any): void {
+  if (_hopPlaintextWarned || !hostInfo.hop) {
+    return;
+  }
+  const hops = Array.isArray(hostInfo.hop) ? hostInfo.hop : [hostInfo.hop];
+  const hasPlaintext = hops.some(
+    (h: any) =>
+      h &&
+      ['password', 'passphrase'].some(field => {
+        const v = h[field];
+        return (
+          typeof v === 'string' &&
+          v !== '' &&
+          v !== SENTINEL_KEYCHAIN &&
+          v !== SENTINEL_PROMPT
+        );
+      })
+  );
+  if (!hasPlaintext) {
+    return;
+  }
+  _hopPlaintextWarned = true;
+  showWarningMessage(
+    L({
+      en:
+        'WireFerry: hop/jump-host passwords are not stored in the OS keychain yet — they remain in your config file.',
+      ru:
+        'WireFerry: пароли hop/jump-host пока не хранятся в системном хранилище — они остаются в файле конфигурации.',
+    })
+  );
+}
+
 function setConfigValue(config, key, value) {
   if (config[key] === undefined) {
     if (key === 'port') {
@@ -328,6 +483,18 @@ function getCompleteConfig(
 
   if (mergedConfig.ignoreFile) {
     mergedConfig.ignoreFile = resolvePath(workspace, mergedConfig.ignoreFile);
+  }
+
+  // Hops carry their own privateKeyPath (for bastion/jump auth). Resolve ~ and relatives
+  // the same way as the main privateKeyPath so fs.readFile in the hop chain receives
+  // absolute paths. Without this, hop keys only worked with absolute paths.
+  if (mergedConfig.hop) {
+    const hops = Array.isArray(mergedConfig.hop) ? mergedConfig.hop : [mergedConfig.hop];
+    for (const h of hops) {
+      if (h && h.privateKeyPath) {
+        h.privateKeyPath = resolvePath(workspace, h.privateKeyPath);
+      }
+    }
   }
 
   // convert ingore config to ignore function
@@ -520,12 +687,17 @@ export default class FileService {
     return localFs;
   }
 
-  getRemoteFileSystem(config: ServiceConfig): Promise<FileSystem> {
+  async getRemoteFileSystem(config: ServiceConfig): Promise<FileSystem> {
     const hostInfo = getHostInfo(config);
-    // Remember every host we actually open so dispose() can close them all. The connection cache
-    // is keyed by host info, which differs per profile — tearing down only the currently active
-    // profile (as the old code did) leaked the socket whenever the profile changed in between.
-    this._openedHostInfos.set(JSON.stringify(hostInfo), hostInfo);
+    // Replace keychain sentinels ("secretStorage"/"prompt") with a real secret or a prompt BEFORE
+    // the host info is hashed, cached, or sent to the server.
+    await resolveCredentials(hostInfo);
+    // Remember every host we actually open so dispose() can close them all (one command fans out
+    // across profiles, so we must tear down every profile's socket, not just the active one).
+    // Key by a SECRET-FREE identity (the same fn the connection cache uses) and store a stripped
+    // copy as the value — so no password ever lands in this long-lived map or in its keys. dispose
+    // tears down by the same identity.
+    this._openedHostInfos.set(hostIdentity(hostInfo), stripSecretsForIdentity(hostInfo));
     return createRemoteIfNoneExist(hostInfo);
   }
 

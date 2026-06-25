@@ -38,6 +38,8 @@
   "wireferry.create.folder": "Создать папку",
   "wireferry.create.file": "Создать файл",
   "wireferry.chmod": "Изменить права (chmod)",
+  "wireferry.deleteSavedPassword": "Удалить сохранённый пароль…",
+  "wireferry.generateSshKey": "Создать SSH-ключ…",
   "wireferry.revealInExplorer": "Показать в проводнике",
   "wireferry.revealInRemoteExplorer": "Показать в удалённом проводнике",
   "wireferry.remoteExplorer.editInLocal": "Редактировать локально",

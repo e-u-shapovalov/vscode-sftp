@@ -170,8 +170,9 @@
       },
       "password": {
         "type": "string",
-        "description": "Password for password-based user authentication.",
-        "default": ""
+        "description": "Password for password-based user authentication. Special values: \"secretStorage\" stores/reads the password in the OS keychain (no plaintext here); \"prompt\" always asks and never stores. Leave \"\" to be prompted (legacy behaviour).",
+        "default": "",
+        "examples": ["secretStorage", "prompt"]
       },
       "remotePath": {
         "type": "string",
@@ -205,7 +206,7 @@
             "enum": [true]
           }
         ],
-        "description": "For an encrypted private key, this is the passphrase string used to decrypt it. Set to true for enable passphrase dialog. This will prevent from using cleartext passphrase in this config."
+        "description": "For an encrypted private key, this is the passphrase string used to decrypt it. Set to true to be prompted instead of storing it here. Set to \"secretStorage\" to store/read it in the OS keychain. Either way avoids a cleartext passphrase in this config."
       },
       "interactiveAuth": {
         "oneOf": [

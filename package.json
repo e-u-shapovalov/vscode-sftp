@@ -42,6 +42,11 @@
   ],
   "icon": "resources/icon.png",
   "main": "./dist/extension",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -320,6 +325,16 @@
         "category": "WireFerry"
       },
       {
+        "command": "wireferry.deleteSavedPassword",
+        "title": "%wireferry.deleteSavedPassword%",
+        "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.generateSshKey",
+        "title": "%wireferry.generateSshKey%",
+        "category": "WireFerry"
+      },
+      {
         "command": "wireferry.revealInExplorer",
         "title": "%wireferry.revealInExplorer%",
         "category": "WireFerry"
@@ -415,6 +430,14 @@
         },
         {
           "command": "wireferry.openExtensionPage",
+          "when": "wireferry.enabled"
+        },
+        {
+          "command": "wireferry.deleteSavedPassword",
+          "when": "wireferry.enabled"
+        },
+        {
+          "command": "wireferry.generateSshKey",
           "when": "wireferry.enabled"
         },
         {
@@ -745,17 +768,27 @@
         {
           "command": "wireferry.openConnectInTerminal",
           "group": "navigation@1",
-          "when": "view == remoteExplorer && viewItem == root"
+          "when": "view == remoteExplorer && viewItem =~ /^root/"
         },
         {
           "command": "wireferry.openExtensionPage",
           "group": "navigation@2",
-          "when": "view == remoteExplorer && viewItem == root"
+          "when": "view == remoteExplorer && viewItem =~ /^root/"
         },
         {
           "command": "wireferry.checkForUpdatesNow",
           "group": "navigation@3",
-          "when": "view == remoteExplorer && viewItem == root"
+          "when": "view == remoteExplorer && viewItem =~ /^root/"
+        },
+        {
+          "command": "wireferry.deleteSavedPassword",
+          "group": "navigation@4",
+          "when": "view == remoteExplorer && viewItem =~ /^root/"
+        },
+        {
+          "command": "wireferry.generateSshKey",
+          "group": "navigation@5",
+          "when": "view == remoteExplorer && viewItem =~ /^root\\.sftp/"
         },
         {
           "command": "wireferry.remoteExplorer.editInLocal",
@@ -770,12 +803,12 @@
         {
           "command": "wireferry.revealInExplorer",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem != root"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },
         {
           "command": "wireferry.remoteExplorer.copyPath",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem != root"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },
         {
           "command": "wireferry.remoteExplorer.calculateFolderSize",
@@ -818,17 +851,17 @@
         {
           "command": "wireferry.rename",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem != root"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },
         {
           "command": "wireferry.delete.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem != root"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },
         {
           "command": "wireferry.chmod.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem != root"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },
         {
           "command": "wireferry.create.folder",

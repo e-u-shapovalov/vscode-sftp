@@ -12,7 +12,7 @@ const TEMPLATE_EN = `{
     "host": "192.168.0.1",          // Hostname or IP address of the server.
     "port": 22,                     // Port number (SFTP/SSH: 22, FTP: 21).
     "username": "user",             // Username for authentication.
-    "password": "",                 // Password. Leave "" to be prompted, or use a key (see below).
+    "password": "",                 // Password. ""=prompt, "secretStorage"=OS keychain, or use a key (below).
     "protocol": "sftp",             // "sftp" | "ftp" | "local".
     "remotePath": "/var/www/",      // Absolute base path on the server.
     "context": "./",                // Local folder (relative to the workspace) mapped to remotePath.
@@ -20,7 +20,7 @@ const TEMPLATE_EN = `{
 
     // ---- Authentication (SFTP) -----------------------------------------------------------
     // "privateKeyPath": "~/.ssh/id_rsa", // Absolute path to your private key.
-    // "passphrase": true,             // Key passphrase; true = prompt instead of storing it here.
+    // "passphrase": true,             // Key passphrase; true=prompt, "secretStorage"=OS keychain.
     // "agent": "pageant",             // ssh-agent socket; on Windows "pageant" for Pageant.
     // "interactiveAuth": false,       // true to enable keyboard-interactive (2FA) prompts.
     // "sshConfigPath": "~/.ssh/config", // Read connection settings from an SSH config file.
@@ -98,7 +98,7 @@ const TEMPLATE_RU = `{
     "host": "192.168.0.1",          // Имя хоста или IP-адрес сервера.
     "port": 22,                     // Порт (SFTP/SSH: 22, FTP: 21).
     "username": "user",             // Имя пользователя для входа.
-    "password": "",                 // Пароль. Оставьте "", чтобы спрашивался, или используйте ключ (ниже).
+    "password": "",                 // Пароль. ""=спрашивать, "secretStorage"=системное хранилище, или ключ (ниже).
     "protocol": "sftp",             // "sftp" | "ftp" | "local".
     "remotePath": "/var/www/",      // Абсолютный базовый путь на сервере.
     "context": "./",                // Локальная папка (относительно проекта), сопоставленная с remotePath.
@@ -106,7 +106,7 @@ const TEMPLATE_RU = `{
 
     // ---- Аутентификация (SFTP) -----------------------------------------------------------
     // "privateKeyPath": "~/.ssh/id_rsa", // Абсолютный путь к приватному ключу.
-    // "passphrase": true,             // Пароль ключа; true = спрашивать, а не хранить здесь.
+    // "passphrase": true,             // Пароль ключа; true=спрашивать, "secretStorage"=системное хранилище.
     // "agent": "pageant",             // Сокет ssh-agent; в Windows "pageant" для Pageant.
     // "interactiveAuth": false,       // true для интерактивной аутентификации (2FA).
     // "sshConfigPath": "~/.ssh/config", // Брать настройки подключения из SSH-config.

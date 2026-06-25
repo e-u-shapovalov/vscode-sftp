@@ -31,6 +31,12 @@ export enum ErrorCode {
 
 export interface Config {
   askForPasswd(msg: string): Promise<string | undefined>;
+  // Called with the password actually used for password-auth (the one typed at the prompt in
+  // connect() below). Lets the caller offer to persist it to the OS keychain — but only after the
+  // connection succeeds, so a wrong password is never saved.
+  onPasswordEntered?(password: string): void;
+  // Same, for a key passphrase typed interactively (see SSHClient).
+  onPassphraseEntered?(passphrase: string): void;
 }
 
 export default abstract class RemoteClient {
@@ -58,6 +64,10 @@ export default abstract class RemoteClient {
     // cancel connect
     if (password === undefined) {
       throw new CustomError(ErrorCode.CONNECT_CANCELLED, 'cancelled');
+    }
+
+    if (config.onPasswordEntered) {
+      config.onPasswordEntered(password);
     }
 
     return this._doConnect({ ...connectOption, password }, config);

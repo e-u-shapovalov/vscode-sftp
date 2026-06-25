@@ -40,6 +40,10 @@ export function getWorkspaceFolders() {
   return vscode.workspace.workspaceFolders;
 }
 
+export function isWorkspaceTrusted(): boolean {
+  return vscode.workspace.isTrusted;
+}
+
 export function refreshExplorer() {
   return executeCommand('workbench.files.action.refreshFilesExplorer');
 }

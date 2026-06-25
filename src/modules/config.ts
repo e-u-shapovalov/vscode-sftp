@@ -21,10 +21,15 @@ const configScheme = {
   port: Joi.number().integer(),
   connectTimeout: Joi.number().integer(),
   username: Joi.string().required(),
+  // A plaintext password, or a reserved sentinel: "secretStorage" (store/read via the OS keychain)
+  // or "prompt" (always ask, never store). Any string validates; the sentinels are interpreted in
+  // resolveCredentials (src/core/fileService.ts) before connect.
   password: nullable(Joi.string()),
 
   agent: nullable(Joi.string()),
   privateKeyPath: nullable(Joi.string()),
+  // Real passphrase string, `true` (prompt), or the "secretStorage"/"prompt" sentinels — same
+  // keychain semantics as `password`, resolved in resolveCredentials before connect.
   passphrase: nullable(Joi.string().allow(true)),
   interactiveAuth: Joi.alternatives([
     Joi.boolean(),
@@ -155,7 +160,7 @@ function getLegacyConfigPath(basePath) {
 
 // Resolve which config file to read: prefer the current .vscode/wireferry.json, but fall back
 // to a legacy .vscode/sftp.json so projects created before the rename keep working untouched.
-async function resolveConfigPath(basePath): Promise<string | null> {
+export async function resolveConfigPath(basePath): Promise<string | null> {
   const primary = getConfigPath(basePath);
   if (await fse.pathExists(primary)) {
     return primary;
