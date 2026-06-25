@@ -394,10 +394,21 @@ async function applyProfileUpdate(
 
   let basePath: (string | number)[] | null = null;
   if (Array.isArray(parsed)) {
-    const idx = parsed.findIndex(
-      (c: any) => c && c.host === target.config.host && c.username === target.config.username
+    // Match the full connection identity (protocol/host/port/username), not just host+username: an
+    // array can hold two servers that share host+username but differ by port or protocol. Edit only
+    // on an unambiguous single match — otherwise fall through to the manual path below.
+    const defaultPort = (proto: string) => (proto === 'ftp' ? 21 : 22);
+    const targetProto = target.config.protocol || 'sftp';
+    const targetPort = target.config.port || defaultPort(targetProto);
+    const matches = parsed.filter(
+      (c: any) =>
+        c &&
+        (c.protocol || 'sftp') === targetProto &&
+        c.host === target.config.host &&
+        c.username === target.config.username &&
+        (c.port || defaultPort(c.protocol || 'sftp')) === targetPort
     );
-    basePath = idx >= 0 ? [idx] : null;
+    basePath = matches.length === 1 ? [parsed.indexOf(matches[0])] : null;
   } else if (parsed && parsed.profiles && target.profile) {
     basePath = ['profiles', target.profile];
   } else {
@@ -424,11 +435,25 @@ async function applyProfileUpdate(
     L({ en: 'Keep it', ru: 'Оставить' })
   );
 
+  // A profile inherits the top-level password when it has none of its own; deleting just the profile
+  // key would then leave the inherited password effective. Detect that and shadow it with an explicit
+  // null instead (only the profile form can inherit; arrays and single-object configs cannot).
+  const profileNode =
+    parsed && parsed.profiles && target.profile ? parsed.profiles[target.profile] : undefined;
+  const clearInheritedPassword =
+    clearPassword &&
+    Array.isArray(basePath) &&
+    basePath[0] === 'profiles' &&
+    parsed &&
+    parsed.password !== undefined &&
+    !(profileNode && Object.prototype.hasOwnProperty.call(profileNode, 'password'));
+
   await updateProfileConfig({
     filePath,
     basePath,
     identityFile: keyPath,
     clearPassword,
+    clearInheritedPassword,
     setPassphraseSentinel: !!choice.passphrase,
   });
 

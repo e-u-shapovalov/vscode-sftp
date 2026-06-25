@@ -5,6 +5,7 @@ import app from '../app';
 import { L } from '../i18n';
 import { ConnectOption } from './remote-client/remoteClient';
 import { takePendingSaves, storeCredential } from '../modules/secrets';
+import { stripSecretsForIdentity, hostIdentity } from './connectionIdentity';
 import {
   FileSystem,
   RemoteFileSystem,
@@ -13,42 +14,9 @@ import {
 } from './fs';
 import localFs from './localFs';
 
-// Stable serialization (sorted keys, nested objects included). The previous implementation glued
-// bare values together ('foo'+22 === 'foo2'+2), so two different hosts could collide on one cache
-// slot and commands could run against the wrong connection.
-function stableStringify(value: any): string {
-  if (value === null || typeof value !== 'object') {
-    return String(JSON.stringify(value));
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
-  }
-  const body = Object.keys(value)
-    .sort()
-    .map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-    .join(',');
-  return `{${body}}`;
-}
-
-// Secrets must never enter the connection-cache identity. The identity is used as a plain-string
-// Map key (fsTable / _openedHostInfos), so a password there would leak into key enumeration; and
-// keying by a resolved-vs-sentinel value would split one server across two cache slots. host +
-// port + username + protocol identify a connection well enough.
-const IDENTITY_SECRET_KEYS = ['password', 'passphrase', 'privateKey'];
-
-export function stripSecretsForIdentity(option) {
-  const copy = Object.assign({}, option);
-  IDENTITY_SECRET_KEYS.forEach(key => {
-    delete copy[key];
-  });
-  return copy;
-}
-
-// Single source of truth for "what connection is this" — shared by the connection cache here and
-// by FileService._openedHostInfos so open and dispose compute the exact same key.
-export function hostIdentity(option): string {
-  return stableStringify(stripSecretsForIdentity(option));
-}
+// Connection identity lives in ./connectionIdentity (kept import-light so it is unit-testable).
+// Re-exported so existing importers (fileService) keep their './remoteFs' import path.
+export { stripSecretsForIdentity, hostIdentity };
 
 function hashOption(option) {
   return hostIdentity(option);

@@ -140,7 +140,15 @@ export async function deployPublicKey(remotefs: any, publicKey: string): Promise
   let existing = '';
   try {
     existing = (await sftpReadFile(sftp, authKeys)).toString('utf8');
-  } catch {
+  } catch (err) {
+    // Only a genuinely-missing file means "start fresh". Any other read error (permission, transient,
+    // protocol) must abort: treating it as empty would rewrite authorized_keys with just the new key
+    // and lock the user — and every existing key — out.
+    if (!isNoSuchFile(err)) {
+      throw new Error(
+        `cannot read ${authKeys}; refusing to overwrite it: ${(err && (err as any).message) || err}`
+      );
+    }
     existing = '';
   }
 
@@ -171,6 +179,19 @@ function sftpChmod(sftp: any, p: string, mode: number): Promise<void> {
 function sftpReadFile(sftp: any, p: string): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) =>
     sftp.readFile(p, (err: Error, data: Buffer) => (err ? reject(err) : resolve(data)))
+  );
+}
+
+// ssh2 surfaces SFTP status 2 (SSH_FX_NO_SUCH_FILE) as err.code === 2; some layers use 'ENOENT'.
+// Anything else (e.g. permission denied) is NOT "missing" and must not be treated as an empty file.
+function isNoSuchFile(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  return (
+    err.code === 2 ||
+    err.code === 'ENOENT' ||
+    /no such file/i.test(String(err.message || ''))
   );
 }
 
@@ -332,14 +353,20 @@ export async function updateProfileConfig(params: {
   basePath: (string | number)[];
   identityFile: string;
   clearPassword: boolean;
+  clearInheritedPassword?: boolean;
   setPassphraseSentinel: boolean;
 }): Promise<void> {
   let text = await fse.readFile(params.filePath, 'utf8');
 
   text = applyJsoncEdit(text, [...params.basePath, 'privateKeyPath'], params.identityFile);
   if (params.clearPassword) {
-    // Remove the plaintext password at this location (undefined deletes the property).
-    text = applyJsoncEdit(text, [...params.basePath, 'password'], undefined);
+    // undefined deletes the property; null is written explicitly to SHADOW a password inherited from
+    // a top-level field (deleting only the profile's own key would leave the inherited one active).
+    text = applyJsoncEdit(
+      text,
+      [...params.basePath, 'password'],
+      params.clearInheritedPassword ? null : undefined
+    );
   }
   if (params.setPassphraseSentinel) {
     // The key is encrypted; route its passphrase through the keychain so a future connect can
