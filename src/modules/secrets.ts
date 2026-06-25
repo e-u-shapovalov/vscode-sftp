@@ -49,6 +49,10 @@ export async function getCredential(d: CredentialDescriptor): Promise<string | u
   return _secrets.get(credentialKey(d));
 }
 
+// INVARIANT: callers MUST have verified workspace trust before calling this. The keychain is
+// security-sensitive, so an attacker-supplied config in an untrusted workspace must never reach here.
+// Today both call sites gate on trust (fileService.resolveCredentialField's keychain branch and
+// commandGenerateSshKey.maybeSavePassphrase's isWorkspaceTrusted check); keep that when adding more.
 export async function storeCredential(d: CredentialDescriptor, value: string): Promise<void> {
   if (!_secrets) {
     return;

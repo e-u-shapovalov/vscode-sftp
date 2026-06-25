@@ -57,7 +57,12 @@ export function generateKeyPair(opts: {
 // Never the raw host: an IP can change and a wildcard/space would be unsafe in ~/.ssh/config.
 export function sanitizeAlias(raw: string): string {
   const cleaned = (raw || '').replace(/[^A-Za-z0-9._-]/g, '_').replace(/^_+|_+$/g, '');
-  return cleaned || 'server';
+  // `.` and `..` survive the allow-list but are confusing/unsafe as an ssh-config Host and as a
+  // key-file name component (`wireferry_..`) — fall back to a safe default.
+  if (cleaned === '' || cleaned === '.' || cleaned === '..') {
+    return 'server';
+  }
+  return cleaned;
 }
 
 // Pick ~/.ssh/<baseName>, bumping _2, _3… so we never silently overwrite an existing key pair.
@@ -354,7 +359,7 @@ export async function updateProfileConfig(params: {
   identityFile: string;
   clearPassword: boolean;
   clearInheritedPassword?: boolean;
-  setPassphraseSentinel: boolean;
+  passphraseMode?: 'keychain' | 'prompt';
 }): Promise<void> {
   let text = await fse.readFile(params.filePath, 'utf8');
 
@@ -368,10 +373,14 @@ export async function updateProfileConfig(params: {
       params.clearInheritedPassword ? null : undefined
     );
   }
-  if (params.setPassphraseSentinel) {
-    // The key is encrypted; route its passphrase through the keychain so a future connect can
-    // decrypt it (we just saved the passphrase there) instead of failing silently.
+  if (params.passphraseMode === 'keychain') {
+    // The key is encrypted and its passphrase was saved to the keychain — route it there so a
+    // future connect can decrypt the key instead of failing silently.
     text = applyJsoncEdit(text, [...params.basePath, 'passphrase'], 'secretStorage');
+  } else if (params.passphraseMode === 'prompt') {
+    // Encrypted key, but the passphrase was not stored — prompt on every connect (true) rather
+    // than point at an empty keychain slot, which would re-offer to save each time.
+    text = applyJsoncEdit(text, [...params.basePath, 'passphrase'], true);
   }
 
   await fse.writeFile(params.filePath, text);

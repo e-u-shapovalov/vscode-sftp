@@ -297,8 +297,9 @@ async function runWizardForServer(
     }
 
     // Offer to save the passphrase to the keychain so the user isn't asked every connect.
+    let passphraseSaved = false;
     if (choice.passphrase) {
-      await maybeSavePassphrase(config, port, choice.passphrase);
+      passphraseSaved = await maybeSavePassphrase(config, port, choice.passphrase);
     }
 
     // ~/.ssh/config is a convenience — a failure here (e.g. an odd path) must not lose the verified
@@ -321,7 +322,7 @@ async function runWizardForServer(
       );
     }
 
-    const profileUpdated = await applyProfileUpdate(target, keyPath, choice);
+    const profileUpdated = await applyProfileUpdate(target, keyPath, choice, passphraseSaved);
 
     return {
       line: `• ${label}: ${L({
@@ -351,9 +352,11 @@ function hasHopConfig(config: any): boolean {
   return Array.isArray(hop) ? hop.length > 0 : Object.keys(hop).length > 0;
 }
 
-async function maybeSavePassphrase(config: any, port: number, passphrase: string): Promise<void> {
+// Returns whether the passphrase was actually stored, so the caller writes the "secretStorage"
+// sentinel only when there is really something in the keychain to read back.
+async function maybeSavePassphrase(config: any, port: number, passphrase: string): Promise<boolean> {
   if (!isWorkspaceTrusted()) {
-    return;
+    return false;
   }
   const save = L({ en: 'Save', ru: 'Сохранить' });
   const answer = await showInformationMessage(
@@ -369,7 +372,9 @@ async function maybeSavePassphrase(config: any, port: number, passphrase: string
       { protocol: 'sftp', host: config.host, port, username: config.username, type: 'passphrase' },
       passphrase
     );
+    return true;
   }
+  return false;
 }
 
 // Write privateKeyPath (and clear a plaintext password where it is safe to) into the JSONC config at
@@ -378,7 +383,8 @@ async function maybeSavePassphrase(config: any, port: number, passphrase: string
 async function applyProfileUpdate(
   target: Target,
   keyPath: string,
-  choice: WizardChoice
+  choice: WizardChoice,
+  passphraseSaved: boolean
 ): Promise<boolean> {
   const filePath = await resolveConfigPath(target.fileService.workspace);
   if (!filePath) {
@@ -454,7 +460,9 @@ async function applyProfileUpdate(
     identityFile: keyPath,
     clearPassword,
     clearInheritedPassword,
-    setPassphraseSentinel: !!choice.passphrase,
+    // Encrypted key: point the profile at the keychain only if the passphrase was actually saved;
+    // otherwise prompt every connect so we don't re-offer to save against an empty keychain slot.
+    passphraseMode: choice.passphrase ? (passphraseSaved ? 'keychain' : 'prompt') : undefined,
   });
 
   // The running FileService still holds the old in-memory config; the caller shows a single

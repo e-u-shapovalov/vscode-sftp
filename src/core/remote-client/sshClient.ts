@@ -35,7 +35,7 @@ export default class SSHClient extends RemoteClient {
       // or interactiveAuth : array of phrases
       (Array.isArray(connectOption.interactiveAuth) && !!connectOption.interactiveAuth.length) ||
       // or key defined
-      ['password', 'agent', 'privateKeyPath'].some(
+      ['password', 'agent', 'privateKey', 'privateKeyPath'].some(
         // tslint:disable-next-line triple-equals
         key => connectOption[key] != undefined
       )
@@ -310,8 +310,10 @@ export default class SSHClient extends RemoteClient {
           stackedAnswers
         ) {
           const answers = stackedAnswers ||
-            // load predefined answeres if any
-            (Array.isArray(interactiveAuth) ? interactiveAuth : undefined) ||
+            // load predefined answers if any — COPY them, so pushing the user's typed replies
+            // (OTP / 2FA codes) below never mutates the live config array the Remote Explorer
+            // tree keeps, which would leave typed secrets sitting in long-lived UI state.
+            (Array.isArray(interactiveAuth) ? [...interactiveAuth] : undefined) ||
             [];
           if (answers.length < prompts.length) {
             config

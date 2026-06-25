@@ -272,8 +272,14 @@ async function resolveCredentialField(
     let stored: string | undefined;
     try {
       stored = await getCredential(descriptor);
-    } catch {
-      // A flaky keychain must never break connecting — fall back to a prompt.
+    } catch (err) {
+      // A flaky keychain must never break connecting — fall back to a prompt. Surface it so a user
+      // who keeps being prompted (locked vault, libsecret down) can see why in the log.
+      logger.warn(
+        `wireferry: keychain read failed for ${field}@${descriptor.host}, falling back to prompt: ${
+          err && (err as any).message ? (err as any).message : err
+        }`
+      );
       stored = undefined;
     }
     if (stored !== undefined) {
@@ -315,16 +321,27 @@ function warnOnceAboutHopPlaintext(hostInfo: any): void {
         );
       })
   );
-  if (!hasPlaintext) {
+  // A sentinel on a hop is NOT plaintext, but it also doesn't reach the keychain — sanitizeHopCredentials
+  // silently turns it into a plain prompt. Warn about that too, so a user who wrote "secretStorage" on a
+  // hop expecting it to be stored isn't surprised by a prompt every connect.
+  const hasSentinel = hops.some(
+    (h: any) =>
+      h &&
+      ['password', 'passphrase'].some(field => {
+        const v = h[field];
+        return v === SENTINEL_KEYCHAIN || v === SENTINEL_PROMPT;
+      })
+  );
+  if (!hasPlaintext && !hasSentinel) {
     return;
   }
   _hopPlaintextWarned = true;
   showWarningMessage(
     L({
       en:
-        'WireFerry: hop/jump-host passwords are not stored in the OS keychain yet — they remain in your config file.',
+        'WireFerry: hop/jump-host credentials are not stored in the OS keychain yet — plaintext hop passwords stay in your config file, and "secretStorage"/"prompt" on a hop is treated as a plain prompt.',
       ru:
-        'WireFerry: пароли hop/jump-host пока не хранятся в системном хранилище — они остаются в файле конфигурации.',
+        'WireFerry: учётные данные hop/jump-host пока не хранятся в системном хранилище — открытые пароли hop остаются в файле конфигурации, а "secretStorage"/"prompt" в hop обрабатывается как обычный запрос пароля.',
     })
   );
 }
