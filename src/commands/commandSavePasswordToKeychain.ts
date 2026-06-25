@@ -3,7 +3,12 @@ import * as fse from 'fs-extra';
 import { parse as parseJsonc } from 'jsonc-parser';
 import { COMMAND_SAVE_PASSWORD_TO_KEYCHAIN } from '../constants';
 import { L } from '../i18n';
-import { showInformationMessage, showWarningMessage, isWorkspaceTrusted } from '../host';
+import {
+  showInformationMessage,
+  showWarningMessage,
+  showConfirmMessage,
+  isWorkspaceTrusted,
+} from '../host';
 import { getAllFileService } from '../modules/serviceManager';
 import { resolveConfigPath } from '../modules/config';
 import { ExplorerRoot } from '../modules/remoteExplorer';
@@ -166,5 +171,39 @@ async function pointConfigAtKeychain(target: Target): Promise<boolean> {
   }
 
   await setProfileField(filePath, basePath, 'password', 'secretStorage');
+
+  // ssh2 tries the key before the password, so a keychain password won't take effect while the
+  // server still has a key. If it does, offer to drop the key — that makes this a clean switch from
+  // key auth back to password (the counterpart to "Generate SSH Key" removing the password).
+  if (target.config.privateKeyPath) {
+    const removeKey = await showConfirmMessage(
+      L({
+        en:
+          'This server logs in with an SSH key, which takes priority over a password. Remove the key so it uses the keychain password?',
+        ru:
+          'Этот сервер входит по SSH-ключу, а ключ приоритетнее пароля. Убрать ключ, чтобы использовался пароль из хранилища?',
+      }),
+      L({ en: 'Remove key', ru: 'Убрать ключ' }),
+      L({ en: 'Keep key', ru: 'Оставить ключ' })
+    );
+    if (removeKey) {
+      // Delete the key when this node owns it; when it is inherited from a top-level field, write an
+      // explicit null so the inherited path can't apply (deleting the node key alone wouldn't shadow it).
+      const node = nodeAt(parsed, basePath);
+      const ownsKey = !!node && Object.prototype.hasOwnProperty.call(node, 'privateKeyPath');
+      await setProfileField(filePath, basePath, 'privateKeyPath', ownsKey ? undefined : null);
+    }
+  }
   return true;
+}
+
+// The raw JSONC object a basePath points at, used to tell an owned field from an inherited one.
+function nodeAt(parsed: any, basePath: (string | number)[]): any {
+  if (basePath.length === 0) {
+    return parsed;
+  }
+  if (basePath[0] === 'profiles') {
+    return parsed && parsed.profiles ? parsed.profiles[basePath[1] as string] : undefined;
+  }
+  return Array.isArray(parsed) ? parsed[basePath[0] as number] : undefined;
 }
