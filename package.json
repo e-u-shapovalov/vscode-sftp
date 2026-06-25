@@ -335,6 +335,11 @@
         "category": "WireFerry"
       },
       {
+        "command": "wireferry.savePasswordToKeychain",
+        "title": "%wireferry.savePasswordToKeychain%",
+        "category": "WireFerry"
+      },
+      {
         "command": "wireferry.revealInExplorer",
         "title": "%wireferry.revealInExplorer%",
         "category": "WireFerry"
@@ -438,6 +443,10 @@
         },
         {
           "command": "wireferry.generateSshKey",
+          "when": "wireferry.enabled"
+        },
+        {
+          "command": "wireferry.savePasswordToKeychain",
           "when": "wireferry.enabled"
         },
         {
@@ -789,6 +798,11 @@
           "command": "wireferry.generateSshKey",
           "group": "navigation@5",
           "when": "view == remoteExplorer && viewItem =~ /^root\\.sftp/"
+        },
+        {
+          "command": "wireferry.savePasswordToKeychain",
+          "group": "navigation@6",
+          "when": "view == remoteExplorer && viewItem =~ /^root\\.(sftp|ftp)/"
         },
         {
           "command": "wireferry.remoteExplorer.editInLocal",

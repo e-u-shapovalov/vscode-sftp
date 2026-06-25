@@ -390,3 +390,46 @@ function applyJsoncEdit(text: string, jsonPath: (string | number)[], value: any)
   const edits = modify(text, jsonPath, value, { formattingOptions: JSONC_FORMAT });
   return applyEdits(text, edits);
 }
+
+// Locate the JSONC node to edit for a given server: [] for a single-object config, [index] for an
+// array (matched on the full identity protocol/host/port/username — null when there isn't exactly
+// one match, so the caller can fall back to manual editing), or ['profiles', name]. Shared by the
+// generate-key and save-password commands so both edit the exact same node.
+export function resolveServerBasePath(
+  parsed: any,
+  target: { config: any; profile?: string }
+): (string | number)[] | null {
+  if (Array.isArray(parsed)) {
+    const defaultPort = (proto: string) => (proto === 'ftp' ? 21 : 22);
+    const targetProto = target.config.protocol || 'sftp';
+    const targetPort = target.config.port || defaultPort(targetProto);
+    const matches = parsed.filter(
+      (c: any) =>
+        c &&
+        (c.protocol || 'sftp') === targetProto &&
+        c.host === target.config.host &&
+        c.username === target.config.username &&
+        (c.port || defaultPort(c.protocol || 'sftp')) === targetPort
+    );
+    return matches.length === 1 ? [parsed.indexOf(matches[0])] : null;
+  }
+  if (parsed && parsed.profiles && target.profile) {
+    return ['profiles', target.profile];
+  }
+  if (parsed && typeof parsed === 'object') {
+    return [];
+  }
+  return null;
+}
+
+// Write a single field at a precise JSONC node, preserving comments and formatting.
+export async function setProfileField(
+  filePath: string,
+  basePath: (string | number)[],
+  field: string,
+  value: any
+): Promise<void> {
+  let text = await fse.readFile(filePath, 'utf8');
+  text = applyJsoncEdit(text, [...basePath, field], value);
+  await fse.writeFile(filePath, text);
+}

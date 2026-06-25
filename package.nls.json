@@ -40,6 +40,7 @@
   "wireferry.chmod": "Change Permissions (chmod)",
   "wireferry.deleteSavedPassword": "Delete Saved Password…",
   "wireferry.generateSshKey": "Generate SSH Key…",
+  "wireferry.savePasswordToKeychain": "Save Password to Keychain…",
   "wireferry.revealInExplorer": "Reveal in Explorer",
   "wireferry.revealInRemoteExplorer": "Reveal in Remote Explorer",
   "wireferry.remoteExplorer.editInLocal": "Edit in Local",

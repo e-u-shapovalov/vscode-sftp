@@ -22,6 +22,7 @@ import {
   updateSshConfig,
   testKeyAuth,
   updateProfileConfig,
+  resolveServerBasePath,
   sanitizeAlias,
   uniqueKeyPath,
   KeyType,
@@ -398,28 +399,7 @@ async function applyProfileUpdate(
     return false;
   }
 
-  let basePath: (string | number)[] | null = null;
-  if (Array.isArray(parsed)) {
-    // Match the full connection identity (protocol/host/port/username), not just host+username: an
-    // array can hold two servers that share host+username but differ by port or protocol. Edit only
-    // on an unambiguous single match — otherwise fall through to the manual path below.
-    const defaultPort = (proto: string) => (proto === 'ftp' ? 21 : 22);
-    const targetProto = target.config.protocol || 'sftp';
-    const targetPort = target.config.port || defaultPort(targetProto);
-    const matches = parsed.filter(
-      (c: any) =>
-        c &&
-        (c.protocol || 'sftp') === targetProto &&
-        c.host === target.config.host &&
-        c.username === target.config.username &&
-        (c.port || defaultPort(c.protocol || 'sftp')) === targetPort
-    );
-    basePath = matches.length === 1 ? [parsed.indexOf(matches[0])] : null;
-  } else if (parsed && parsed.profiles && target.profile) {
-    basePath = ['profiles', target.profile];
-  } else {
-    basePath = [];
-  }
+  const basePath = resolveServerBasePath(parsed, target);
 
   if (!basePath) {
     showWarningMessage(
