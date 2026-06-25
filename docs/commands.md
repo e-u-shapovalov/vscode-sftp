@@ -64,6 +64,15 @@ Open a terminal in VSCode and auto login to a specific server.
 ### WireFerry: Open Extension Page
 Open the WireFerry extension page inside VS Code.
 
+### WireFerry: Generate SSH Key
+Right-click a server in the Remote Explorer to create an SSH key (ed25519/rsa-4096), deploy the public half to the server's `authorized_keys`, register it in `~/.ssh/config`, and switch the profile to key auth after a verified login. Can provision every server in the config at once. SFTP, local extension host only (2.5.0).
+
+### WireFerry: Save Password to Keychain
+Right-click a server to store its password in the OS keychain and set `"password": "secretStorage"` in the config — no plaintext password in JSON. If the server uses a key, it offers to drop it for a clean switch to password auth (2.5.0).
+
+### WireFerry: Delete Saved Password
+List passwords/passphrases saved in the OS keychain and remove the selected ones (2.5.0).
+
 ### WireFerry: Upload File / Upload Folder
 Upload the selected file or folder (used from the explorer context menu).
 

@@ -30,7 +30,8 @@ Absolute path to user private key.
 
 ### passphrase
 For an encrypted private key, this is the passphrase string used to decrypt it. <br>
-Set to 'true' for enable passphrase dialog. This will prevent from using cleartext passphrase in this config.
+Set to `true` to enable the passphrase dialog. This prevents using a cleartext passphrase in this config. <br>
+Since 2.5.0 you can also set `"secretStorage"` to read/save the passphrase from the OS keychain (the same as `password`); **Generate SSH Key…** sets this automatically when you save the passphrase.
 
 | Key | Value |
 | --- | --- |

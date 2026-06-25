@@ -142,10 +142,11 @@ Username for authentication.
 ```
 
 ### password
-[!WARNING]
-**Passwords are stored as plain-text!**
+The password for password-based user authentication. Since 2.5.0 you do not have to keep it in plain text:
 
-The password for password-based user authentication.
+- `"password": "secretStorage"` — read/save the password from the **OS keychain** (Windows Credential Manager / macOS Keychain / Linux Secret Service). Set it from the Remote Explorer: right-click the server → **Save Password to Keychain…** (it also offers to save after a successful connect). Manage saved entries with **Delete Saved Password…**.
+- `"password": "prompt"` — ask for the password on every connect, never store it.
+- A plain string — used as-is (still supported, but stored as plain text). New configs default to `"prompt"`.
 
 | Key | Value |
 | --- | --- |
@@ -153,7 +154,7 @@ The password for password-based user authentication.
 
 ```json
 {
-  "password": "Password123"
+  "password": "secretStorage"
 }
 ```
 
