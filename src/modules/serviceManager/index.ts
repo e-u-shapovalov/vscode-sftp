@@ -108,7 +108,7 @@ export function createFileService(config: any, workspace: string) {
   // The trie keys a service by its base path, so a second config with the same (or absent) "context"
   // would silently overwrite the first — an array of servers for one project would lose all but the
   // last (gone from the tree, transfers, profile picker). Warn instead of dropping it silently.
-  const collides = getAllFileService().some(s => s.baseDir === normalizedBasePath);
+  const collides = getAllFileService().find(s => s.baseDir === normalizedBasePath);
   if (collides) {
     showWarningMessage(
       L({
@@ -116,6 +116,10 @@ export function createFileService(config: any, workspace: string) {
         ru: `WireFerry: несколько серверов используют один "context" (${config.context || '.'}); останется только последний. Задайте каждому серверу свой "context".`,
       })
     );
+    // Dispose the colliding service before its trie slot is overwritten below — serviceManager.add
+    // drops the only reference to it, so without this its FileSystemWatcher and open SSH/FTP
+    // connections leak and a stale watcher keeps uploading to the wrong server.
+    disposeFileService(collides);
   }
 
   const service = new FileService(normalizedBasePath, workspace, config);
@@ -215,6 +219,9 @@ export function disposeFileService(fileService: FileService) {
   serviceManager.remove(fileService.baseDir);
   fileService.dispose();
 }
+
+// Forward declaration note: createFileService (above) calls disposeFileService on a context
+// collision; both are module-level exports so ordering doesn't matter at runtime.
 
 export function findAllFileService(predictor: (x: FileService) => boolean): FileService[] {
   if (serviceManager === undefined) {

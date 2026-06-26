@@ -1,8 +1,9 @@
 import * as output from './ui/output';
 import { getExtensionSetting } from './modules/ext';
 
-const extSetting = getExtensionSetting();
-const debug = extSetting.debug;
+// Read the flag live on each call. Capturing it once at module load froze it, so toggling
+// "wireferry.debug" mid-session had no effect on logging until a full window reload.
+const isDebug = () => getExtensionSetting().debug;
 
 const paddingTime = time => ('00' + time).slice(-2);
 
@@ -27,13 +28,13 @@ class VSCodeLogger implements Logger {
   }
 
   trace(message: string, ...args: any[]) {
-    if (debug) {
+    if (isDebug()) {
       this.log('[trace]', message, ...args);
     }
   }
 
   debug(message: string, ...args: any[]) {
-    if (debug) {
+    if (isDebug()) {
       this.log('[debug]', message, ...args);
     }
   }

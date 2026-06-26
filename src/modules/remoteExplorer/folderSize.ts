@@ -43,9 +43,12 @@ export async function duSizes(
     return result;
   }
   const quoted = safe.map(p => `'${p.replace(/'/g, `'\\''`)}'`).join(' ');
+  // `--` ends option parsing: without it a folder whose name starts with `-` (e.g. `-x`, `--help`)
+  // is read by du as a flag instead of a path. Single-quoting doesn't help — the shell strips the
+  // quotes and du still sees a leading dash. POSIX-portable (GNU and BSD du both honour `--`).
   const attempts: Array<{ cmd: string; toBytes: (n: number) => number }> = [
-    { cmd: `du -sb ${quoted}`, toBytes: n => n },
-    { cmd: `du -sk ${quoted}`, toBytes: n => n * 1024 },
+    { cmd: `du -sb -- ${quoted}`, toBytes: n => n },
+    { cmd: `du -sk -- ${quoted}`, toBytes: n => n * 1024 },
   ];
   for (const attempt of attempts) {
     try {

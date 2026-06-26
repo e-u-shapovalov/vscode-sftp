@@ -9,6 +9,20 @@ import logger from '../logger';
 import * as operationReport from '../ui/operationReport';
 import { L } from '../i18n';
 
+// A genuinely-absent remote file is the only thing we may treat as "already deleted". Everything else
+// (permission denied, timeout, disconnect) must propagate — see the call site: for "both"/"all + PC"
+// scopes we go on to delete the LOCAL copy, and mistaking an unreachable server for "gone" would
+// erase the local file while the server copy still exists.
+//   SFTP lstat → err.code === 2 (SSH_FX_NO_SUCH_FILE), some layers map it to 'ENOENT'.
+//   FTP lstat  → throws Error('file not exist') (no code) once the parent listing succeeded but the
+//                entry was absent; a failure to even list the parent surfaces as a different error.
+function isRemoteNotFound(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  return err.code === 2 || err.code === 'ENOENT' || err.message === 'file not exist';
+}
+
 export const removeRemote = createFileHandler<
   FileHandleOption &
     RemoveDirOption & {
@@ -36,6 +50,12 @@ export const removeRemote = createFileHandler<
       try {
         stat = await remoteFs.lstat(remoteFsPath);
       } catch (e) {
+        // Only swallow a real not-found. A transient/permission error must NOT be read as "already
+        // gone" — otherwise the local-copy delete below would run against a server that may still
+        // hold the file.
+        if (!isRemoteNotFound(e)) {
+          throw e;
+        }
         logger.info(
           `removeRemote: '${remoteFsPath}' not on server (${(e && (e as Error).message) || String(e)}) — nothing to delete there`
         );

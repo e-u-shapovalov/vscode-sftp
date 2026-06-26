@@ -60,43 +60,57 @@ export default class SSHClient extends RemoteClient {
       const hopList: ConnectOption[] = Array.isArray(hop) ? hop : [hop];
       const connectOptions = hopList;
 
-      for (let index = 0; index < connectOptions.length; index++) {
-        const curOpt = connectOptions[index];
-        if (curOpt.port === undefined) {
-          curOpt.port = 22;
-        }
-        const preClient = this.hoppingClients[index - 1];
-        if (preClient) {
-          sock = await this._makeHopping(preClient, curOpt.host, curOpt.port);
+      try {
+        for (let index = 0; index < connectOptions.length; index++) {
+          const curOpt = connectOptions[index];
+          if (curOpt.port === undefined) {
+            curOpt.port = 22;
+          }
+          const preClient = this.hoppingClients[index - 1];
+          if (preClient) {
+            sock = await this._makeHopping(preClient, curOpt.host, curOpt.port);
+          }
+
+          // Private keys live on the CLIENT machine: ssh2 runs locally and authenticates each hop
+          // through the forwarded socket, so the key bytes must come from the local FS — never from a
+          // previous hop's remote FS (which would read an unrelated file off the bastion). hop key
+          // paths are resolved to local absolute paths in fileService.getCompleteConfig.
+          if (curOpt.privateKeyPath) {
+            const buffer = await localFs.readFile(curOpt.privateKeyPath);
+            curOpt.privateKey = buffer.toString();
+          }
+
+          const client = new SSHClient(curOpt);
+          this.hoppingClients.push(client);
+          // Use a config without onPasswordEntered/onPassphraseEntered for hops.
+          // Hops intentionally do not support keychain "secretStorage" save yet
+          // (see sanitize + warn in fileService). Forwarding the callbacks would
+          // overwrite the *target's* entered values captured for post-success offer-to-save,
+          // causing the wrong secret to be offered/stored under the target's identity.
+          const hopConnectConfig = { askForPasswd: config.askForPasswd };
+          await client.connect({ ...curOpt, sock }, hopConnectConfig);
         }
 
-        // Private keys live on the CLIENT machine: ssh2 runs locally and authenticates each hop
-        // through the forwarded socket, so the key bytes must come from the local FS — never from a
-        // previous hop's remote FS (which would read an unrelated file off the bastion). hop key
-        // paths are resolved to local absolute paths in fileService.getCompleteConfig.
-        if (curOpt.privateKeyPath) {
-          const buffer = await localFs.readFile(curOpt.privateKeyPath);
-          curOpt.privateKey = buffer.toString();
+        if (this.hoppingClients.length > 0) {
+          const lastClient = this.hoppingClients[this.hoppingClients.length - 1];
+          sock = await this._makeHopping(
+            lastClient,
+            lastOption.host,
+            lastOption.port
+          );
         }
-
-        const client = new SSHClient(curOpt);
-        this.hoppingClients.push(client);
-        // Use a config without onPasswordEntered/onPassphraseEntered for hops.
-        // Hops intentionally do not support keychain "secretStorage" save yet
-        // (see sanitize + warn in fileService). Forwarding the callbacks would
-        // overwrite the *target's* entered values captured for post-success offer-to-save,
-        // causing the wrong secret to be offered/stored under the target's identity.
-        const hopConnectConfig = { askForPasswd: config.askForPasswd };
-        await client.connect({ ...curOpt, sock }, hopConnectConfig);
-      }
-
-      if (this.hoppingClients.length > 0) {
-        const lastClient = this.hoppingClients[this.hoppingClients.length - 1];
-        sock = await this._makeHopping(
-          lastClient,
-          lastOption.host,
-          lastOption.port
-        );
+      } catch (err) {
+        // A failed jump must not leave earlier hops connected: tear the chain down (last opened
+        // first) before propagating, or every aborted multi-hop attempt leaks an ssh2.Client/socket.
+        for (let i = this.hoppingClients.length - 1; i >= 0; i--) {
+          try {
+            this.hoppingClients[i].end();
+          } catch {
+            /* ignore */
+          }
+        }
+        this.hoppingClients = [];
+        throw err;
       }
     }
 
@@ -367,7 +381,22 @@ export default class SSHClient extends RemoteClient {
 
   private _getSftp(client): Promise<any> {
     return new Promise((resolve, reject) => {
+      // The handshake already passed readyTimeout, but the SFTP subsystem request itself can hang
+      // on a half-broken server. Bound it so a pending operation rejects instead of waiting forever.
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(new Error('SFTP subsystem request timed out'));
+      }, 20000);
       client.sftp((err, sftp) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
         if (err) {
           return reject(err);
         }

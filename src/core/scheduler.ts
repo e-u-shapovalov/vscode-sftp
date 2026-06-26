@@ -180,10 +180,12 @@ class Scheduler {
 
   private async _runTask(task: Task) {
     this._pendingCount += 1;
-    this._eventEmitter.emit(EVENT_TASK_START, task);
 
     let error = null;
     try {
+      // Emit INSIDE the try: a listener that throws synchronously used to escape before the finally,
+      // leaving _pendingCount incremented and _next() uncalled — the whole queue then wedged forever.
+      this._eventEmitter.emit(EVENT_TASK_START, task);
       await task.run();
     } catch (err) {
       error = err;

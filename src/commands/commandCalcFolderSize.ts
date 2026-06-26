@@ -89,9 +89,10 @@ async function serverDuBytes(remoteFs: FileSystem, remotePath: string): Promise<
     return null;
   }
   const quoted = `'${remotePath.replace(/'/g, `'\\''`)}'`;
+  // `--` ends option parsing so a folder whose name starts with `-` is treated as a path, not a flag.
   const attempts: Array<{ cmd: string; toBytes: (n: number) => number }> = [
-    { cmd: `du -sb ${quoted}`, toBytes: n => n },
-    { cmd: `du -sk ${quoted}`, toBytes: n => n * 1024 },
+    { cmd: `du -sb -- ${quoted}`, toBytes: n => n },
+    { cmd: `du -sk -- ${quoted}`, toBytes: n => n * 1024 },
   ];
   for (const attempt of attempts) {
     try {

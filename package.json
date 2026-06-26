@@ -280,6 +280,11 @@
         "category": "WireFerry"
       },
       {
+        "command": "wireferry.copyPathAsGitBash",
+        "title": "%wireferry.copyPathAsGitBash%",
+        "category": "WireFerry"
+      },
+      {
         "command": "wireferry.diff.activeFile",
         "title": "%wireferry.diff.activeFile%",
         "category": "WireFerry"
@@ -425,6 +430,10 @@
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "wireferry.copyPathAsGitBash",
+          "when": "false"
+        },
         {
           "command": "wireferry.setProfile",
           "when": "wireferry.enabled"
@@ -683,6 +692,11 @@
           "command": "wireferry.delete.remote",
           "group": "7_modification",
           "when": "wireferry.enabled && !explorerResourceIsRoot"
+        },
+        {
+          "command": "wireferry.copyPathAsGitBash",
+          "group": "9_cutcopypaste@10",
+          "when": "wireferry.enabled"
         }
       ],
       "editor/context": [

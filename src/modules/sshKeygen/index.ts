@@ -189,15 +189,15 @@ function sftpReadFile(sftp: any, p: string): Promise<Buffer> {
 
 // ssh2 surfaces SFTP status 2 (SSH_FX_NO_SUCH_FILE) as err.code === 2; some layers use 'ENOENT'.
 // Anything else (e.g. permission denied) is NOT "missing" and must not be treated as an empty file.
+// Match ONLY the structured code — never sniff the message text. A permission-denied or transient
+// error whose message merely contains "no such file" (some sshd/sftp wrappers phrase EACCES that way)
+// would otherwise be misread as "missing", reset `existing` to '', and overwrite authorized_keys with
+// just the new key — wiping every other key and locking the user out. The code is authoritative.
 function isNoSuchFile(err: any): boolean {
   if (!err) {
     return false;
   }
-  return (
-    err.code === 2 ||
-    err.code === 'ENOENT' ||
-    /no such file/i.test(String(err.message || ''))
-  );
+  return err.code === 2 || err.code === 'ENOENT';
 }
 
 function sftpWriteFile(sftp: any, p: string, data: string, mode: number): Promise<void> {
@@ -315,11 +315,13 @@ export function testKeyAuth(params: {
   return new Promise<boolean>(resolve => {
     const conn = new ssh2.Client();
     let settled = false;
+    let timer: any;
     const finish = (ok: boolean) => {
       if (settled) {
         return;
       }
       settled = true;
+      clearTimeout(timer);
       try {
         conn.end();
       } catch {
@@ -327,6 +329,9 @@ export function testKeyAuth(params: {
       }
       resolve(ok);
     };
+    // Guard the whole attempt: readyTimeout covers the SSH handshake, but a host that never answers
+    // the TCP SYN can otherwise hang on the OS connect timeout (minutes), freezing the setup wizard.
+    timer = setTimeout(() => finish(false), 20000);
     conn
       .on('ready', () => finish(true))
       .on('error', () => finish(false));

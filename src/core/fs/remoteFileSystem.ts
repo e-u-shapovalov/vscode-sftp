@@ -86,21 +86,50 @@ export default abstract class RemoteFileSystem extends FileSystem {
       }
 
       const arr: Buffer[] = [];
+      let settled = false;
       const onData = chunk => {
         arr.push(chunk);
       };
-      const onEnd = err => {
-        if (err) {
-          return reject(err);
+      const cleanup = () => {
+        stream.removeListener('data', onData);
+        stream.removeListener('error', onError);
+        stream.removeListener('end', onEnd);
+        stream.removeListener('close', onClose);
+      };
+      const onError = err => {
+        if (settled) {
+          return;
         }
-
+        settled = true;
+        cleanup();
+        reject(err);
+      };
+      const onEnd = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
         const buffer = Buffer.concat(arr);
         resolve(option && option.encoding ? buffer.toString(option.encoding as BufferEncoding) : buffer);
       };
+      // A stream destroyed mid-read (transferTask.cancel → abortReadableStream calls .destroy())
+      // emits 'close' WITHOUT 'end'; without this the promise would hang forever — e.g. a remote-file
+      // preview opened while a download is being cancelled never resolves. On success 'close' fires
+      // after 'end', but the `settled` guard makes the late event a no-op.
+      const onClose = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(new Error('stream closed before end'));
+      };
 
       stream.on('data', onData);
-      stream.on('error', onEnd);
+      stream.on('error', onError);
       stream.on('end', onEnd);
+      stream.on('close', onClose);
     });
   }
 

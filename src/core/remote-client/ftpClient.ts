@@ -40,6 +40,7 @@ Client.prototype.setLastMod = function(path: string, date: Date, cb) {
 
 export default class FTPClient extends RemoteClient {
   private connected: boolean = false;
+  private _ended: boolean = false;
 
   _initClient() {
     return new Client();
@@ -93,6 +94,13 @@ export default class FTPClient extends RemoteClient {
   }
 
   end() {
+    // The ftp lib can fire 'end'/'close'/'error' and each path may call end(); its internal
+    // _reset() re-ends the socket and can throw on an already-closed connection. Make it idempotent
+    // so the double end() in remoteFs's error handler (end() + invalid()->end()) can't throw.
+    if (this._ended) {
+      return;
+    }
+    this._ended = true;
     return this._client.end();
   }
 

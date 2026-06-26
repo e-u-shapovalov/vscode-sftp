@@ -325,7 +325,10 @@ async function _sync(
       id: fileEntry.name,
     }));
 
-    const file2trans: [string, string, TransferDirection, InternalTransferOption][] = [];
+    // Carry the FileType too: a symlink must stay a symlink through the transfer (see the hardcoded
+    // FileType.File bug fixed below). Without it, sync read a link's target as file CONTENT instead of
+    // recreating the link.
+    const file2trans: [string, string, TransferDirection, InternalTransferOption, FileType][] = [];
     const dir2trans: [string, string, TransferDirection][] = [];
     const dir2sync: [string, string][] = [];
 
@@ -379,6 +382,7 @@ async function _sync(
                   mtime: from.mtime,
                   atime: from.atime,
                 },
+                from.type,
               ]);
             }
             break;
@@ -411,6 +415,7 @@ async function _sync(
                 mtime: srcFile.mtime,
                 atime: srcFile.atime,
               },
+              srcFile.type,
             ]);
           }
           break;
@@ -442,6 +447,7 @@ async function _sync(
                     mtime: file.mtime,
                     atime: file.atime,
                   },
+                  file.type,
                 ]);
               }
               break;
@@ -475,7 +481,7 @@ async function _sync(
       ...dirMissed.map(file => removeFile(file, targetFs, FileType.Directory, transferOption)),
     ];
 
-    const transFilePromise = file2trans.map(([src, target, direction, option]) =>
+    const transFilePromise = file2trans.map(([src, target, direction, option, fileType]) =>
       transferFile(
         {
           ...config,
@@ -485,7 +491,9 @@ async function _sync(
           srcFsPath: src,
           targetFsPath: target,
         },
-        FileType.File,
+        // Preserve the real type: FileType.File was hardcoded here, so a synced symlink was copied as
+        // a regular file (its target's bytes) instead of being recreated as a link.
+        fileType,
         collect
       )
     );

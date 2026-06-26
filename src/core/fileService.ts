@@ -150,9 +150,14 @@ function filesIgnoredFromConfig(config: FileServiceConfig): string[] {
     ignoreFromFile = fs.readFileSync(ignoreFile).toString();
     cache.set(ignoreFile, ignoreFromFile);
   } else {
-    throw new Error(
-      `File ${ignoreFile} not found. Check your config of "ignoreFile"`
+    // A missing ignoreFile must NOT break every operation. filesIgnoredFromConfig runs from
+    // getConfig() — the entry point for upload/download/sync/list — so throwing here made a single
+    // typo in "ignoreFile" render the whole config unusable (every command failed). Warn so the
+    // dropped file-based patterns are visible, and fall back to the inline `ignore` patterns.
+    logger.warn(
+      `ignoreFile "${ignoreFile}" not found — skipping file-based ignore patterns. Check your "ignoreFile" config.`
     );
+    return ignore;
   }
 
   return ignore.concat(ignoreFromFile.split(/\r?\n/g));

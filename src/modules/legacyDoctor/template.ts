@@ -33,8 +33,11 @@ const TEMPLATE_EN = `{
     // "algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } },
 
     // ---- Transfer behaviour --------------------------------------------------------------
-    // "useTempFile": false,           // Upload to a temp file then rename (avoids partial reads).
-    // "openSsh": false,               // Atomic uploads on OpenSSH servers (requires useTempFile).
+    // "useTempFile": true,            // Default. Stage into a temp file then atomically rename it in,
+    //                                 // so an interrupted transfer never truncates the existing file.
+    //                                 // Auto-falls back to a direct write when the dir isn't writable;
+    //                                 // set false to force a direct overwrite.
+    // "openSsh": false,               // Use OpenSSH's atomic rename for the temp-file swap.
     // "downloadOnOpen": false,        // When you open a LOCAL file that also exists on the server,
     //                                 // pull the server copy over it. true = always, "confirm" = ask
     //                                 // first, false = off. Files not on the server are left alone.
@@ -119,8 +122,11 @@ const TEMPLATE_RU = `{
     // "algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } },
 
     // ---- Поведение передачи --------------------------------------------------------------
-    // "useTempFile": false,           // Выгружать во временный файл, затем переименовывать.
-    // "openSsh": false,               // Атомарная выгрузка на OpenSSH (требует useTempFile).
+    // "useTempFile": true,            // По умолчанию. Пишем во временный файл и атомарно переименовываем,
+    //                                 // чтобы прерванная передача не обнуляла существующий файл. Если в
+    //                                 // каталог писать нельзя — авто-откат на прямую запись. false —
+    //                                 // всегда прямая перезапись.
+    // "openSsh": false,               // Использовать атомарный rename OpenSSH для подмены temp-файла.
     // "downloadOnOpen": false,        // При открытии ЛОКАЛЬНОГО файла, который есть и на сервере,
     //                                 // подтянуть серверную версию поверх. true = всегда, "confirm" =
     //                                 // спросить, false = выкл. Файлы, которых нет на сервере, не трогаются.

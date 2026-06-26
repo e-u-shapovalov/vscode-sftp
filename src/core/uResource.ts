@@ -151,6 +151,16 @@ export default class UResource {
       remoteResouce = new _Resource(uri);
     } else {
       const remoteFsPath = toRemotePath(uri.fsPath, localBasePath, remoteBasePath);
+      // Mirror the containment guard the remote branch above already has: a local path outside the
+      // configured context makes path.relative emit `..`, so remoteFsPath escapes above the remote
+      // root (uploading/overwriting an unrelated file on the server). Check the COMPUTED remote path
+      // rather than the input — path.relative folds the drive-letter case on Windows, so this avoids
+      // the false rejections a raw isSubpathOf(localBasePath, uri.fsPath) would hit.
+      if (!isRemoteSubpathOf(remoteBasePath, remoteFsPath)) {
+        throw new Error(
+          `Refusing local path outside the configured context (${localBasePath}): ${uri.fsPath}`
+        );
+      }
       remoteResouce = UResource.makeResource({
         remote,
         fsPath: remoteFsPath,

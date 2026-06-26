@@ -35,12 +35,20 @@ async function handleConfigSave(uri: vscode.Uri) {
 
   const workspacePath = workspaceFolder.uri.fsPath;
 
-  // dispose old service
-  findAllFileService(service => service.workspace === workspacePath).forEach(disposeFileService);
-
-  // create new service
+  // Read + parse the new config BEFORE tearing anything down. A syntactically broken save used to
+  // dispose the working services first and only then fail to parse — leaving the workspace with no
+  // connection at all until the file was fixed. Keep the old services intact if the read fails.
+  let configs;
   try {
-    const configs = await readConfigsFromFile(uri.fsPath);
+    configs = await readConfigsFromFile(uri.fsPath);
+  } catch (error) {
+    reportError(error);
+    return;
+  }
+
+  // Swap: dispose the old services, then build the new ones from the already-parsed config.
+  findAllFileService(service => service.workspace === workspacePath).forEach(disposeFileService);
+  try {
     configs.forEach(config => createFileService(config, workspacePath));
   } catch (error) {
     reportError(error);
@@ -119,7 +127,15 @@ async function handleFileSave(uri: vscode.Uri) {
     return;
   }
 
-  const config = fileService.getConfig();
+  let config;
+  try {
+    config = fileService.getConfig();
+  } catch (error) {
+    // getConfig() can throw (invalid config, unknown profile, missing env var). This runs from the
+    // save event, so an unhandled rejection here would surface as a noisy error on every save.
+    logger.error(error, `upload-on-save getConfig ${uri.fsPath}`);
+    return;
+  }
   if (config.uploadOnSave) {
     // Normalise the on-disk casing so the upload uses the canonical name (#589), but ONLY when realpath
     // differs by case alone. A structural realpath change — a resolved symlink (Linux/macOS) or an
@@ -144,7 +160,15 @@ async function downloadOnOpen(uri: vscode.Uri) {
     return;
   }
 
-  const config = fileService.getConfig();
+  let config;
+  try {
+    config = fileService.getConfig();
+  } catch (error) {
+    // getConfig() can throw (invalid config, unknown profile, missing env var). This runs from the
+    // open event, so swallow + log rather than leak an unhandled rejection on every file open.
+    logger.error(error, `downloadOnOpen getConfig ${uri.fsPath}`);
+    return;
+  }
   if (!config.downloadOnOpen) {
     return;
   }

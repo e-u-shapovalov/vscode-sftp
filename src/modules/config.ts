@@ -18,7 +18,7 @@ const configScheme = {
   protocol: Joi.any().valid('sftp', 'ftp', 'local'),
 
   host: Joi.string().required(),
-  port: Joi.number().integer(),
+  port: Joi.number().integer().min(1).max(65535),
   connectTimeout: Joi.number().integer(),
   username: Joi.string().required(),
   // A plaintext password, or a reserved sentinel: "secretStorage" (store/read via the OS keychain)
@@ -58,7 +58,7 @@ const configScheme = {
     files: Joi.string().allow(false, null),
     autoUpload: Joi.boolean(),
   },
-  concurrency: Joi.number().integer(),
+  concurrency: Joi.number().integer().min(1),
 
   syncOption: {
     delete: Joi.boolean(),
@@ -77,7 +77,7 @@ const configScheme = {
 
   // Skip files larger than this threshold (in megabytes) during batch transfers (folder upload /
   // download / sync). A single explicit file command is never filtered. Absent or 0 = disabled.
-  maxFileSize: Joi.number(),
+  maxFileSize: Joi.number().min(0),
 
   // Opt-out marker written by the legacy-config migration prompt: when true, WireFerry stops
   // offering to rename .vscode/sftp.json -> wireferry.json. Declared here so it isn't flagged
@@ -90,7 +90,11 @@ const defaultConfig = {
   // name: undefined,
   remotePath: './',
   uploadOnSave: false,
-  useTempFile: false,
+  // Safe by default: stage each upload/download into a unique temp file beside the target and
+  // atomically rename it into place, so an interrupted transfer never truncates the existing file.
+  // transferTask falls back to a direct overwrite automatically when the directory isn't writable;
+  // set this to false to force a direct overwrite everywhere.
+  useTempFile: true,
   openSsh: false,
   downloadOnOpen: false,
   ignore: [],

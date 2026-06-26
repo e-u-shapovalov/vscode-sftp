@@ -1,4 +1,6 @@
 import * as path from 'path';
+import * as fse from 'fs-extra';
+import * as vscode from 'vscode';
 import { diffFiles } from '../host';
 import { EXTENSION_NAME } from '../constants';
 import { fileOperations } from '../core';
@@ -17,6 +19,16 @@ export const diff = createFileHandler({
     });
 
     await fileOperations.transferFile(remoteFsPath, tmpPath, remoteFs, localFs);
+    // Remove the downloaded temp copy once its diff editor closes. makeTmpFile only registers a
+    // process-exit cleanup (setGracefulCleanup), so without this every diff leaves a full copy of the
+    // remote file in os.tmpdir() for the rest of the session. Best-effort; the exit cleanup is the
+    // backstop if the close event never arrives.
+    const sub = vscode.workspace.onDidCloseTextDocument(doc => {
+      if (doc.uri.scheme === 'file' && doc.uri.fsPath === tmpPath) {
+        sub.dispose();
+        fse.remove(tmpPath).catch(() => undefined);
+      }
+    });
     await diffFiles(
       tmpPath,
       localFsPath,

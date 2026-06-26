@@ -52,8 +52,15 @@ function assertNoDangerousSshOption(value: string, fieldName: string) {
 
   // `-F altconfig` makes ssh read an attacker-supplied config file (which can carry LocalCommand /
   // ProxyCommand) — that bypasses the keyword scan below since the param string itself is just
-  // "-F path". Reject the alternate-config flag explicitly (case-sensitive: -F, not -f/background).
-  if (/(?:^|\s)-F(?:\s|=|$)/.test(value)) {
+  // "-F path". Reject the alternate-config flag in EVERY form (case-sensitive: -F, not -f/background):
+  // "-F cfg", "-F=cfg", and the glued getopt forms "-Fcfg" / "-vFcfg" (combined short flags). The old
+  // /(?:^|\s)-F(?:\s|=|$)/ required a separator after -F, so "-F/tmp/evil.conf" slipped straight through.
+  // Exclude -o… (handled by the keyword scan below) so a legitimate -oForwardAgent=no isn't rejected.
+  const usesAltConfigFlag = value
+    .trim()
+    .split(/\s+/)
+    .some(tok => /^-[A-Za-z]*F/.test(tok) && !/^-o/i.test(tok));
+  if (usesAltConfigFlag) {
     throw new Error(
       L({
         en: `Cannot open SSH terminal: "${fieldName}" uses the disallowed -F flag (alternate ssh config).`,

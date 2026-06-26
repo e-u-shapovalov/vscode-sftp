@@ -1,4 +1,5 @@
 import { Readable } from 'stream';
+import { randomBytes } from 'crypto';
 import * as path from 'path';
 import * as fileOperations from './fileBaseOperations';
 import { FileSystem, FileType } from './fs';
@@ -7,6 +8,24 @@ import logger from '../logger';
 import * as transferProgress from '../ui/transferProgress';
 
 let hasWarnedModifedTimePermission = false;
+
+// A staging temp file couldn't be created. Treat a permission failure as "directory not writable" and
+// fall back to a direct overwrite (the file itself may still be writable); surface anything else.
+//   local: EACCES / EPERM / EROFS   SFTP: SSH_FX_PERMISSION_DENIED = 3   FTP: 550 / 553
+function isLikelyPermissionError(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  const code = (err as any).code;
+  return (
+    code === 3 ||
+    code === 550 ||
+    code === 553 ||
+    code === 'EACCES' ||
+    code === 'EPERM' ||
+    code === 'EROFS'
+  );
+}
 
 export enum TransferDirection {
   LOCAL_TO_REMOTE = 'local ➞ remote',
@@ -198,76 +217,70 @@ export default class TransferTask implements Task {
     // Bail out before we acquire any stream if the task was cancelled during enumeration.
     this._abortAndThrowIfCancelled();
 
-    // Set the mode if it's specified in the config, otherwise get mode from server.
+    // Resolve the upload mode: an explicit filePerm wins; otherwise we may preserve the target's mode.
     let mode = filePerm ? parseInt(String(filePerm), 8) : this._TransferOption.mode;
-    let targetFd; // Destination file
-    let uploadFd; // Temp file or destination file when no temp file is used
-    let uploadedOk = false;
-    const uploadTarget = target + (useTempFile ? ".new" : "");
 
-    // Acquisition order matters when useTempFile is false: there `uploadTarget` IS the real target
-    // and open(…, 'w') TRUNCATES it. We must obtain the source stream BEFORE truncating the
-    // destination — otherwise a source that can't be read (vanished, no permission) empties the
-    // existing remote file for nothing. With a temp file the real target is untouched, so opening
-    // in parallel is safe.
-    // Use mode first.
-    // Then check perserveTargetMode and fallback to fallbackMode if fail to get mode of target
+    // Acquire the SOURCE first. get() hands back a lazy stream — a resolved await does NOT prove the
+    // source is readable (the real read starts when put() pipes). So we never truncate the live target
+    // up front: by default we stage a complete copy into a unique temp file beside the target and
+    // atomically rename it over the target, leaving the original intact if anything fails mid-transfer.
+    this._handle = await srcFs.get(src);
+    this._abortAndThrowIfCancelled();
+
+    // Preserve the existing target's mode when asked — read it while the target is still intact.
     if (mode === undefined && perserveTargetMode) {
-      if (useTempFile) {
-        [targetFd, uploadFd] = await Promise.all([
-          targetFs.open(target, 'r')  // Get handle for reading the target mode
-            .catch(() => null), // Return null if target file doesn't exist
-          targetFs.open(uploadTarget, 'w')  // Get handle for the file upload
-        ]);
-
-        if (targetFd) {
-          try {
-            [this._handle, mode] = await Promise.all([
-              srcFs.get(src),
-              targetFs
-                .fstat(targetFd)
-                .then(stat => stat.mode)
-                .catch(() => fallbackMode),
-            ]);
-          } finally {
-            // Close the read handle even when srcFs.get() rejects, or the server-side fd leaks.
-            await targetFs.close(targetFd).catch(() => undefined);
-          }
-        } else {
-          this._handle = await srcFs.get(src);
-          mode = fallbackMode;
+      const probeFd = await targetFs.open(target, 'r').catch(() => null);
+      if (probeFd) {
+        try {
+          mode = await targetFs.fstat(probeFd).then(stat => stat.mode).catch(() => fallbackMode);
+        } finally {
+          // Close the read handle even on failure, or the server-side fd leaks.
+          await targetFs.close(probeFd).catch(() => undefined);
         }
       } else {
-        // Direct overwrite: read the source first, only then truncate-open the destination.
-        this._handle = await srcFs.get(src);
-        // A cancel between get() and the truncate-open must not empty the existing target.
-        this._abortAndThrowIfCancelled();
-        targetFd = uploadFd = await this._openForWriteOrAbort(targetFs, uploadTarget);
-        mode = await targetFs
-          .fstat(targetFd)
-          .then(stat => stat.mode)
-          .catch(() => fallbackMode);
-      }
-    } else {
-      if (useTempFile) {
-        [this._handle, uploadFd] = await Promise.all([
-          srcFs.get(src),
-          targetFs.open(uploadTarget, 'w'),
-        ]);
-      } else {
-        // Direct overwrite: read the source first, only then truncate-open the destination.
-        this._handle = await srcFs.get(src);
-        // A cancel between get() and the truncate-open must not empty the existing target.
-        this._abortAndThrowIfCancelled();
-        uploadFd = await this._openForWriteOrAbort(targetFs, uploadTarget);
+        mode = fallbackMode;
       }
     }
 
-    try {
-      // Last gate before the actual write — covers the temp-file branches too (their destination is
-      // *.new, already opened above; the finally below closes the fd and removes the temp copy).
+    // Default = stage into a UNIQUE temp file, then atomically rename it onto the target: the original
+    // is never truncated until a complete copy exists, and a per-task-unique name means two concurrent
+    // writers to the same target never share one staging file. `useTempFile: false` is an explicit
+    // opt-out (direct overwrite); we ALSO fall back to direct automatically when the temp can't be
+    // created because the directory isn't writable (a file can be writable while its dir is not).
+    const preferTemp = useTempFile !== false;
+    let uploadTarget = target;
+    let usingTemp = false;
+    let uploadFd;
+
+    if (preferTemp) {
+      const tempTarget = `${target}.wf-${process.pid}-${randomBytes(6).toString('hex')}.tmp`;
+      try {
+        uploadFd = await targetFs.open(tempTarget, 'w');
+        uploadTarget = tempTarget;
+        usingTemp = true;
+      } catch (err) {
+        if (!isLikelyPermissionError(err)) {
+          // Real failure (not a read-only dir): abort the source stream so its handle doesn't leak.
+          FileSystem.abortReadableStream(this._handle);
+          throw err;
+        }
+        // Directory not writable — fall back to a direct overwrite rather than failing outright.
+        logger.info(`temp staging not permitted for "${target}"; writing directly`);
+      }
+    }
+
+    if (!usingTemp) {
+      // Direct overwrite (explicit opt-out or the read-only-dir fallback): the source is already
+      // acquired; truncate-open the destination now. A cancel landing here is caught by the gate below;
+      // _openForWriteOrAbort aborts the source if the open itself fails.
       this._abortAndThrowIfCancelled();
-      if (useTempFile) {
+      uploadFd = await this._openForWriteOrAbort(targetFs, target);
+    }
+
+    let putOk = false;
+    try {
+      this._abortAndThrowIfCancelled();
+      if (usingTemp) {
         logger.info("uploading temp file: " + uploadTarget);
       }
       await targetFs.put(this._handle, uploadTarget, {
@@ -278,7 +291,7 @@ export default class TransferTask implements Task {
           ? (n: number) => transferProgress.addBytes(n, path.basename(this.localFsPath))
           : undefined,
       });
-      if (atime && mtime) {
+      if (atime != null && mtime != null) {
         try {
           await targetFs.futimes(
             uploadFd,
@@ -295,53 +308,62 @@ export default class TransferTask implements Task {
         }
       }
 
-      uploadedOk = true;
+      // The staged copy now holds the COMPLETE file. Past this point it must never be deleted on
+      // failure — if the rename fails it is the only complete copy.
+      putOk = true;
 
-      if (useTempFile) {
-        logger.info("moving from: " + target + ".new" + " to: " + target);
-        if(openSsh) {
-          await targetFs.renameAtomic(uploadTarget, target);
-        } else {
-          // Try the plain rename first: most servers overwrite the target atomically. Only when
-          // that fails fall back to unlink+rename — deleting the target up front opens a window
-          // where a crash leaves NO file at all (the old one is gone, the new one not in place).
-          try {
-            await targetFs.rename(uploadTarget, target);
-          } catch (renameError) {
-            // ONLY unlink+retry when the server refused because the target already exists
-            // (SFTP SSH_FX_FAILURE = 4, FTP 550). For any other failure (network drop, permission)
-            // do NOT delete the target — that would destroy the original while the new content is
-            // still only in `.new`. uploadedOk is already true, so the finally keeps `.new`.
-            const code = renameError && (renameError as any).code;
-            if (code !== 4 && code !== 550) {
-              throw renameError;
-            }
-            await targetFs.unlink(target);
-            try {
-              await targetFs.rename(uploadTarget, target);
-            } catch (secondError) {
-              // The original target is already unlinked and the move of the complete temp copy failed.
-              // uploadedOk is true so `finally` keeps the .new file — point the user straight at it
-              // instead of surfacing a bare rename error that reads like nothing was written.
-              (secondError as any).message =
-                `${(secondError as any).message} — the uploaded copy is kept at "${uploadTarget}"; ` +
-                `rename it to "${target}" on the server to recover`;
-              throw secondError;
-            }
-          }
-        }
-      }
-
-    } finally {
-      // Guard against an undefined fd: if an open failed before this try, uploadFd is unset and
-      // close(undefined) would crash, masking the real error (mirrors the targetFd close above).
-      if (uploadFd !== undefined) {
+      if (usingTemp) {
+        // Close the staging handle before renaming: some servers refuse to rename an open file.
         await targetFs.close(uploadFd);
+        uploadFd = undefined;
+        this._abortAndThrowIfCancelled();
+        logger.info("moving from: " + uploadTarget + " to: " + target);
+        await this._replaceTarget(targetFs, uploadTarget, target, !!openSsh);
       }
-      // Don't leave a half-written *.new file behind when the upload itself failed. If the upload
-      // succeeded but the final move failed, KEEP the temp file — it holds the only complete copy.
-      if (!uploadedOk && useTempFile) {
+    } finally {
+      // Close the write handle unless we already closed it before the rename. Swallow a close() error
+      // so it can't mask the real failure or skip the staging cleanup below.
+      if (uploadFd !== undefined) {
+        await targetFs.close(uploadFd).catch(() => undefined);
+      }
+      // Remove the staging copy ONLY if the upload itself didn't complete. If put() succeeded but the
+      // rename failed, KEEP it — _replaceTarget's error already points the user at the recovery path.
+      if (usingTemp && !putOk) {
         await targetFs.unlink(uploadTarget).catch(() => undefined);
+      }
+    }
+  }
+
+  // Move a freshly-staged temp file onto the target. OpenSSH servers get a true atomic rename; others
+  // try a plain rename (most overwrite atomically) and only fall back to unlink+rename when the server
+  // refuses because the target already exists (SFTP SSH_FX_FAILURE = 4, FTP 550). That fallback opens a
+  // brief window with no target, but the staged copy is complete, so a second failure points the user
+  // at it rather than losing data.
+  private async _replaceTarget(
+    targetFs: FileSystem,
+    tempTarget: string,
+    target: string,
+    openSsh: boolean
+  ) {
+    if (openSsh) {
+      await targetFs.renameAtomic(tempTarget, target);
+      return;
+    }
+    try {
+      await targetFs.rename(tempTarget, target);
+    } catch (renameError) {
+      const code = renameError && (renameError as any).code;
+      if (code !== 4 && code !== 550) {
+        throw renameError;
+      }
+      await targetFs.unlink(target);
+      try {
+        await targetFs.rename(tempTarget, target);
+      } catch (secondError) {
+        (secondError as any).message =
+          `${(secondError as any).message} — the uploaded copy is kept at "${tempTarget}"; ` +
+          `rename it to "${target}" on the server to recover`;
+        throw secondError;
       }
     }
   }
