@@ -1,16 +1,35 @@
 import * as path from 'path';
 import * as tmp from 'tmp';
 import * as vscode from 'vscode';
-import { CONGIF_FILENAME, LEGACY_CONFIG_FILENAME } from '../constants';
+import { CONFIG_PATH, LEGACY_CONFIG_PATH } from '../constants';
 import { upath } from '../core';
+
+const isWindows = process.platform === 'win32';
 
 export function isValidFile(uri: vscode.Uri) {
   return uri.scheme === 'file';
 }
 
+// Only the workspace's own .vscode/wireferry.json (or legacy .vscode/sftp.json) is the extension
+// config. Matching on basename alone treated ANY file named wireferry.json/sftp.json anywhere in the
+// tree (e.g. fixtures/, a sample under src/) as the config — saving one tore down the live services
+// and reloaded that arbitrary file. Compare the full path against the workspace folder instead.
 export function isConfigFile(uri: vscode.Uri) {
-  const filename = path.basename(uri.fsPath);
-  return filename === CONGIF_FILENAME || filename === LEGACY_CONFIG_FILENAME;
+  const folder = vscode.workspace.getWorkspaceFolder(uri);
+  if (!folder) {
+    return false;
+  }
+  const target = path.normalize(uri.fsPath);
+  const eq = (a: string) => {
+    const normalized = path.normalize(a);
+    return isWindows
+      ? normalized.toLowerCase() === target.toLowerCase()
+      : normalized === target;
+  };
+  return (
+    eq(path.join(folder.uri.fsPath, CONFIG_PATH)) ||
+    eq(path.join(folder.uri.fsPath, LEGACY_CONFIG_PATH))
+  );
 }
 
 export function fileDepth(file: string) {

@@ -1,15 +1,28 @@
 import * as vscode from 'vscode';
 import { COMMAND_CONFIG } from '../constants';
-import { newConfig } from '../modules/config';
+import { resolveConfigPath } from '../modules/config';
+import { runConfigWizard } from '../modules/configWizard';
 import {
   getWorkspaceFolders,
   showConfirmMessage,
   showOpenDialog,
   openFolder,
   addWorkspaceFolder,
+  showTextDocument,
 } from '../host';
 import { checkCommand } from './abstract/createCommand';
 import { L } from '../i18n';
+
+// Open the existing config (current or legacy) if there is one; otherwise run the setup wizard. This
+// is what the "Create Configuration" welcome button and the explorer-context "Config" command both do.
+async function createOrOpenConfig(basePath: string): Promise<void> {
+  const existing = await resolveConfigPath(basePath);
+  if (existing) {
+    await showTextDocument(vscode.Uri.file(existing));
+    return;
+  }
+  await runConfigWizard(basePath);
+}
 
 export default checkCommand({
   id: COMMAND_CONFIG,
@@ -59,7 +72,7 @@ export default checkCommand({
     }
 
     if (workspaceFolders.length === 1) {
-      newConfig(workspaceFolders[0].uri.fsPath);
+      await createOrOpenConfig(workspaceFolders[0].uri.fsPath);
       return;
     }
 
@@ -69,16 +82,13 @@ export default checkCommand({
       description: folder.uri.fsPath,
     }));
 
-    vscode.window
-      .showQuickPick(initDirs, {
-        placeHolder: L({ en: 'Select a folder...', ru: 'Выберите папку...' }),
-      })
-      .then(item => {
-        if (item === undefined) {
-          return;
-        }
+    const item = await vscode.window.showQuickPick(initDirs, {
+      placeHolder: L({ en: 'Select a folder...', ru: 'Выберите папку...' }),
+    });
+    if (item === undefined) {
+      return;
+    }
 
-        newConfig(item.value);
-      });
+    await createOrOpenConfig(item.value);
   },
 });

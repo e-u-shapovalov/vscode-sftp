@@ -3,10 +3,8 @@
 // first. ssh2 is an external (see webpack.config.js), required at this point in source order.
 import './legacyDh';
 import { Client } from 'ssh2';
-import upath from '../upath';
 import RemoteClient, { ErrorCode, ConnectOption, Config } from './remoteClient';
 import localFs from '../localFs';
-import { FileSystem, RemoteFileSystem, SFTPFileSystem } from '../fs';
 import logger from '../../logger';
 import CustomError from '../customError';
 
@@ -49,7 +47,6 @@ export default class SSHClient extends RemoteClient {
     const { hop, ...option } = connectOption;
 
     let lastOption: ConnectOption = option;
-    let fs: FileSystem | RemoteFileSystem = localFs;
     let sock;
     if (
       (Array.isArray(hop) && hop.length > 0) ||
@@ -71,13 +68,14 @@ export default class SSHClient extends RemoteClient {
         const preClient = this.hoppingClients[index - 1];
         if (preClient) {
           sock = await this._makeHopping(preClient, curOpt.host, curOpt.port);
-          fs = new SFTPFileSystem(upath, {
-            client: preClient,
-          });
         }
 
+        // Private keys live on the CLIENT machine: ssh2 runs locally and authenticates each hop
+        // through the forwarded socket, so the key bytes must come from the local FS — never from a
+        // previous hop's remote FS (which would read an unrelated file off the bastion). hop key
+        // paths are resolved to local absolute paths in fileService.getCompleteConfig.
         if (curOpt.privateKeyPath) {
-          const buffer = await fs.readFile(curOpt.privateKeyPath);
+          const buffer = await localFs.readFile(curOpt.privateKeyPath);
           curOpt.privateKey = buffer.toString();
         }
 
@@ -99,14 +97,13 @@ export default class SSHClient extends RemoteClient {
           lastOption.host,
           lastOption.port
         );
-        fs = new SFTPFileSystem(upath, {
-          client: lastClient,
-        });
       }
     }
 
+    // Target key: also read locally (see the hop loop above). Before this fix it was read through
+    // the last hop's SFTP, so a hop + key target authenticated with a file from the bastion.
     if (lastOption.privateKeyPath) {
-      const buffer = await fs.readFile(lastOption.privateKeyPath);
+      const buffer = await localFs.readFile(lastOption.privateKeyPath);
       lastOption.privateKey = buffer.toString();
     }
 

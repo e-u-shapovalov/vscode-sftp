@@ -10,6 +10,7 @@ import {
   getFileService,
   findAllFileService,
   disposeFileService,
+  refreshConfigContext,
 } from './serviceManager';
 import { reportError, isValidFile, isConfigFile, isInWorkspace, realpathIfCaseOnly } from '../helper';
 import { downloadFile, uploadFile, handleCtxFromUri, allHandleCtxFromUri, FileHandlerContext } from '../fileHandlers';
@@ -44,6 +45,8 @@ async function handleConfigSave(uri: vscode.Uri) {
   } catch (error) {
     reportError(error);
   } finally {
+    // A hand-edit can add the first server or remove the last one — keep the toolbar/welcome gate in sync.
+    refreshConfigContext();
     app.remoteExplorer.refresh();
   }
 }

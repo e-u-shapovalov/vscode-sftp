@@ -95,7 +95,9 @@ async function serverDuBytes(remoteFs: FileSystem, remotePath: string): Promise<
   ];
   for (const attempt of attempts) {
     try {
-      const out = await client.exec(attempt.cmd);
+      // Bound the exec like the MD5 path does — a stuck remote `du` would otherwise hang the
+      // size report (and its progress notification) forever, with no way to abort the promise.
+      const out = await withTimeout(client.exec(attempt.cmd), 120000);
       const n = parseInt(String(out).trim().split(/\s+/)[0], 10);
       if (Number.isFinite(n)) {
         return attempt.toBytes(n);

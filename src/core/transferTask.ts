@@ -136,6 +136,23 @@ export default class TransferTask implements Task {
     return this._cancelled;
   }
 
+  // A cancel can land in the window between acquiring the source stream and writing the destination.
+  // cancel() only aborts an already-assigned _handle, so without an explicit check the transfer would
+  // run to completion (truncating + rewriting the target) even though the user asked to stop. Call
+  // this before every destructive step: it aborts the source stream (if any) and throws so run()
+  // unwinds. Throwing — rather than returning — guarantees we never proceed to open/put after cancel.
+  private _abortAndThrowIfCancelled() {
+    if (!this._cancelled) {
+      return;
+    }
+    if (this._handle) {
+      FileSystem.abortReadableStream(this._handle);
+    }
+    const err: any = new Error('Transfer cancelled');
+    err.code = 'TRANSFER_CANCELLED';
+    throw err;
+  }
+
   // Open the destination for writing; if that open fails after the source stream is already
   // acquired, abort the source so we never leak a half-open read handle.
   private async _openForWriteOrAbort(targetFs: FileSystem, uploadTarget: string) {
@@ -178,6 +195,9 @@ export default class TransferTask implements Task {
         transferProgress.addFile(size);
       }
     }
+    // Bail out before we acquire any stream if the task was cancelled during enumeration.
+    this._abortAndThrowIfCancelled();
+
     // Set the mode if it's specified in the config, otherwise get mode from server.
     let mode = filePerm ? parseInt(String(filePerm), 8) : this._TransferOption.mode;
     let targetFd; // Destination file
@@ -220,6 +240,8 @@ export default class TransferTask implements Task {
       } else {
         // Direct overwrite: read the source first, only then truncate-open the destination.
         this._handle = await srcFs.get(src);
+        // A cancel between get() and the truncate-open must not empty the existing target.
+        this._abortAndThrowIfCancelled();
         targetFd = uploadFd = await this._openForWriteOrAbort(targetFs, uploadTarget);
         mode = await targetFs
           .fstat(targetFd)
@@ -235,11 +257,16 @@ export default class TransferTask implements Task {
       } else {
         // Direct overwrite: read the source first, only then truncate-open the destination.
         this._handle = await srcFs.get(src);
+        // A cancel between get() and the truncate-open must not empty the existing target.
+        this._abortAndThrowIfCancelled();
         uploadFd = await this._openForWriteOrAbort(targetFs, uploadTarget);
       }
     }
 
     try {
+      // Last gate before the actual write — covers the temp-file branches too (their destination is
+      // *.new, already opened above; the finally below closes the fd and removes the temp copy).
+      this._abortAndThrowIfCancelled();
       if (useTempFile) {
         logger.info("uploading temp file: " + uploadTarget);
       }

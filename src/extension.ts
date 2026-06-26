@@ -14,6 +14,7 @@ import {
   getFileService,
   createFileService,
   disposeFileService,
+  refreshConfigContext,
 } from './modules/serviceManager';
 import { getWorkspaceFolders, setContextValue, showConfirmMessage } from './host';
 import { EXTENSION_DISPLAY_NAME } from './constants';
@@ -32,11 +33,12 @@ async function setupWorkspaceFolder(dir) {
   });
 }
 
-function setup(workspaceFolders: readonly vscode.WorkspaceFolder[]) {
+async function setup(workspaceFolders: readonly vscode.WorkspaceFolder[]) {
+  // Create the services FIRST, then start listening for save/open events. With init() first, any
+  // save/open during the (awaited) service setup hit getFileService() === undefined and was dropped
+  // — uploadOnSave/downloadOnOpen silently skipped the first files after a cold start.
+  await Promise.all(workspaceFolders.map(folder => setupWorkspaceFolder(folder.uri.fsPath)));
   fileActivityMonitor.init();
-  const pendingInits = workspaceFolders.map(folder => setupWorkspaceFolder(folder.uri.fsPath));
-
-  return Promise.all(pendingInits);
 }
 
 // Sync deletions made through VS Code to the server.
@@ -183,6 +185,9 @@ export async function activate(context: vscode.ExtensionContext) {
   } catch (error) {
     reportError(error);
   }
+
+  // Toggle the toolbar / welcome-button gate now that the initial set of services is known.
+  refreshConfigContext();
 
   // Legacy-config doctor: auto-template for an empty workspace, sftp.json -> wireferry.json rename
   // offer, and legacy/unsupported key diagnostics. Background — must never block activation.

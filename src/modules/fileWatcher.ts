@@ -17,7 +17,7 @@ const uploadQueue = new Set<vscode.Uri>();
 // less than 550 will not work
 const ACTION_INTEVAL = 550;
 
-function doUpload() {
+async function doUpload() {
   const files = Array.from(uploadQueue).sort((a, b) => fileDepth(b.fsPath) - fileDepth(a.fsPath));
   uploadQueue.clear();
 
@@ -25,10 +25,14 @@ function doUpload() {
     task => task.transferType === TransferDirection.REMOTE_TO_LOCAL
   );
 
-  files.forEach(async uri => {
+  // `for...of` with `await`, not `forEach(async …)`: the latter spawns floating promises, so doUpload
+  // returned before any upload finished and a following debounce could overlap a second batch. Awaiting
+  // keeps a batch sequential and self-contained; per-file errors are still caught so one failure doesn't
+  // abort the rest.
+  for (const uri of files) {
     // current target is still in downloading, so don't upload it.
     if (currentDownloadTasks.find(task => task.localFsPath === uri.fsPath)) {
-      return;
+      continue;
     }
 
     const fspath = uri.fsPath;
@@ -39,7 +43,7 @@ function doUpload() {
       logger.error(error, `upload ${fspath}`);
       app.sftpBarItem.updateStatus(StatusBarItem.Status.error);
     }
-  });
+  }
 }
 
 const debouncedUpload = debounce(doUpload, ACTION_INTEVAL, { leading: true, trailing: true });

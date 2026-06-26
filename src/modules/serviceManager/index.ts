@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import app from '../../app';
 import logger from '../../logger';
 import { simplifyPath, reportError } from '../../helper';
+import { setContextValue, showWarningMessage } from '../../host';
 import { L } from '../../i18n';
 import { UResource, FileService, TransferTask } from '../../core';
 import { TransferDirection } from '../../core/transferTask';
@@ -26,7 +27,9 @@ const serviceManager = new Trie<FileService>(
 // which a top-level-only mask would print to the Output channel verbatim.
 function maskConfig(config) {
   const MASK = '******';
-  const SECRET_KEYS = ['username', 'password', 'passphrase', 'privateKey'];
+  // `key`/`pfx` cover the TLS client material an FTPS `secureOptions` can carry — without them a
+  // private key or PFX bundle would be printed verbatim to the Output channel.
+  const SECRET_KEYS = ['username', 'password', 'passphrase', 'privateKey', 'key', 'pfx'];
   const mask = (value: any, key?: string) => {
     if (key !== undefined && SECRET_KEYS.indexOf(key) !== -1) {
       return MASK;
@@ -92,11 +95,29 @@ export function getBasePath(context: string, workspace: string) {
 }
 
 export function createFileService(config: any, workspace: string) {
-  if (config.defaultProfile) {
+  // Only seed the active profile if none is set yet. createFileService runs once per workspace
+  // folder (in parallel via Promise.all at startup), so an unconditional write let the last config
+  // to resolve win the race — two projects with different defaultProfile gave a nondeterministic
+  // active profile, and operations could target the wrong server.
+  if (config.defaultProfile && !app.state.profile) {
     app.state.profile = config.defaultProfile;
   }
 
   const normalizedBasePath = getBasePath(config.context, workspace);
+
+  // The trie keys a service by its base path, so a second config with the same (or absent) "context"
+  // would silently overwrite the first — an array of servers for one project would lose all but the
+  // last (gone from the tree, transfers, profile picker). Warn instead of dropping it silently.
+  const collides = getAllFileService().some(s => s.baseDir === normalizedBasePath);
+  if (collides) {
+    showWarningMessage(
+      L({
+        en: `WireFerry: more than one server uses the same "context" (${config.context || '.'}); only the last is kept. Give each server a distinct "context".`,
+        ru: `WireFerry: несколько серверов используют один "context" (${config.context || '.'}); останется только последний. Задайте каждому серверу свой "context".`,
+      })
+    );
+  }
+
   const service = new FileService(normalizedBasePath, workspace, config);
 
   logger.info(`config at ${normalizedBasePath}`, maskConfig(config));
@@ -209,6 +230,14 @@ export function getAllFileService(): FileService[] {
   }
 
   return serviceManager.getAllValues();
+}
+
+// Drives the `wireferry.hasConfig` context key: true once at least one server is configured. The
+// Remote Explorer hides its toolbar (package.json view/title `when`) and shows the "Create
+// Configuration" welcome button (viewsWelcome) while this is false. Call it after every change to
+// the set of services (startup, config save, the setup wizard).
+export function refreshConfigContext(): void {
+  setContextValue('hasConfig', getAllFileService().length > 0);
 }
 
 export function getRunningTransformTasks(): TransferTask[] {

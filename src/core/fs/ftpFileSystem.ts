@@ -141,9 +141,17 @@ export default class FTPFileSystem extends RemoteFileSystem {
   futimes(fd: FtpFileHandle, _atime: number, mtime: number): Promise<void> {
     if (!this._supportMFMT) return Promise.resolve();
 
-    return this.atomicSetLastMod(fd.path, new Date(mtime * 1000)).catch(_ => {
-      logger.info('Don\'t Support MFMT');
-      this._supportMFMT = false;
+    return this.atomicSetLastMod(fd.path, new Date(mtime * 1000)).catch(err => {
+      // Only give up on MFMT for good when the server reports the command itself is unknown /
+      // unimplemented (FTP 500/502/504). A transient failure (network drop, timeout, busy) used to
+      // latch _supportMFMT off, so a single hiccup stopped setting mtimes for the rest of the session.
+      const code = err && (err as any).code;
+      if (code === 500 || code === 502 || code === 504) {
+        logger.info('Don\'t Support MFMT');
+        this._supportMFMT = false;
+        return;
+      }
+      throw err;
     });
   }
 
@@ -169,17 +177,27 @@ export default class FTPFileSystem extends RemoteFileSystem {
     // FTP byte progress не подключён: atomicPut делегирует в ftp.put() без ручного pipe,
     // чистой точки для 'data'-листенера нет.
     let inputError: Error | undefined;
+    // `active` flips true only once this put is the operation actually running on the shared FTP
+    // socket. A source error is always captured (so the stream never emits an unhandled 'error' and
+    // crashes the host while the task waits in the queue), but abort() — which acts on whatever the
+    // single connection is currently doing — fires ONLY while this put is active. Aborting from a
+    // still-queued task would tear down a DIFFERENT put/get running ahead of it in the queue.
+    let active = false;
     input.once('error', err => {
       inputError = err;
-      this.ftp.abort(abortErr => {
-        if (abortErr) {
-          logger.error(abortErr, 'fail to abort');
-        }
-      });
+      if (active) {
+        this.ftp.abort(abortErr => {
+          if (abortErr) {
+            logger.error(abortErr, 'fail to abort');
+          }
+        });
+      }
     });
 
     try {
-      await this.atomicPut(input, path);
+      await this.atomicPut(input, path, () => {
+        active = true;
+      });
     } catch (error) {
       throw inputError || error;
     }
@@ -360,9 +378,14 @@ export default class FTPFileSystem extends RemoteFileSystem {
     return this.queue.add(task);
   }
 
-  private async atomicPut(input: Readable, path: string): Promise<void> {
+  private async atomicPut(input: Readable, path: string, onStart?: () => void): Promise<void> {
     const task = () =>
       new Promise<void>((resolve, reject) => {
+        // Signals put() that this transfer is now the active operation, so a source-stream error may
+        // safely abort the connection (see put()).
+        if (onStart) {
+          onStart();
+        }
         this.ftp.put(input, path, err => {
           if (err) {
             return reject(err);
