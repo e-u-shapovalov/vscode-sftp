@@ -76,7 +76,7 @@ export const removeRemote = createFileHandler<
         let localStat: operationReport.FileSideStat | null = null;
         if (localFsPath) {
           try {
-            const s = fs.statSync(localFsPath);
+            const s = fs.lstatSync(localFsPath);
             localStat = { size: s.size, mode: s.mode, mtime: s.mtimeMs };
           } catch {
             // Local copy absent — leave null.

@@ -92,11 +92,14 @@ function isFileModified(a: FileEntry, b: FileEntry): boolean {
 }
 
 function toHash<T, R = T>(items: T[], key: string, transform?: (a: T) => R): { [key: string]: R } {
+  // Object.create(null): the keys are server-controlled file names. On a plain `{}`, a file literally
+  // named "__proto__" would set the prototype instead of an own key, so Object.keys() would drop it and
+  // sync would silently never transfer/delete it. A null-prototype dict makes every name a real key.
   return items.reduce((hash, item) => {
     const transformedItem = transform ? transform(item) : item;
     hash[transformedItem[key]] = transformedItem;
     return hash;
-  }, {});
+  }, Object.create(null));
 }
 
 async function transferFolder(

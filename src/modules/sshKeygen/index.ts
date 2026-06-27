@@ -165,9 +165,12 @@ export async function deployPublicKey(remotefs: any, publicKey: string): Promise
     return false;
   }
 
-  const needsNewline = existing.length > 0 && !existing.endsWith('\n');
-  const content = `${existing}${needsNewline ? '\n' : ''}${newEntry}\n`;
-  await sftpWriteFile(sftp, authKeys, content, 0o600);
+  // APPEND the one new line instead of rewriting the whole file. A truncating writeFile ('w') that is
+  // interrupted mid-write could leave authorized_keys empty or partial and lock the user (and every
+  // other key) out. Append only ever adds, so existing keys survive a dropped connection; the
+  // duplicate check above already prevents re-adding our own key.
+  const separator = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  await sftpAppendFile(sftp, authKeys, `${separator}${newEntry}\n`, 0o600);
   await sftpChmod(sftp, authKeys, 0o600);
   return true;
 }
@@ -200,10 +203,29 @@ function isNoSuchFile(err: any): boolean {
   return err.code === 2 || err.code === 'ENOENT';
 }
 
-function sftpWriteFile(sftp: any, p: string, data: string, mode: number): Promise<void> {
-  return new Promise<void>((resolve, reject) =>
-    sftp.writeFile(p, data, { mode }, (err: Error) => (err ? reject(err) : resolve()))
-  );
+// Append a line via an exclusive open('a') + write + close. Used instead of writeFile so we never
+// truncate authorized_keys (see deployPublicKey): a dropped connection during a truncating write could
+// wipe the file. 'a' creates the file with `mode` if it doesn't exist yet.
+function sftpAppendFile(sftp: any, p: string, data: string, mode: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    sftp.open(p, 'a', mode, (openErr: Error, handle: any) => {
+      if (openErr) {
+        return reject(openErr);
+      }
+      const buf = Buffer.from(data, 'utf8');
+      sftp.write(handle, buf, 0, buf.length, null, (writeErr: Error) => {
+        sftp.close(handle, (closeErr: Error) => {
+          if (writeErr) {
+            return reject(writeErr);
+          }
+          if (closeErr) {
+            return reject(closeErr);
+          }
+          resolve();
+        });
+      });
+    });
+  });
 }
 
 // --- ~/.ssh/config -----------------------------------------------------------------------------
@@ -271,7 +293,13 @@ export async function updateSshConfig(
   let content = '';
   try {
     content = await fse.readFile(file, 'utf8');
-  } catch {
+  } catch (err) {
+    // Only a genuinely-missing file means "start fresh". A permission / I/O / network-home error must
+    // abort — treating it as empty would overwrite an existing ~/.ssh/config with just our new section,
+    // losing the user's ProxyJump / Host / IdentityFile entries and breaking access to every host.
+    if ((err as any).code !== 'ENOENT') {
+      throw err;
+    }
     content = '';
   }
 
@@ -294,7 +322,16 @@ export async function updateSshConfig(
   });
 
   await fse.ensureDir(path.dirname(file));
-  await fse.writeFile(file, parsed.toString(), { mode: 0o600 });
+  // Write atomically: a crash/ENOSPC during a direct write to ~/.ssh/config could leave it truncated
+  // and lock the user out of every host. Stage to a temp file in the same dir, then rename over it.
+  const tmp = `${file}.wireferry.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await fse.writeFile(tmp, parsed.toString(), { mode: 0o600 });
+    await fse.rename(tmp, file);
+  } catch (err) {
+    await fse.remove(tmp).catch(() => undefined);
+    throw err;
+  }
   // Drop WireFerry's cached read of this file (src/core/fileService reads it through app.fsCache).
   app.fsCache.del(file);
   return 'written';

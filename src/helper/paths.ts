@@ -63,6 +63,13 @@ export function isSubpathOf(possiableParentPath: string, pathname: string) {
 export function isRemoteSubpathOf(possiableParentPath: string, pathname: string) {
   const parent = upath.normalize(possiableParentPath).replace(/\/+$/, '') || '/';
   const child = upath.normalize(pathname);
+  // A relative root ('.', produced by a relative remotePath like the default './' or '.') contains any
+  // child that doesn't climb above it. toRemotePath/upath.join already fold interior '..', so a
+  // surviving leading '..' is a genuine escape. Without this branch isRemoteSubpathOf('.', 'file') is
+  // false and the containment guard throws on EVERY operation when remotePath is relative.
+  if (parent === '.') {
+    return child !== '..' && child.indexOf('../') !== 0;
+  }
   if (child === parent) {
     return true;
   }

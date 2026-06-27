@@ -87,7 +87,23 @@ export default abstract class RemoteFileSystem extends FileSystem {
 
       const arr: Buffer[] = [];
       let settled = false;
+      let total = 0;
+      const maxBytes = option && option.maxBytes;
       const onData = chunk => {
+        if (settled) {
+          return;
+        }
+        total += chunk.length;
+        if (maxBytes && total > maxBytes) {
+          // Over the cap — stop buffering and tear the stream down rather than risk an OOM.
+          settled = true;
+          cleanup();
+          if (typeof (stream as any).destroy === 'function') {
+            (stream as any).destroy();
+          }
+          reject(new Error(`file exceeds the ${maxBytes}-byte read limit`));
+          return;
+        }
         arr.push(chunk);
       };
       const cleanup = () => {

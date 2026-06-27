@@ -24,6 +24,9 @@ export interface FileOption {
   fd?: FileHandle;
   // Per-chunk byte callback for progress reporting; optional so existing callers are unaffected.
   onProgress?: (bytes: number) => void;
+  // Hard cap for readFile: abort the stream once this many bytes have been buffered. Guards preview /
+  // in-memory reads against an oversized or lying remote (lstat size can't be trusted).
+  maxBytes?: number;
 }
 
 export interface FileStats {
@@ -94,8 +97,16 @@ export default abstract class FileSystem {
     err.code = ERROR_MSG_STREAM_INTERRUPT;
 
     // don't do `stream.destroy(err)`! `sftp.ReadaStream` do not support `err` parameter in `destory` method.
-    stream.emit('error', err);
-    stream.destroy();
+    // emit('error') with NO listener throws synchronously (Node EventEmitter), which would skip the
+    // destroy() below and turn a controlled cancel (e.g. between get() and put() wiring up its handler)
+    // into an uncaught throw. Only emit when someone is listening; always destroy.
+    try {
+      if (stream.listenerCount('error') > 0) {
+        stream.emit('error', err);
+      }
+    } finally {
+      stream.destroy();
+    }
   }
 
   static isAbortedError(err: FileSystemError) {

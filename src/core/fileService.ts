@@ -542,7 +542,9 @@ function mergeProfile(
   const keys = Object.keys(source);
   for (const key of keys) {
     if (key === 'ignore') {
-      res.ignore = res.ignore.concat(source.ignore);
+      // Guard against a base config without `ignore`: Object.assign copies it as undefined, and
+      // undefined.concat would throw, breaking getConfig() for every operation on that profile.
+      res.ignore = (res.ignore || []).concat(source.ignore || []);
     } else {
       res[key] = source[key];
     }

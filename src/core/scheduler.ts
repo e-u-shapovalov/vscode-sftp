@@ -191,8 +191,16 @@ class Scheduler {
       error = err;
     } finally {
       this._pendingCount -= 1;
-      this._eventEmitter.emit(EVENT_TASK_DONE, error, task);
-      this._next();
+      // Guarantee _next() runs even if a task-done listener throws synchronously: without this nested
+      // try/finally the listener's exception would skip _next(), the queue would stall and onIdle/run()
+      // would never resolve (progress bar stuck forever). A listener error must never wedge the queue.
+      try {
+        this._eventEmitter.emit(EVENT_TASK_DONE, error, task);
+      } catch {
+        /* swallow: a listener fault must not break the scheduler invariant */
+      } finally {
+        this._next();
+      }
     }
   }
 }

@@ -19,6 +19,22 @@ export async function transferFile(
   await desFs.put(inputStream, des, option);
 }
 
+// The link target is whatever the source FS returns from readlink — on a download it comes from the
+// (possibly hostile/misconfigured) remote. Refuse an absolute target (or a NUL): recreating it
+// verbatim would plant a link to /etc/passwd, ~/.ssh/id_rsa, C:\Windows\… that backup/grep/build tools
+// later dereference. Absolute targets aren't portable across machines anyway, so this loses nothing
+// legitimate; relative targets are kept (they stay within the transferred tree's own layout).
+function isUnsafeSymlinkTarget(target: string): boolean {
+  if (!target || target.indexOf('\0') !== -1) {
+    return true;
+  }
+  return (
+    target.charAt(0) === '/' || // POSIX absolute
+    /^[A-Za-z]:[\\/]/.test(target) || // Windows drive (C:\ , C:/)
+    target.indexOf('\\\\') === 0 // Windows UNC (\\host\share)
+  );
+}
+
 export function transferSymlink(
   src: string,
   des: string,
@@ -27,6 +43,12 @@ export function transferSymlink(
   option: FileOption
 ): Promise<void> {
   return srcFs.readlink(src).then(targetPath => {
+    if (isUnsafeSymlinkTarget(targetPath)) {
+      throw Object.assign(
+        new Error(`Refusing to create symlink "${des}" with unsafe target: ${targetPath}`),
+        { code: 'UNSAFE_SYMLINK' }
+      );
+    }
     return desFs.symlink(targetPath, des).catch(err => {
       // ignore file already exist
       if (err.code === 4 || err.code === 'EEXIST') {

@@ -140,7 +140,16 @@ async function promptDownload(
     return;
   }
 
-  const dest = path.join(getDownloadDir(), `wireferry-${latest.version}.vsix`);
+  // Sanitise the release tag before it becomes part of an on-disk filename that gets handed to
+  // installExtension: a tampered/compromised release must not be able to steer the path (e.g. via
+  // path separators or `..`). GitHub ref rules already forbid most of this, but defend anyway.
+  const safeVersion = String(latest.version || '');
+  if (!/^[0-9A-Za-z._-]+$/.test(safeVersion)) {
+    reportError(new Error(`Refusing release tag with unexpected characters: ${latest.version}`), 'update');
+    vscode.env.openExternal(vscode.Uri.parse(latest.htmlUrl));
+    return;
+  }
+  const dest = path.join(getDownloadDir(), `wireferry-${safeVersion}.vsix`);
   try {
     await fse.ensureDir(path.dirname(dest));
     await vscode.window.withProgress(

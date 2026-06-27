@@ -50,7 +50,9 @@ async function handleCommand(hint: any) {
     repository = git.repositories.find(repo => repo.ui.selected);
     filterGroupId = hint.id;
   } else if (isRepository(hint)) {
-    repository = git.repositories.find(repo => repo.ui.selected);
+    // Use the repo we were invoked on, not the UI-selected one: in a multi-root workspace they differ,
+    // and resolving to `selected` uploaded a different project's changes than the one clicked.
+    repository = hint;
   }
 
   if (!repository) {
@@ -117,6 +119,25 @@ async function handleCommand(hint: any) {
       }
     })
   );
+  // Deleting on the server is destructive and irreversible, and the user clicked an "upload" action —
+  // confirm the delete fan-out explicitly (uploads/renames just overwrite content they already saved).
+  if (deletes.length > 0) {
+    const sample = deletes.slice(0, 5).map(c => simplifyPath(c.uri.fsPath));
+    const more = deletes.length > 5 ? ` (+${deletes.length - 5})` : '';
+    const del = L({ en: 'Delete on server', ru: 'Удалить на сервере' });
+    const answer = await vscode.window.showWarningMessage(
+      L({
+        en: `Also delete ${deletes.length} file(s) on the server?\n${sample.join(', ')}${more}`,
+        ru: `Также удалить на сервере ${deletes.length} файл(ов)?\n${sample.join(', ')}${more}`,
+      }),
+      { modal: true },
+      del,
+      L({ en: 'Skip deletions', ru: 'Пропустить удаления' })
+    );
+    if (answer !== del) {
+      deletes.length = 0; // keep uploads/renames, drop the server deletions
+    }
+  }
   await Promise.all(deletes.map(async change => {
     try {
       await removeRemote(change.uri);

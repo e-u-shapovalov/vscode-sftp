@@ -142,7 +142,10 @@ export default class RemoteTreeData
   implements vscode.TreeDataProvider<ExplorerItem>, vscode.TextDocumentContentProvider {
   private _roots: ExplorerRoot[] | null;
   private _rootsMap: Map<string, ExplorerRoot> | null;
-  private _map: Map<vscode.Uri['query'], ExplorerItem>;
+  // Initialise eagerly: refresh() (after config save / profile switch) and getParent() (tree-selection
+  // restore on window reload) run before the lazy _getRoots() first builds it, and both touch _map —
+  // a bare declaration left it undefined and threw "Cannot read properties of undefined".
+  private _map: Map<vscode.Uri['query'], ExplorerItem> = new Map();
   // Parent uri.query keys whose folder sizes a background `du` is currently measuring, to de-dupe.
   private _measuring = new Set<string>();
 
@@ -479,7 +482,15 @@ export default class RemoteTreeData
     try {
       size = (await remotefs.lstat(remotePath)).size;
     } catch (e) {
-      // lstat may fail (permissions, race) — fall through and let readFile surface the real error.
+      // Can't determine the size — refuse rather than stream an unknown amount into memory. A broken
+      // or hostile server could otherwise fail lstat and then return an unbounded body, OOM-ing the
+      // extension host on a single click. (readFile below also enforces a hard byte cap as a backstop.)
+      throw new Error(
+        L({
+          en: 'Cannot determine the file size to preview safely. Use "Edit in Local" to download it instead.',
+          ru: 'Не удалось определить размер файла для безопасного предпросмотра. Используйте «Edit in Local», чтобы скачать его.',
+        })
+      );
     }
     if (size > PREVIEW_LIMIT) {
       const mb = (size / (1024 * 1024)).toFixed(1);
@@ -491,7 +502,9 @@ export default class RemoteTreeData
       );
     }
 
-    const buffer = await remotefs.readFile(remotePath);
+    // Hard cap on bytes actually read: lstat's size can lie (or the file can grow), so bound readFile
+    // too — it aborts the stream once maxBytes is exceeded instead of buffering without limit.
+    const buffer = await remotefs.readFile(remotePath, { maxBytes: PREVIEW_LIMIT });
     return buffer.toString();
   }
 

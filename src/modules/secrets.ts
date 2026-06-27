@@ -58,7 +58,18 @@ export async function storeCredential(d: CredentialDescriptor, value: string): P
     return;
   }
   await _secrets.store(credentialKey(d), value);
-  await addToIndex(d);
+  try {
+    await addToIndex(d);
+  } catch (err) {
+    // The secret is already in the keychain but the index row failed — roll the secret back so we
+    // don't leave an orphan the "Delete Saved Password" UI (which lists only the index) can never show.
+    try {
+      await _secrets.delete(credentialKey(d));
+    } catch {
+      /* best-effort rollback */
+    }
+    throw err;
+  }
 }
 
 export async function deleteCredential(d: CredentialDescriptor): Promise<void> {
