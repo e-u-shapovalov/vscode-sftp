@@ -19,7 +19,7 @@ import {
   COMMAND_REMOTEEXPLORER_MEASURING_SIZES,
   COMMAND_OPEN_EXTENSION_PAGE,
 } from '../../constants';
-import { UResource, upath } from '../../core';
+import { UResource, upath, FileType } from '../../core';
 import { toRemotePath } from '../../helper';
 import { L } from '../../i18n';
 import app from '../../app';
@@ -181,21 +181,22 @@ export default class RemoteExplorer {
 
     let root: ExplorerRoot | undefined;
     let remotePath: string | undefined;
+    // Set when an absolute path sits above every configured root: reading is allowed anywhere, so we
+    // open it directly instead of refusing (it just can't be revealed in the tree).
+    let outsideRoot = false;
     if (raw.startsWith('/')) {
-      // Absolute server path — pick the remote(s) whose root contains it.
+      // Absolute server path — prefer the remote(s) whose root contains it.
       const abs = upath.normalize(raw);
       remotePath = abs;
       const matching = roots.filter(r => isUnderRoot(r.resource.fsPath, abs));
-      if (matching.length === 0) {
-        showWarningMessage(
-          L({
-            en: `WireFerry: "${abs}" is outside every configured remote root (${roots.map(r => r.resource.fsPath).join(', ')}).`,
-            ru: `WireFerry: «${abs}» вне всех настроенных корней сервера (${roots.map(r => r.resource.fsPath).join(', ')}).`,
-          })
-        );
-        return;
+      if (matching.length > 0) {
+        root = matching.length === 1 ? matching[0] : await this._pickRoot(matching);
+      } else {
+        // Above every configured root. Don't refuse — pick a remote for the connection and open the
+        // path directly (Edit in Local warns where the local copy lands on disk).
+        outsideRoot = true;
+        root = roots.length === 1 ? roots[0] : await this._pickRoot(roots);
       }
-      root = matching.length === 1 ? matching[0] : await this._pickRoot(matching);
     } else {
       // Relative path — resolve it against the chosen remote's root.
       root = roots.length === 1 ? roots[0] : await this._pickRoot(roots);
@@ -215,6 +216,12 @@ export default class RemoteExplorer {
     }
     if (!root || remotePath === undefined) {
       return; // profile pick cancelled
+    }
+
+    // Above the root: open directly — the tree can't reveal a node outside the root it's anchored to.
+    if (outsideRoot) {
+      await this._openOutsideRoot(root, remotePath);
+      return;
     }
 
     let item: ExplorerItem | undefined;
@@ -246,6 +253,44 @@ export default class RemoteExplorer {
     if (!item.isDirectory) {
       await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, item);
     }
+  }
+
+  // Open a file that sits ABOVE the configured remote root. The tree can't show it (it only lists paths
+  // under the root), so skip reveal: stat the path through the picked remote's connection and, if it is
+  // a regular file, hand a remote: URI to Edit in Local — which downloads it and warns where the local
+  // copy lands. A directory can't be browsed here (nothing to reveal it into), so report that instead.
+  private async _openOutsideRoot(root: ExplorerRoot, remotePath: string): Promise<void> {
+    const { fileService, config, id, profile } = root.explorerContext;
+    let stat;
+    try {
+      const remotefs = await fileService.getRemoteFileSystem(config);
+      stat = await remotefs.lstat(remotePath);
+    } catch (error) {
+      const detail = error && (error as Error).message ? (error as Error).message : String(error);
+      showErrorMessage(
+        L({
+          en: `WireFerry: failed to reach "${remotePath}". ${detail}`,
+          ru: `WireFerry: не удалось получить доступ к «${remotePath}». ${detail}`,
+        })
+      );
+      return;
+    }
+    if (stat.type === FileType.Directory) {
+      showWarningMessage(
+        L({
+          en: `WireFerry: "${remotePath}" is a directory outside the configured root, so it can't be shown in the tree. Enter a file path to open it.`,
+          ru: `WireFerry: «${remotePath}» — это папка вне настроенного корня, её нельзя показать в дереве. Укажите путь к файлу, чтобы открыть его.`,
+        })
+      );
+      return;
+    }
+    const uri = UResource.makeResource({
+      remote: { host: config.host, port: config.port },
+      fsPath: remotePath,
+      remoteId: id,
+      profile,
+    }).uri;
+    await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, uri);
   }
 
   private async _pickRoot(roots: ExplorerRoot[]): Promise<ExplorerRoot | undefined> {

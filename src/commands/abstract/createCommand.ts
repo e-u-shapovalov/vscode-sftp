@@ -75,6 +75,10 @@ interface CommandOption extends BaseCommandOption {
 interface FileCommandOption extends BaseCommandOption {
   handleFile: (ctx: FileHandlerContext) => Promise<unknown>;
   getFileTarget: (...args: any[]) => undefined | Uri | Uri[] | Promise<undefined | Uri | Uri[]>;
+  // Let this command operate on a path ABOVE the configured scope (Edit in Local only, to open a
+  // file the user navigated to outside remotePath). Threaded into handleCtxFromUri so only this one
+  // command relaxes the containment guard; everything else keeps the strict boundary.
+  allowOutsideRoot?: boolean;
 }
 
 function checkType<T>() {
@@ -123,7 +127,9 @@ export function createFileCommand(commandOption: FileCommandOption & { name: str
       // Tasks must be created inside work() so they start within the progress session.
       const run = () => Promise.all(targetList.map(async uri => {
         try {
-          await commandOption.handleFile(handleCtxFromUri(uri));
+          await commandOption.handleFile(
+            handleCtxFromUri(uri, { allowOutsideRoot: commandOption.allowOutsideRoot })
+          );
         } catch (error) {
           reportError(error);
         }

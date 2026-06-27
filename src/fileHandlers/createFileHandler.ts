@@ -28,7 +28,10 @@ interface FileHandlerOption<T> {
   transformOption?: FileHandlerContextMethod<T>;
 }
 
-export function handleCtxFromUri(uri: Uri): FileHandlerContext {
+export function handleCtxFromUri(
+  uri: Uri,
+  options: { allowOutsideRoot?: boolean } = {}
+): FileHandlerContext {
   const fileService = getFileService(uri);
   if (!fileService) {
     throw new Error(`Config Not Found. (${uri.toString(true)})`);
@@ -53,16 +56,20 @@ export function handleCtxFromUri(uri: Uri): FileHandlerContext {
       profile = app.state.profile || undefined;
     }
   }
-  const target = UResource.from(uri, {
-    localBasePath: fileService.baseDir,
-    remoteBasePath: config.remotePath,
-    remoteId: fileService.id,
-    remote: {
-      host: config.host,
-      port: config.port,
+  const target = UResource.from(
+    uri,
+    {
+      localBasePath: fileService.baseDir,
+      remoteBasePath: config.remotePath,
+      remoteId: fileService.id,
+      remote: {
+        host: config.host,
+        port: config.port,
+      },
+      profile,
     },
-    profile,
-  });
+    options
+  );
 
   return {
     fileService,

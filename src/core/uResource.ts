@@ -123,12 +123,22 @@ export default class UResource {
     return new _Resource(Uri.parse(createUriString(uri.authority, remotePath, query)));
   }
 
-  static from(uri: Uri, root: Resource | ResourceConfig): UResource {
+  static from(
+    uri: Uri,
+    root: Resource | ResourceConfig,
+    options: { allowOutsideRoot?: boolean } = {}
+  ): UResource {
     if ((root as Resource).fsPath) {
       return new UResource(new _Resource(uri), root as Resource);
     }
 
     const { localBasePath, remoteBasePath, remote, remoteId, profile } = root as ResourceConfig;
+    // Opt-out for a single user-initiated command (Edit in Local) that intentionally READS a remote
+    // path ABOVE the configured scope. It relaxes ONLY the remote-scheme branch below (downloading a
+    // file the user navigated to outside remotePath, with a warning where the local copy lands). The
+    // local→remote branch stays strict regardless of this flag, so a local URI can never map a WRITE
+    // above the root; and auto-sync/watcher/upload never pass it, so they keep the full boundary.
+    const allowOutsideRoot = options.allowOutsideRoot === true;
 
     let localResouce: Resource;
     let remoteResouce: Resource;
@@ -138,13 +148,13 @@ export default class UResource {
       // toLocalPath emit a `..`-escaping local path. Reject anything outside the configured remote
       // root, and re-check that the mapped local path stays inside the local context, so a crafted
       // URI can't read outside the remote root or write outside the workspace.
-      if (!isRemoteSubpathOf(remoteBasePath, remotePath)) {
+      if (!allowOutsideRoot && !isRemoteSubpathOf(remoteBasePath, remotePath)) {
         throw new Error(
           `Refusing remote path outside the configured root (${remoteBasePath}): ${remotePath}`
         );
       }
       const localFsPath = toLocalPath(remotePath, remoteBasePath, localBasePath);
-      if (!isSubpathOf(localBasePath, localFsPath)) {
+      if (!allowOutsideRoot && !isSubpathOf(localBasePath, localFsPath)) {
         throw new Error(`Refusing remote path that maps outside the local context: ${localFsPath}`);
       }
       localResouce = new _Resource(Uri.file(localFsPath));
@@ -156,6 +166,8 @@ export default class UResource {
       // root (uploading/overwriting an unrelated file on the server). Check the COMPUTED remote path
       // rather than the input — path.relative folds the drive-letter case on Windows, so this avoids
       // the false rejections a raw isSubpathOf(localBasePath, uri.fsPath) would hit.
+      // UNCONDITIONAL — allowOutsideRoot relaxes only remote-side reads, never a local→remote mapping,
+      // so a local URI can never be coaxed into writing above the root even when the flag is set.
       if (!isRemoteSubpathOf(remoteBasePath, remoteFsPath)) {
         throw new Error(
           `Refusing local path outside the configured context (${localBasePath}): ${uri.fsPath}`

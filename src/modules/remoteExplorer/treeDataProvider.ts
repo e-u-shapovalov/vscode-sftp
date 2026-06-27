@@ -17,7 +17,6 @@ import {
 } from '../../constants';
 import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
-import { isRemoteSubpathOf } from '../../helper';
 import { L } from '../../i18n';
 import logger from '../../logger';
 import { duSizes } from './folderSize';
@@ -466,21 +465,20 @@ export default class RemoteTreeData
 
     const config = root.explorerContext.config;
     const remotePath = UResource.makeResource(uri).fsPath;
-    // Preview reads the path directly (it doesn't go through UResource.from), so re-check containment
-    // here too — a forged preview URI must not read outside the configured remote root.
-    if (!isRemoteSubpathOf(config.remotePath, remotePath)) {
-      throw new Error(`Refusing to preview a path outside the configured root: ${remotePath}`);
-    }
-
+    // Reading is deliberately allowed anywhere on the server: a preview only streams the file into an
+    // in-memory document (no local write), and over an authenticated SSH/SFTP session the user can
+    // already read anything their account can — so confining preview to remotePath added friction
+    // without real protection. The write side (Edit in Local / download) keeps its guard and warns
+    // when a file lands outside the scope.
     const remotefs = await root.explorerContext.fileService.getRemoteFileSystem(config);
 
     // Previewing reads the whole file into memory and renders it as text — a big or binary blob
     // (e.g. a 200 MB log) freezes the editor, the same hazard smartOpen guards on download. Cap it
     // and point the user at "Edit in Local" (which downloads and asks before opening).
     const PREVIEW_LIMIT = 10 * 1024 * 1024;
-    let size = 0;
+    let stat;
     try {
-      size = (await remotefs.lstat(remotePath)).size;
+      stat = await remotefs.lstat(remotePath);
     } catch (e) {
       // Can't determine the size — refuse rather than stream an unknown amount into memory. A broken
       // or hostile server could otherwise fail lstat and then return an unbounded body, OOM-ing the
@@ -492,6 +490,17 @@ export default class RemoteTreeData
         })
       );
     }
+    // Only a regular file previews as text. A directory (or other non-file) reaching here — e.g. via a
+    // crafted preview URI — would otherwise be read and rendered as garbage; refuse with a clear message.
+    if (stat.type !== FileType.File) {
+      throw new Error(
+        L({
+          en: 'This is not a regular file, so it cannot be previewed as text.',
+          ru: 'Это не обычный файл — его нельзя показать как текст.',
+        })
+      );
+    }
+    const size = stat.size;
     if (size > PREVIEW_LIMIT) {
       const mb = (size / (1024 * 1024)).toFixed(1);
       throw new Error(
