@@ -102,7 +102,10 @@ export default class LocalFileSystem extends FileSystem {
           input.destroy();
           reject(err);
         })
-        .once('finish', resolve); // transffered
+        .once('finish', resolve)
+        // Fallback like sftp _put: a writer destroyed without 'finish' still emits 'close', so the
+        // promise resolves instead of hanging. 'error' is registered first, so a failure still rejects.
+        .once('close', resolve);
 
       input.once('error', err => {
         stopCounting();

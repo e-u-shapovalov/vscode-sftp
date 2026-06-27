@@ -8,6 +8,13 @@ interface FileOption {
   mode?: number;
 }
 
+// Distinguish a real "not found" from permission/transient lstat errors, so create* doesn't read an
+// EACCES/timeout as "absent" and proceed to create (masking the real cause).
+//   SFTP lstat → err.code 2 / 'ENOENT'; FTP lstat → Error('file not exist') (no code).
+function isNotFoundError(err: any): boolean {
+  return !!err && (err.code === 2 || err.code === 'ENOENT' || err.message === 'file not exist');
+}
+
 export async function transferFile(
   src: string,
   des: string,
@@ -125,7 +132,11 @@ export async function createDir(path: string, fs: FileSystem, option): Promise<v
     );
     return;
   } catch (error) {
-    // folder doesn't exist — proceed to create it
+    // Only a genuine not-found means "go ahead and create"; a permission/transient error must surface
+    // rather than be misread as "absent".
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
   }
 
   return fs.mkdir(path);
@@ -140,7 +151,10 @@ export async function createFile(path: string, fs: FileSystem, option): Promise<
     );
     return;
   } catch (error) {
-    // file doesn't exist — proceed to create it
+    // Only a genuine not-found means "go ahead and create"; a permission/transient error must surface.
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
   }
 
   // Write an empty stream to create a zero-byte file. Use the normal put() path, which opens,

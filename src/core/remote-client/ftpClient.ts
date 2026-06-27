@@ -27,6 +27,11 @@ Client.prototype._send = function(cmd: string, cb: (err: Error) => void, promote
 // tslint:enable
 
 Client.prototype.setLastMod = function(path: string, date: Date, cb) {
+  // Defense-in-depth: callers reach this via assertFtpSafePath, but guard here too — a CR/LF/NUL in
+  // the path would smuggle a second command onto the CRLF-terminated FTP control channel.
+  if (/[\r\n\0]/.test(path)) {
+    return cb(new Error('illegal characters in remote path'));
+  }
   const dateStr =
     date.getUTCFullYear() +
     ('00' + (date.getUTCMonth() + 1)).slice(-2) +
@@ -101,7 +106,13 @@ export default class FTPClient extends RemoteClient {
       return;
     }
     this._ended = true;
-    return this._client.end();
+    // Best-effort: end() is reached from several disconnect paths and the lib's _reset() can throw on
+    // an already-closed socket — a throw must not escape cleanup.
+    try {
+      this._client.end();
+    } catch {
+      /* ignore */
+    }
   }
 
   getFsClient() {

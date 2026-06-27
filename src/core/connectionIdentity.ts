@@ -13,6 +13,10 @@ function stableStringify(value: any): string {
     return `[${value.map(stableStringify).join(',')}]`;
   }
   const body = Object.keys(value)
+    // Skip keys whose value is undefined: a config copy carrying "k": undefined and one that simply
+    // omits `k` describe the same server, but JSON.stringify(undefined) → "undefined" would split them
+    // into two identities → two cache slots, a leaked socket, and dispose closing only one.
+    .filter(key => value[key] !== undefined)
     .sort()
     .map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
     .join(',');

@@ -145,6 +145,13 @@ function filesIgnoredFromConfig(config: FileServiceConfig): string[] {
 
   let ignoreFromFile;
   if (cache.has(ignoreFile)) {
+    // Re-check existence on a cache hit: if the ignoreFile was deleted after being cached, the stale
+    // patterns would keep applying until the LRU (max:6) evicts the slot or the window reloads.
+    if (!fs.existsSync(ignoreFile)) {
+      cache.del(ignoreFile);
+      logger.warn(`ignoreFile "${ignoreFile}" no longer exists — dropping cached patterns.`);
+      return ignore;
+    }
     ignoreFromFile = cache.get(ignoreFile);
   } else if (fs.existsSync(ignoreFile)) {
     ignoreFromFile = fs.readFileSync(ignoreFile).toString();

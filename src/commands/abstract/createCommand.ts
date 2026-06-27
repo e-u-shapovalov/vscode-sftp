@@ -165,11 +165,13 @@ export function createFileMultiCommand(commandOption: FileCommandOption & { name
       const targetList: Uri[] = Array.isArray(target) ? target : [target];
       // Tasks must be created inside work() so they start within the progress session.
       const run = () => Promise.all(targetList.map(async uri => {
-        try {
-          await Promise.all(allHandleCtxFromUri(uri).map(commandOption.handleFile));
-        } catch (error) {
-          reportError(error);
-        }
+        // Catch per profile: a bare Promise.all rejects on the first profile's failure and leaves the
+        // other profiles' rejections unhandled — and the user sees only one error of the fan-out.
+        await Promise.all(
+          allHandleCtxFromUri(uri).map(ctx =>
+            commandOption.handleFile(ctx).catch(error => reportError(error))
+          )
+        );
       }));
 
       const title = transferTitle(this.id);

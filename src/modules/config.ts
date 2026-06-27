@@ -58,7 +58,7 @@ const configScheme = {
     files: Joi.string().allow(false, null),
     autoUpload: Joi.boolean(),
   },
-  concurrency: Joi.number().integer().min(1),
+  concurrency: Joi.number().integer().min(1).max(512),
 
   syncOption: {
     delete: Joi.boolean(),

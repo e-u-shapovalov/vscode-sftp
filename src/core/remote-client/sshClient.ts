@@ -447,14 +447,24 @@ export default class SSHClient extends RemoteClient {
       }
     });
 
-    this._client.end();
-
-    if (this.hoppingClients) {
-      // last connect first end
-      this.hoppingClients
-        .slice()
-        .reverse()
-        .forEach(client => client.end());
+    // Guarantee hop teardown even if the main client's end() throws — otherwise a throw here leaks
+    // every bastion/jump connection in the chain.
+    try {
+      this._client.end();
+    } finally {
+      if (this.hoppingClients) {
+        // last connect first end
+        this.hoppingClients
+          .slice()
+          .reverse()
+          .forEach(client => {
+            try {
+              client.end();
+            } catch {
+              /* ignore */
+            }
+          });
+      }
     }
   }
 
