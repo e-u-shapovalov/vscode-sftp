@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.5.5",
+  "version": "2.5.6",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -426,12 +426,21 @@
         "title": "%wireferry.remoteExplorer.openByPath%",
         "category": "WireFerry",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.openSymlink",
+        "title": "%wireferry.remoteExplorer.openSymlink%",
+        "category": "WireFerry"
       }
     ],
     "menus": {
       "commandPalette": [
         {
           "command": "wireferry.copyPathAsGitBash",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.remoteExplorer.openSymlink",
           "when": "false"
         },
         {

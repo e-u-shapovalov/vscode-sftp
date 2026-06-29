@@ -11,6 +11,7 @@ import {
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
   COMMAND_REMOTEEXPLORER_COPY_PATH,
   COMMAND_REMOTEEXPLORER_OPEN_BY_PATH,
+  COMMAND_REMOTEEXPLORER_OPEN_SYMLINK,
   COMMAND_REMOTEEXPLORER_EDITINLOCAL,
   COMMAND_REMOTEEXPLORER_SORT_BY_SIZE,
   COMMAND_REMOTEEXPLORER_SORT_BY_NAME,
@@ -19,7 +20,7 @@ import {
   COMMAND_REMOTEEXPLORER_MEASURING_SIZES,
   COMMAND_OPEN_EXTENSION_PAGE,
 } from '../../constants';
-import { UResource, upath, FileType } from '../../core';
+import { UResource, upath, FileType, FileSystem } from '../../core';
 import { toRemotePath } from '../../helper';
 import { L } from '../../i18n';
 import app from '../../app';
@@ -77,6 +78,11 @@ export default class RemoteExplorer {
     // Toolbar "Open Remote File by Path": type a full server path, the tree expands down to it and
     // the file is downloaded + opened for editing.
     registerCommand(context, COMMAND_REMOTEEXPLORER_OPEN_BY_PATH, () => this.openByPath());
+    // Clicking a symlink in the tree: explain it and offer to open the real target (a symlink can't be
+    // "downloaded" like a file — recreating an absolute link is refused with a cryptic error).
+    registerCommand(context, COMMAND_REMOTEEXPLORER_OPEN_SYMLINK, (item: ExplorerItem) =>
+      this.openSymlink(item)
+    );
     // Toolbar sort toggle (two state-reflecting buttons swap via the `config.` when-clause).
     registerCommand(context, COMMAND_REMOTEEXPLORER_SORT_BY_SIZE, () => this._setSortBySize(true));
     registerCommand(context, COMMAND_REMOTEEXPLORER_SORT_BY_NAME, () => this._setSortBySize(false));
@@ -249,8 +255,11 @@ export default class RemoteExplorer {
 
     await this.reveal(item, { select: true, focus: true, expand: true });
 
-    // Directories are only revealed/expanded; files are downloaded and opened for editing.
-    if (!item.isDirectory) {
+    // Directories are only revealed/expanded; a symlink gets the explain-and-open-target flow (Edit in
+    // Local would refuse to recreate it); a plain file is downloaded and opened for editing.
+    if ((item as ExplorerItem).isSymbolicLink) {
+      await this.openSymlink(item);
+    } else if (!item.isDirectory) {
       await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, item);
     }
   }
@@ -291,6 +300,160 @@ export default class RemoteExplorer {
       profile,
     }).uri;
     await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, uri);
+  }
+
+  // Clicking a symlink in the tree used to run Edit in Local, which tries to RECREATE the link on disk
+  // and refuses an absolute target ("unsafe target") — two cryptic red errors that never even hinted the
+  // entry was a link. Instead: read the link, show where it points on the server, and let the user open
+  // the REAL file's content or copy the target path to navigate there themselves.
+  async openSymlink(item: ExplorerItem): Promise<void> {
+    const root = this._treeDataProvider.findRoot(item.resource.uri);
+    if (!root) {
+      showErrorMessage(
+        L({
+          en: `WireFerry: can't find the remote for ${item.resource.uri.toString(true)}.`,
+          ru: `WireFerry: не найден сервер для ${item.resource.uri.toString(true)}.`,
+        })
+      );
+      return;
+    }
+    const { fileService, config } = root.explorerContext;
+    const linkPath = item.resource.fsPath;
+    const name = upath.basename(linkPath);
+
+    let target: string;
+    try {
+      const remotefs = await fileService.getRemoteFileSystem(config);
+      target = await this._readlinkResolved(remotefs, linkPath);
+    } catch (error) {
+      const detail = error && (error as Error).message ? (error as Error).message : String(error);
+      showErrorMessage(
+        L({
+          en: `WireFerry: couldn't read the symlink "${name}". ${detail}`,
+          ru: `WireFerry: не удалось прочитать символическую ссылку «${name}». ${detail}`,
+        })
+      );
+      return;
+    }
+
+    const OPEN = L({ en: 'Open Target', ru: 'Открыть цель' });
+    const COPY = L({ en: 'Copy Path', ru: 'Скопировать путь' });
+    const choice = await vscode.window.showInformationMessage(
+      L({ en: `"${name}" is a symbolic link`, ru: `«${name}» — символическая ссылка` }),
+      {
+        modal: true,
+        detail: L({
+          en: `On the server it points to:\n${target}\n\n“Open Target” downloads and opens the real file. “Copy Path” copies the target path so you can navigate to it.`,
+          ru: `На сервере она указывает на:\n${target}\n\n«Открыть цель» скачает и откроет реальный файл. «Скопировать путь» скопирует путь цели, чтобы перейти к нему.`,
+        }),
+      },
+      OPEN,
+      COPY
+    );
+
+    if (choice === COPY) {
+      await vscode.env.clipboard.writeText(target);
+      return;
+    }
+    if (choice === OPEN) {
+      await this._openSymlinkTarget(root, linkPath);
+    }
+  }
+
+  // Read a symlink and return its target as an absolute server path: an absolute link target stands on
+  // its own; a relative one is resolved against the link's own directory.
+  private async _readlinkResolved(remotefs: FileSystem, linkPath: string): Promise<string> {
+    const raw = await remotefs.readlink(linkPath);
+    return raw.startsWith('/')
+      ? upath.normalize(raw)
+      : upath.normalize(upath.join(upath.dirname(linkPath), raw));
+  }
+
+  // Follow a symlink chain to the real file/dir it ultimately resolves to and open it: reveal + Edit in
+  // Local for a file under the root, reveal/expand for a directory, or open-by-URI when it sits above the
+  // root. Bounded so a cyclic link can't loop forever; reports a broken link or a too-deep chain.
+  private async _openSymlinkTarget(root: ExplorerRoot, linkPath: string): Promise<void> {
+    const { fileService, config } = root.explorerContext;
+    const remotefs = await fileService.getRemoteFileSystem(config);
+
+    let current = linkPath;
+    let finalPath: string | undefined;
+    let finalType: FileType | undefined;
+    for (let hop = 0; hop < 10; hop++) {
+      let resolved: string;
+      try {
+        resolved = await this._readlinkResolved(remotefs, current);
+      } catch (error) {
+        // Couldn't read the link (vanished, or no longer a link). Surface the real reason instead of
+        // pretending the chain was too deep.
+        const detail = error && (error as Error).message ? (error as Error).message : String(error);
+        showWarningMessage(
+          L({
+            en: `WireFerry: couldn't read the symlink "${current}". ${detail}`,
+            ru: `WireFerry: не удалось прочитать символическую ссылку «${current}». ${detail}`,
+          })
+        );
+        return;
+      }
+      let stat;
+      try {
+        stat = await remotefs.lstat(resolved);
+      } catch (error) {
+        // A genuine "not found" means a broken link; anything else (permission, timeout) is reported
+        // with its real cause rather than mislabelled as broken.
+        const code = error && (error as any).code;
+        const message = error && (error as Error).message;
+        if (code === 2 || code === 'ENOENT' || message === 'file not exist') {
+          showWarningMessage(
+            L({
+              en: `WireFerry: the symlink points to "${resolved}", which doesn't exist on the server (broken link).`,
+              ru: `WireFerry: ссылка указывает на «${resolved}», которого нет на сервере (битая ссылка).`,
+            })
+          );
+        } else {
+          showWarningMessage(
+            L({
+              en: `WireFerry: couldn't reach the symlink target "${resolved}". ${message || error}`,
+              ru: `WireFerry: не удалось получить доступ к цели ссылки «${resolved}». ${message || error}`,
+            })
+          );
+        }
+        return;
+      }
+      if (stat.type === FileType.SymbolicLink) {
+        current = resolved;
+        continue;
+      }
+      finalPath = resolved;
+      finalType = stat.type;
+      break;
+    }
+
+    if (finalPath === undefined || finalType === undefined) {
+      // Fell out of the loop without a non-link target: the chain is longer than the hop budget or loops.
+      showWarningMessage(
+        L({
+          en: `WireFerry: this symlink chain is too deep or cyclic — can't resolve a real file.`,
+          ru: `WireFerry: цепочка ссылок слишком длинная или зациклена — не удалось найти реальный файл.`,
+        })
+      );
+      return;
+    }
+
+    // Under the root: reveal the real entry in the tree (so the user lands on the actual path), then open
+    // a file for editing. Above the root: open by URI directly — reading is allowed anywhere, the tree
+    // just can't show a node outside its root. _openOutsideRoot handles both the file and directory case.
+    if (isUnderRoot(root.resource.fsPath, finalPath)) {
+      const node = await this._resolveByPath(root, finalPath).catch(() => undefined);
+      if (node) {
+        await this.reveal(node, { select: true, focus: true, expand: true });
+        if (!node.isDirectory) {
+          await executeCommand(COMMAND_REMOTEEXPLORER_EDITINLOCAL, node);
+        }
+        return;
+      }
+    }
+    await this._openOutsideRoot(root, finalPath);
   }
 
   private async _pickRoot(roots: ExplorerRoot[]): Promise<ExplorerRoot | undefined> {

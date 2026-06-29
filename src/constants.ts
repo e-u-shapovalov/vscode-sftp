@@ -82,6 +82,7 @@ export const COMMAND_REMOTEEXPLORER_VIEW_CONTENT = 'wireferry.viewContent';
 export const COMMAND_REMOTEEXPLORER_COPY_PATH = 'wireferry.remoteExplorer.copyPath';
 export const COMMAND_COPY_PATH_GIT_BASH = 'wireferry.copyPathAsGitBash';
 export const COMMAND_REMOTEEXPLORER_OPEN_BY_PATH = 'wireferry.remoteExplorer.openByPath';
+export const COMMAND_REMOTEEXPLORER_OPEN_SYMLINK = 'wireferry.remoteExplorer.openSymlink';
 export const COMMAND_REMOTEEXPLORER_CALC_FOLDER_SIZE = 'wireferry.remoteExplorer.calculateFolderSize';
 export const COMMAND_REMOTEEXPLORER_SORT_BY_SIZE = 'wireferry.remoteExplorer.sortTreeBySize';
 export const COMMAND_REMOTEEXPLORER_SORT_BY_NAME = 'wireferry.remoteExplorer.sortTreeByName';

@@ -56,6 +56,7 @@
   "wireferry.remoteExplorer.refresh": "Refresh",
   "wireferry.remoteExplorer.refreshActiveFile": "Refresh Active Remote File",
   "wireferry.remoteExplorer.openByPath": "Open Remote File by Path",
+  "wireferry.remoteExplorer.openSymlink": "Open Symlink Target",
   "wireferry.debug.description": "print debug log on WireFerry output channel.(reload vscode when change this)",
   "wireferry.downloadWhenOpenInRemoteExplorer.description": "\"Download\" instead of \"View Content\" when open file in Remote Explorer",
   "wireferry.checkForUpdates.description": "Check GitHub for a newer WireFerry release on startup. Makes one HTTPS GET to api.github.com (release version only — no telemetry, nothing about you is sent). You are asked for consent once before the first check.",

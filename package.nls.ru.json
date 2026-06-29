@@ -56,6 +56,7 @@
   "wireferry.remoteExplorer.refresh": "Обновить",
   "wireferry.remoteExplorer.refreshActiveFile": "Обновить активный удалённый файл",
   "wireferry.remoteExplorer.openByPath": "Открыть файл на сервере по пути",
+  "wireferry.remoteExplorer.openSymlink": "Открыть цель символической ссылки",
   "wireferry.debug.description": "Выводить отладочный журнал в канал вывода WireFerry. (перезагрузите VS Code после изменения)",
   "wireferry.downloadWhenOpenInRemoteExplorer.description": "«Скачивать» вместо «Просмотреть содержимое» при открытии файла в удалённом проводнике",
   "wireferry.checkForUpdates.description": "Проверять на GitHub наличие новой версии WireFerry при запуске. Делает один HTTPS-запрос (GET) к api.github.com (только номер версии — без телеметрии, никакие ваши данные не отправляются). Перед первой проверкой спрашивается разрешение.",

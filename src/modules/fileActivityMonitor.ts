@@ -55,7 +55,12 @@ async function handleConfigSave(uri: vscode.Uri) {
   } finally {
     // A hand-edit can add the first server or remove the last one — keep the toolbar/welcome gate in sync.
     refreshConfigContext();
-    app.remoteExplorer.refresh();
+    // Guard: if the initial setup() threw at activation, app.remoteExplorer is undefined; a later
+    // config save must not crash with "Cannot read property 'refresh' of undefined" (every other
+    // call site guards this the same way).
+    if (app.remoteExplorer) {
+      app.remoteExplorer.refresh();
+    }
   }
 }
 

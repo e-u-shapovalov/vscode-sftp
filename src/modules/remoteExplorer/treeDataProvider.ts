@@ -14,6 +14,7 @@ import {
 import {
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
   COMMAND_REMOTEEXPLORER_EDITINLOCAL,
+  COMMAND_REMOTEEXPLORER_OPEN_SYMLINK,
 } from '../../constants';
 import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
@@ -47,6 +48,14 @@ function makePreivewUrl(uri: vscode.Uri) {
 interface ExplorerChild {
   resource: Resource;
   isDirectory: boolean;
+  // A symbolic link (from the listing's lstat type). Rendered with a link icon and routed, on click,
+  // to a handler that explains the link and offers to open its real target — instead of failing the
+  // way "download the link" does on an absolute target.
+  isSymbolicLink?: boolean;
+  // Where the link points, resolved in the background with one readlink (like folder sizes). `undefined`
+  // = not measured yet, a string = the resolved absolute target, `null` = readlink failed (broken /
+  // no permission) so we stop retrying. Only meaningful when isSymbolicLink.
+  linkTarget?: string | null;
   // Captured from the directory listing (the same readdir we already do — no extra request). Used to
   // build the hover tooltip. A snapshot from list time, like everything else in the tree.
   size?: number;
@@ -125,7 +134,11 @@ function formatTime(ms: number): string {
 // listing carried them. All data comes from the listing already in memory — building this does no I/O.
 function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
   const lines = [item.resource.fsPath];
-  if (!isRoot && !item.isDirectory && typeof item.size === 'number') {
+  // A symlink: name what it is and where it points (the link's own byte size is meaningless, so skip it).
+  if (!isRoot && item.isSymbolicLink) {
+    const label = L({ en: 'Symbolic link', ru: 'Символическая ссылка' });
+    lines.push(item.linkTarget ? `${label} → ${item.linkTarget}` : label);
+  } else if (!isRoot && !item.isDirectory && typeof item.size === 'number') {
     lines.push(`${L({ en: 'Size', ru: 'Размер' })}: ${formatBytes(item.size)}`);
   }
   if (!isRoot && typeof item.mode === 'number') {
@@ -147,6 +160,8 @@ export default class RemoteTreeData
   private _map: Map<vscode.Uri['query'], ExplorerItem> = new Map();
   // Parent uri.query keys whose folder sizes a background `du` is currently measuring, to de-dupe.
   private _measuring = new Set<string>();
+  // Parent uri.query keys whose symlink targets a background readlink pass is currently resolving.
+  private _resolvingLinks = new Set<string>();
 
   private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem | undefined> = new vscode.EventEmitter<
     ExplorerItem | undefined
@@ -156,9 +171,11 @@ export default class RemoteTreeData
   readonly onDidChange: vscode.Event<vscode.Uri> = this._onDidChangeFile.event;
 
   async refresh(item?: ExplorerItem): Promise<any> {
-    // A refresh re-measures folder sizes: drop cached `du` results so they recompute on demand.
+    // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
+    // drop both cached results so they recompute on demand.
     this._map.forEach(node => {
       node.folderBytes = undefined;
+      node.linkTarget = undefined;
     });
     // refresh root
     if (!item) {
@@ -219,10 +236,16 @@ export default class RemoteTreeData
       }
     } else {
       customLabel = upath.basename(item.resource.fsPath);
-      // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of
-      // sort): files use the size from the listing; folders use the `du` size measured for this
-      // listing. No per-item requests here.
-      if (setting.showSizeInTree) {
+      if (item.isSymbolicLink) {
+        // A symlink shows where it points (resolved in the background), not its own byte size. The
+        // dimmed "→ target" is the at-a-glance cue that this entry is a link, not a plain file.
+        description = item.linkTarget
+          ? `→ ${item.linkTarget}`
+          : L({ en: 'symbolic link', ru: 'символическая ссылка' });
+      } else if (setting.showSizeInTree) {
+        // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of
+        // sort): files use the size from the listing; folders use the `du` size measured for this
+        // listing. No per-item requests here.
         if (!item.isDirectory && typeof item.size === 'number') {
           description = formatBytes(item.size);
         } else if (item.isDirectory && typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
@@ -230,15 +253,20 @@ export default class RemoteTreeData
         }
       }
     }
+    const isSymlink = !isRoot && !!(item as ExplorerChild).isSymbolicLink;
     return {
       label: customLabel,
       description,
       resourceUri: item.resource.uri,
       tooltip: buildTooltip(item, isRoot),
+      // Override the file-icon-theme icon for a symlink with VS Code's built-in link glyph, so a link
+      // is recognizable at a glance and never mistaken for a plain file.
+      iconPath: isSymlink ? new vscode.ThemeIcon('file-symlink-file') : undefined,
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
       // Encode the protocol into a root's contextValue (root.sftp / root.ftp / root.local) so menus
       // can offer SSH-only actions (e.g. Generate SSH Key) on SFTP roots only. Non-root items stay
-      // exactly 'file' / 'folder'. when-clauses match roots via the /^root/ prefix.
+      // exactly 'file' / 'folder' — a symlink keeps 'file' so the regular file menus (Copy Path,
+      // Delete, …) still apply; its special handling is the click command below, not the menu.
       contextValue: isRoot
         ? `root.${(item as ExplorerRoot).explorerContext.config.protocol || 'sftp'}`
         : item.isDirectory
@@ -246,6 +274,14 @@ export default class RemoteTreeData
         : 'file',
       command: item.isDirectory
         ? undefined
+        : isSymlink
+        ? {
+            // A symlink can't be opened/downloaded like a file (recreating an absolute link is refused);
+            // explain it and offer to open the real target instead — regardless of the open/preview mode.
+            command: COMMAND_REMOTEEXPLORER_OPEN_SYMLINK,
+            arguments: [item],
+            title: 'Open Symlink Target',
+          }
         : {
             command: getExtensionSetting().downloadWhenOpenInRemoteExplorer
               ? COMMAND_REMOTEEXPLORER_EDITINLOCAL
@@ -288,15 +324,18 @@ export default class RemoteTreeData
     // duSizes returns an empty map (folders keep name order and show no size).
     const items: ExplorerItem[] = filtered.map(file => {
       const isDirectory = file.type === FileType.Directory;
+      const isSymbolicLink = file.type === FileType.SymbolicLink;
       const newResource = UResource.updateResource(item.resource, {
         remotePath: file.fspath,
       });
       const mapItem = this._map.get(newResource.uri.query);
       if (mapItem) {
-        // Keep the cached node's identity, pinned type and any cached folderBytes; refresh the rest.
+        // Keep the cached node's identity, pinned type, any cached folderBytes and resolved linkTarget;
+        // refresh the rest.
         mapItem.size = file.size;
         mapItem.mode = file.mode;
         mapItem.mtime = file.mtime;
+        mapItem.isSymbolicLink = isSymbolicLink;
         return mapItem;
       }
       const newItem = {
@@ -304,6 +343,7 @@ export default class RemoteTreeData
           remotePath: file.fspath,
         }),
         isDirectory,
+        isSymbolicLink,
         size: file.size,
         mode: file.mode,
         mtime: file.mtime,
@@ -311,6 +351,17 @@ export default class RemoteTreeData
       this._map.set(newItem.resource.uri.query, newItem);
       return newItem;
     });
+
+    // Resolve each symlink's target in the background with ONE readlink apiece (cheap, unlike `du`), so
+    // the tree paints immediately and the dimmed "→ target" fills in a moment later. Only links without
+    // a cached target are read; refresh() clears the cache. De-duped per parent so concurrent expands
+    // of the same folder don't pile up readlinks.
+    const unresolvedLinks = items.filter(
+      i => (i as ExplorerChild).isSymbolicLink && (i as ExplorerChild).linkTarget === undefined
+    );
+    if (unresolvedLinks.length > 0) {
+      this._resolveSymlinkTargets(remotefs, unresolvedLinks, item).catch(() => undefined);
+    }
 
     // Folder sizes (for display and/or sort) are measured with ONE server-side `du`, but NOT awaited
     // here: the tree shows folder names and file sizes immediately, while a background measurement fills
@@ -389,6 +440,48 @@ export default class RemoteTreeData
       if (this._measuring.size === 0) {
         setContextValue('measuringSizes', false);
       }
+    }
+  }
+
+  // Resolve the given symlinks' targets with one readlink each (run in parallel — readlink is a single
+  // cheap round-trip, nothing like the recursive `du`), store the absolute target on each node, then
+  // re-render the parent once so the dimmed "→ target" appears. A readlink failure records `null` so the
+  // link isn't re-read forever. De-duped per parent; never blocks the expand (called fire-and-forget).
+  private async _resolveSymlinkTargets(
+    remotefs: FileSystem,
+    links: ExplorerItem[],
+    parent: ExplorerItem
+  ): Promise<void> {
+    const key = parent.resource.uri.query;
+    if (this._resolvingLinks.has(key)) {
+      return;
+    }
+    this._resolvingLinks.add(key);
+    try {
+      let changed = false;
+      await Promise.all(
+        links.map(async link => {
+          let resolved: string | null;
+          try {
+            const raw = await remotefs.readlink(link.resource.fsPath);
+            // An absolute link target stands on its own; a relative one resolves against the link's dir.
+            resolved = raw.startsWith('/')
+              ? upath.normalize(raw)
+              : upath.normalize(upath.join(upath.dirname(link.resource.fsPath), raw));
+          } catch {
+            resolved = null;
+          }
+          if (link.linkTarget !== resolved) {
+            link.linkTarget = resolved;
+            changed = true;
+          }
+        })
+      );
+      if (changed) {
+        this._onDidChangeFolder.fire(parent);
+      }
+    } finally {
+      this._resolvingLinks.delete(key);
     }
   }
 

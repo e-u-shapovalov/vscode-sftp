@@ -64,7 +64,16 @@ export const renameRemote = createFileHandler<{
         await remoteFs.lstat(destRemotePath!);
         remoteDestExists = true;
       } catch (e) {
-        remoteDestExists = false; // a stat error (ENOENT) means the destination is free — good.
+        // Only a genuine "not found" means the destination is free. A permission/timeout/disconnect
+        // error must NOT be read as "absent" — otherwise we'd skip the collision check and rename over
+        // a target that may well exist. Mirrors the isNotFoundError guard create/remove already use.
+        //   SFTP lstat → err.code 2 / 'ENOENT'; FTP lstat → Error('file not exist') (no code).
+        const code = e && (e as any).code;
+        const message = e && (e as Error).message;
+        if (!(code === 2 || code === 'ENOENT' || message === 'file not exist')) {
+          throw e;
+        }
+        remoteDestExists = false;
       }
       if (remoteDestExists) {
         throw new Error(`Remote target already exists: ${destRemotePath}`);

@@ -37,7 +37,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` confi
 
 ## What's new
 
-**2.5.5 — safer configuration validation and refreshed documentation.** The runtime validator was updated from `joi` 10.6.0 to 17.13.4, removing the vulnerable `joi` / `hoek` / `topo` chain; `npm audit --omit=dev` now reports 0 production vulnerabilities. The real configuration schema is isolated in a pure module with 13 direct tests, while JSONC, compatibility fields, strict no-coercion validation and SFTP/FTP/local support remain intact. Installation guidance and versioned screenshots were refreshed in English and Russian.
+**2.5.6 — symlinks in the server tree are finally recognizable and openable.** A symbolic link no longer looks like a regular file: it shows a link icon and a dimmed `→ target` (resolved in the background). Clicking it no longer fails with a cryptic "unsafe target" error — a dialog explains it's a symlink and where it points, with **"Open Target"** (downloads and opens the real file, following the link chain) and **"Copy Path"**. Plus two external-review fixes: the rename preflight no longer mistakes a transient/permission `lstat` error for "destination free", and a config save can't crash when the initial setup failed.
 
 See the [Changelog](CHANGELOG.md) for technical details and previous releases.
 
