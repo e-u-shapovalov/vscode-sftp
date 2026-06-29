@@ -8,6 +8,7 @@ import { setContextValue, showWarningMessage } from '../../host';
 import { L } from '../../i18n';
 import { UResource, FileService, TransferTask } from '../../core';
 import { TransferDirection } from '../../core/transferTask';
+import { isUploadPermissionError, offerSaveCopyOnPermissionDenied } from '../permissionFallback';
 import { validateConfig } from '../config';
 import watcherService from '../fileWatcher';
 import Trie from './trie';
@@ -150,9 +151,17 @@ export function createFileService(config: any, workspace: string) {
       logger.info(`cancel transfer ${localFsPath}`);
       app.sftpBarItem.showMsg(`cancelled ${filename}`, filepath, 2000 * 2);
     } else if (error) {
-      // Name the server in the popup so a multi-target run says WHO failed without guesswork.
-      reportError(error, host ? `${transferType} ${arrow} ${host} · ${filename}` : `when ${transferType} ${localFsPath}`);
       app.sftpBarItem.showMsg(`failed ${filename}`, filepath, 2000 * 2);
+
+      // A write rejected for lack of permission gets a dedicated recovery flow — save the edited copy
+      // to a writable path (e.g. /tmp) and hand back a root command to apply it — instead of a bare
+      // error toast. This is the everyday case for editing root-owned configs (nginx/php) over SFTP.
+      if (isUploadPermissionError(task, error)) {
+        void offerSaveCopyOnPermissionDenied(task, error);
+      } else {
+        // Name the server in the popup so a multi-target run says WHO failed without guesswork.
+        reportError(error, host ? `${transferType} ${arrow} ${host} · ${filename}` : `when ${transferType} ${localFsPath}`);
+      }
 
       // Record the failure (server + reason) in the operation log so "Upload to All Profiles"
       // shows ❌ which host failed and why — not just a transient popup.

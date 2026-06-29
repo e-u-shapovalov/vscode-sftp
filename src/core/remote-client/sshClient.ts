@@ -393,6 +393,16 @@ export default class SSHClient extends RemoteClient {
       }, 20000);
       client.sftp((err, sftp) => {
         if (settled) {
+          // The timeout already rejected this request. If the subsystem still came up afterwards,
+          // close it — otherwise the SFTP channel leaks for the lifetime of the SSH connection
+          // (the per-connection channel limit is small, ~10, so this matters on flaky links).
+          if (!err && sftp && typeof sftp.end === 'function') {
+            try {
+              sftp.end();
+            } catch {
+              /* best-effort: nothing to do if closing the orphaned channel fails */
+            }
+          }
           return;
         }
         settled = true;

@@ -8,13 +8,24 @@ const configScheme = {
   context: Joi.string(),
   protocol: Joi.any().valid('sftp', 'ftp', 'local'),
 
-  host: Joi.string().required(),
+  // The 'local' protocol talks to the local filesystem only, so host/username are meaningless there.
+  // Requiring them unconditionally rejected every `"protocol": "local"` config; require them only for
+  // the remote protocols (sftp/ftp, and an absent protocol which defaults to sftp).
+  host: Joi.string().when('protocol', {
+    is: 'local',
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
   port: Joi.number()
     .integer()
     .min(1)
     .max(65535),
   connectTimeout: Joi.number().integer(),
-  username: Joi.string().required(),
+  username: Joi.string().when('protocol', {
+    is: 'local',
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
   password: nullable(Joi.string()),
 
   agent: nullable(Joi.string()),

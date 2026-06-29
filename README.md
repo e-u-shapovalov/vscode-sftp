@@ -37,7 +37,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` confi
 
 ## What's new
 
-**2.5.6 — symlinks in the server tree are finally recognizable and openable.** A symbolic link no longer looks like a regular file: it shows a link icon and a dimmed `→ target` (resolved in the background). Clicking it no longer fails with a cryptic "unsafe target" error — a dialog explains it's a symlink and where it points, with **"Open Target"** (downloads and opens the real file, following the link chain) and **"Copy Path"**. Plus two external-review fixes: the rename preflight no longer mistakes a transient/permission `lstat` error for "destination free", and a config save can't crash when the initial setup failed.
+**2.5.7 — save an edited copy elsewhere when you lack write permission.** When an upload fails because the server denies the write, WireFerry no longer just shows a red error: it offers to save your edited copy to a writable path (default `/tmp/<name>`) and hands you a ready-to-paste root command to apply it — `cat '/tmp/file' > '/real/path' && rm -fv '/tmp/file'`, with **"Copy command"** and **"Copy path"** buttons (paths are shell-quoted). Ideal for editing root-owned configs (nginx, php) locally and applying them as root. Plus two review fixes: the `local` protocol no longer fails validation without `host`/`username`, and an SFTP channel leak after a request timeout is closed.
 
 See the [Changelog](CHANGELOG.md) for technical details and previous releases.
 

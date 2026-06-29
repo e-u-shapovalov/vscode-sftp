@@ -53,6 +53,25 @@ describe('configuration validation', () => {
     expectInvalid(validConfig({ protocol: 'unknown' }));
   });
 
+  test('local protocol does not require host or username', () => {
+    // Regression lock for the `host/username: Joi.string().when('protocol', …)` rule. The
+    // `accepts protocol local` case above passes only because validConfig() always carries
+    // host+username — it would STILL pass if the rule were reverted to `.required()`. This case has
+    // neither field, so it actually proves the relaxation for the local filesystem protocol.
+    expectValid({ protocol: 'local', remotePath: '/workspace' });
+    expectValid({ protocol: 'local', remotePath: '/workspace', context: 'sub' });
+  });
+
+  test('remote protocols still require host and username', () => {
+    // The `otherwise` branch of the same rule: sftp/ftp — and an absent protocol, which defaults to
+    // sftp — must reject a config missing either field. remotePath + the other field are present so
+    // the only thing under test is the missing host/username.
+    expectInvalid({ protocol: 'sftp', remotePath: '/', username: 'username' }); // no host
+    expectInvalid({ protocol: 'sftp', remotePath: '/', host: 'host' }); // no username
+    expectInvalid({ protocol: 'ftp', remotePath: '/', username: 'username' }); // no host
+    expectInvalid({ remotePath: '/', username: 'username' }); // no protocol (defaults sftp), no host
+  });
+
   test('does not coerce port strings and enforces the valid port range', () => {
     expectInvalid(validConfig({ port: '22' }));
     expectInvalid(validConfig({ port: 0 }));
