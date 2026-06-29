@@ -1,33 +1,70 @@
-# WireFerry — SFTP/FTP синхронизация и деплой для Visual Studio Code
+# WireFerry — SFTP, FTP and FTPS Sync for Visual Studio Code
 
-**WireFerry** — расширение VS Code для загрузки, скачивания, сравнения и синхронизации файлов с удалённым сервером по **SFTP**, **FTP** и **FTPS**. Оно помогает править проект локально и отправлять изменения на хостинг, VPS, staging или production без отдельного FTP-клиента.
+**WireFerry is a VS Code SFTP extension for uploading, downloading, comparing and synchronizing project files with remote servers.** It brings SFTP, FTP and FTPS transfers, upload on save and a remote file explorer into Visual Studio Code, reducing the need to switch to a separate FTP client for routine website and server-file updates.
 
-[![Latest release](https://img.shields.io/github/v/release/e-u-shapovalov/vscode-sftp)](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[Русская версия](README.RU.md) · [Installation](INSTALL.md) · [Configuration](docs/configuration.md) · [FAQ](FAQ.md) · [Changelog](CHANGELOG.md)
 
-Происхождение проекта: WireFerry — форк [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), который сам является форком [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp).
+## Download and install
 
-## Скачать
+WireFerry is distributed as a ready-to-install Visual Studio Code extension package through GitHub Releases.
 
-**Обычному пользователю нужен готовый файл расширения: [`wireferry-<version>.vsix`](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
+**Download [`wireferry-<version>.vsix` from the latest release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
 
-1. Скачайте `.vsix` со страницы [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
-2. Откройте VS Code.
-3. Перейдите в **Extensions / Расширения** (`Ctrl+Shift+X`).
-4. Нажмите **...** в правом верхнем углу панели расширений.
-5. Выберите **Install from VSIX... / Установить из VSIX...**.
-6. Укажите скачанный файл `wireferry-<version>.vsix` и перезагрузите VS Code, если редактор попросит.
+> **If you are a regular user, do not use Code → Download ZIP. Download the ready-to-use release package from GitHub Releases instead.**
 
-> Если вы просто хотите установить расширение, **не нажимайте `Code -> Download ZIP`** и не скачивайте `Source code`. Эти архивы нужны разработчикам. Для установки скачивайте файл из блока **Assets** на странице релиза: `wireferry-<version>.vsix`.
+If you are new to GitHub:
 
-Полная инструкция для новичков: [INSTALL.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/INSTALL.md).
+1. Open the [latest release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
+2. Find the **Assets** section.
+3. Download the file named `wireferry-<version>.vsix`. Do not download either **Source code** archive.
+4. Open Visual Studio Code and select **Extensions** (`Ctrl+Shift+X`).
+5. Open the **...** menu in the Extensions panel and select **Install from VSIX...**.
+6. Select the downloaded `.vsix` file and reload VS Code if prompted.
 
-## Запустить за 2 минуты
+The `.vsix` is the extension package; do not extract it. There is no separate installer or standalone WireFerry application. See [INSTALL.md](INSTALL.md) for terminal installation and common installation problems.
 
-1. Откройте в VS Code локальную папку проекта.
-2. Нажмите `Ctrl+Shift+P` и выполните команду **WireFerry: Config**.
-3. В проекте появится файл `.vscode/wireferry.json`.
-4. Заполните данные сервера:
+## Quick start
+
+1. Open your local project **folder** in VS Code.
+2. Open the Command Palette (`Ctrl+Shift+P`) and run **WireFerry: Config**.
+3. Follow the setup wizard. It asks for the protocol, server, port, username, remote path and authentication method, then verifies the connection.
+4. After a successful connection, WireFerry creates `.vscode/wireferry.json` and shows the server in **Remote Explorer**.
+5. Use the Command Palette, Explorer context menu or Remote Explorer to upload, download, compare or synchronize files.
+
+The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` configurations remain supported as a legacy format.
+
+![WireFerry first-server setup prompt in Visual Studio Code](assets/showcase/setup-wizard-welcome-2.5.4.png)
+
+## What's new
+
+**2.5.5 — safer configuration validation and refreshed documentation.** The runtime validator was updated from `joi` 10.6.0 to 17.13.4, removing the vulnerable `joi` / `hoek` / `topo` chain; `npm audit --omit=dev` now reports 0 production vulnerabilities. The real configuration schema is isolated in a pure module with 13 direct tests, while JSONC, compatibility fields, strict no-coercion validation and SFTP/FTP/local support remain intact. Installation guidance and versioned screenshots were refreshed in English and Russian.
+
+See the [Changelog](CHANGELOG.md) for technical details and previous releases.
+
+## What WireFerry does
+
+- Upload or download one file, a folder, the active file or folder, or the configured project.
+- Synchronize local to remote, remote to local, or in both directions.
+- Upload files when they are saved, or watch for changes made outside VS Code.
+- Compare a local file with its remote version.
+- Browse and manage remote files in a dedicated VS Code Remote Explorer.
+- Create, rename, move and delete remote files and folders.
+- Use multiple profiles for environments such as development, staging and production.
+- Upload to every configured profile when the same files must reach multiple servers.
+- Connect over SFTP/SSH, FTP or FTPS; a `local` protocol can mirror files to another local folder.
+- Use SSH jump hosts for SFTP connections.
+- Store passwords and key passphrases through VS Code SecretStorage, prompt on each connection, or use an SSH private key.
+- Generate and deploy an SSH key from the server context menu.
+
+![WireFerry Remote Explorer](assets/showcase/remote-explorer-overview-2.5.4.png)
+
+WireFerry is useful for website maintenance, shared hosting, VPS file updates, staging environments and other workflows where files must be transferred directly from a VS Code workspace. It is a file-transfer tool, not a CI/CD or release-management system.
+
+## Configuration
+
+WireFerry uses a JSON-with-comments configuration file at `.vscode/wireferry.json`. The setup wizard creates it, and VS Code provides field descriptions and validation from the bundled schema.
+
+A minimal manually edited SFTP configuration looks like this:
 
 ```json
 {
@@ -36,396 +73,134 @@
   "protocol": "sftp",
   "port": 22,
   "username": "deploy",
+  "password": "prompt",
   "remotePath": "/var/www/site",
   "uploadOnSave": false
 }
 ```
 
-5. Сохраните конфиг.
-6. Снова нажмите `Ctrl+Shift+P`, введите `WireFerry` и выберите нужную команду: **Upload Project**, **Download Project**, **Sync Local -> Remote**, **Diff Active File with Remote**.
+`context` selects the local directory to map, while `remotePath` selects the corresponding directory on the server. Add `ignore` rules before transferring a project if local-only files are not already covered by the defaults or your `.gitignore`.
 
-Старые проекты с `.vscode/sftp.json` продолжают работать: WireFerry читает этот файл как совместимый legacy-конфиг.
+For SFTP, FTP/FTPS, profiles, jump hosts and all supported fields, read the [configuration guide](docs/configuration.md).
 
-## Что решает WireFerry
+## Main commands
 
-Без WireFerry типичный цикл выглядит так: открыть FTP-клиент, найти нужную папку на сервере, перетащить файл, проверить путь, повторить после каждого изменения. Это медленно и легко ошибиться папкой.
+Open the Command Palette with `Ctrl+Shift+P` and type `WireFerry`.
 
-WireFerry переносит этот цикл в VS Code:
-
-- сохранить файл и выгрузить его на сервер;
-- отправить один файл, папку или весь проект;
-- скачать проект с сервера в локальную папку;
-- сравнить локальный файл с удалённой версией;
-- синхронизировать локальную и удалённую папку;
-- открыть серверное дерево в боковой панели VS Code;
-- держать несколько профилей, например `dev`, `stage`, `production`;
-- отправлять изменения во все профили, когда один и тот же код нужен на нескольких серверах.
-
-## Кому подходит
-
-- веб-разработчикам, которые выкладывают сайт на shared-хостинг, VPS или выделенный сервер;
-- администраторам, которым нужно быстро править конфиги и скрипты через SFTP/SSH;
-- фрилансерам с несколькими клиентскими серверами;
-- командам, где staging и production находятся на разных хостах;
-- пользователям VS Code, которым нужен простой SFTP/FTP-клиент внутри редактора;
-- тем, кто ищет замену ручному FileZilla/WinSCP-циклу для частых мелких правок.
-
-WireFerry не заменяет CI/CD и не пытается быть полноценной системой релизов. Это рабочий инструмент для контролируемой передачи файлов между локальной папкой и сервером.
-
-## Скриншоты
-
-### Мастер настройки первого сервера (2.5.2)
-
-Пока в проекте нет конфига, панель прячет всю панель инструментов и показывает одну кнопку **«Создать конфигурацию»**:
-
-![Кнопка «Создать конфигурацию» и первый шаг мастера](assets/showcase/setup-wizard-welcome.png)
-
-Мастер по шагам спрашивает протокол, хост, порт, пользователя, путь и **как хранить пароль** (по умолчанию ключ): **🔑 SSH-ключ**, **🪟 хранилище ОС**, **📄 открытым текстом**. Затем он реально подключается — и только после успешного входа создаёт `.vscode/wireferry.json`, сервер сразу появляется в дереве:
-
-![Шаг выбора способа хранения пароля](assets/showcase/setup-wizard-password-storage.png)
-
-### Remote Explorer
-
-![WireFerry Remote Explorer in VS Code](assets/showcase/remote-explorer.png)
-
-Remote Explorer показывает удалённые файлы в боковой панели VS Code. Из него можно открывать, скачивать, выгружать, переименовывать, удалять и переносить файлы между папками сервера.
-
-### Контекстное меню сервера (ПКМ)
-
-![Контекстное меню папки в Remote Explorer](assets/showcase/folder-context-menu.png)
-
-Правый клик по папке: выгрузка/скачивание, **«Узнать размер папки…»**, права (chmod), создание/удаление/переименование, копирование пути. У файла набор свой (выгрузить/скачать/diff и т. д.).
-
-### Безопасная авторизация: ключи и пароли (2.5.0)
-
-По правому клику на сервере — три команды настройки входа без ручной правки JSON:
-
-![Команды авторизации в контекстном меню сервера](assets/showcase/auth-context-menu.png)
-
-**«Создать SSH-ключ…»** генерирует ключ, заливает публичную часть на сервер, прописывает `~/.ssh/config` и переключает профиль на ключ — но только после проверенного входа:
-
-![Мастер создания SSH-ключа](assets/showcase/generate-ssh-key.png)
-
-**«Сохранить пароль в хранилище…»** кладёт пароль в системное хранилище ОС и ставит в конфиг `"password": "secretStorage"` — открытого пароля в JSON больше нет:
-
-![Сохранение пароля в системное хранилище](assets/showcase/save-password-keychain.png)
-
-## ✨ Что нового · What's New
-
-**Русский — коротко**
-- **2.5.4** — открыть на сервере **любой** файл по пути, даже выше вашего скоупа. «Открыть файл на сервере по полному пути» больше не отказывает, если путь вне настроенного `remotePath`: чтение разрешено где угодно (по SSH ваш аккаунт это и так видит). Когда открытие такого файла качает копию на диск — **один раз за сессию** показывается уведомление: куда именно легла копия и как расширить скоуп (`remotePath`). Плюс упрочнение по итогам ревью: запись осталась строгой (локальный путь нельзя завернуть на запись выше корня), а предпросмотр проверяет, что это обычный файл.
-- **2.5.3** — надёжность по итогам трёх раундов код-ревью + одна фишка. **Атомарная выгрузка/скачивание по умолчанию**: файл пишется во временную копию рядом и атомарно переименовывается на место — прерванная передача (сеть, отмена, нечитаемый источник) больше не обнуляет и не оставляет «половину» существующего файла; если в каталог писать нельзя — автоматический фоллбэк на прямую запись. Новая команда **«Копировать путь (Git Bash)»** в контекстном меню локального проводника: `C:\путь\файл` → `/c/путь/файл` (с множественным выбором). Плюс пакет фиксов трёх раундов внешнего ревью: ключ в `authorized_keys` добавляется через append (обрыв связи не обнулит файл), атомарная запись `~/.ssh/config`, защита предпросмотра больших файлов от OOM, дедуп соединений, подтверждение перед удалением на сервере в «Upload Changed Files», безопасные symlink'и при переносе — и устранена регрессия относительного `remotePath` (дефолтный `./` снова работает).
-- **2.5.2** — мастер настройки первого сервера. Нет конфига — панель прячет все кнопки и показывает одну **«Создать конфигурацию»**. Мастер по шагам спросит протокол (SFTP/FTP), хост, порт, пользователя, путь и **как хранить пароль** (по умолчанию **🔑 ключ**, ещё **🪟 хранилище ОС** и **📄 открытым текстом**), затем **реально подключится** — конфиг создаётся только после успешного входа, сервер сразу появляется в дереве. При выборе ключа можно сгенерировать новый (вход по паролю один раз → ключ на сервер → переключение на ключ) или указать существующий.
-- **2.5.0** — безопасная авторизация: ключи и пароли без правки JSON. По ПКМ на сервере три новых команды. **«Создать SSH-ключ…»** — генерит ключ (ed25519/rsa-4096), заливает публичную часть на сервер (`authorized_keys`), прописывает `~/.ssh/config` и переключает профиль на ключ **только после проверенного входа** (можно сразу на все серверы конфига). **«Сохранить пароль в хранилище…»** — кладёт пароль в системное хранилище ОС (Windows Credential Manager / macOS Keychain / Linux libsecret) и ставит `"password": "secretStorage"` — пароль больше не лежит открытым в JSON; при наличии ключа предложит его убрать (чистый переход ключ↔пароль одной кнопкой). **«Удалить сохранённый пароль…»** — список сохранённых, удаление из хранилища. Sentinel-значения: `"secretStorage"` — через хранилище, `"prompt"` — спрашивать каждый раз; шаблон нового конфига теперь по умолчанию `"password": "prompt"`. Плюс по итогам большого код-ревью — починен multi-hop (цепочка строилась в обратном порядке) и пакет hardening авторизации.
-- **2.4.18** — удаление со всех серверов. В окне удаления (ПКМ → Delete) добавлена кнопка **«Все серверы + ПК»** (видна при наличии `profiles`): удаляет файл/папку с сервера **каждого** профиля и локальную копию разом — зеркало «Upload to All Profiles». По каждому хосту независимо, в `delete.log` сервер у каждой строки (`← host`), локальная копия — в Корзину один раз.
-- **2.4.17** — мультипрофиль + полировка. **Каждый профиль — отдельный корень в дереве сервера**: все серверы видны сразу, заходишь в любой без «Set Profile» — операция из узла идёт на его сервер, а не на активный профиль (подпись — имя профиля, рядом хост; выключается `profilesAsRoots`). **`uploadOnSave` теперь по-профильно** — у каждого профиля свой `true`/`false` (не указан — наследует базовый); на сохранении файл уходит **во все профили, где итог `true`** (базовый `true` = во все, ферма зеркал; `false` в профиле — исключить). И **«Upload … To All Profiles» теперь адресный**: в `upload.log` у каждой строки хост назначения, неудачи — отдельной строкой **`✖ хост: причина`** (нет прав/места/сеть), сверху итог «успешно N, с ошибкой M», и сервер назван прямо в сообщении об ошибке. По итогам повторного ревью: при сохранении в несколько профилей **имя упавшего сервера видно сразу** (частичный успех — предупреждение), у ошибок SFTP — подсказки для **Permission denied** и «нет такого пути», плюс мелкие фиксы (утечка temp-файлов от `diff`, FTP-симлинки больше не пропадают молча, закрыт обход проверки `sshCustomParams`).
-- **2.4.13** — размеры и MD5 в дереве + фикс сохранения на симлинках/subst-дисках. В проводнике сервера две кнопки: **показать размеры** файлов и папок и **сортировать по размеру** (размер папок — серверным `du`, в фоне, дерево не залипает). Новый отчёт **«Размер и MD5»** по ПКМ (в дереве сервера и в локальном проводнике): размер обеих сторон + **MD5** локально и на сервере + **✓/✗**; для папки MD5 по запросу; честное «НА СЕРВЕРЕ НЕ НАЙДЕН». Наше **удаление (сервер/локально/оба)** теперь и из локального проводника — идемпотентное и с фоллбэком на безвозвратное удаление, если Корзина недоступна. И главный фикс: **`uploadOnSave` больше не падает «Config Not Found»** на проектах через симлинк (Linux/macOS) или subst/подключённый диск (Windows).
-- **2.3.1** — видимость операций. **Прогресс-бар по байтам** при выгрузке/скачивании по ПКМ («45 МБ из 200» + **Отмена**) — большой файл больше не качается в тишине. После скачивания текст открывается сразу, а бинарь/файлы **больше 10 МБ** спрашивают — VS Code не виснет на exe/видео. **Отчёт** `delete/upload/download.log` после ПКМ-действий: что и куда, размер, дата, права; при удалении видно расхождение локальной и серверной копий. Необязательный пропуск файлов больше порога при передаче папки (`maxFileSize`). Удаление папки идёт пофайлово — с прогрессом и отменой.
-- **2.2.1** — подключение к **старым SSH-серверам** с устаревшим обменом ключами (`diffie-hellman-group1-sha1` и др.). Раньше такие падали с `Unknown DH group`, потому что крипто-движок VS Code (Electron/BoringSSL) не умеет классический Diffie-Hellman; теперь расширение считает обмен ключами само, когда движок отказывает. Современные подключения не затронуты. Включается явно в конфиге: `"algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } }`.
-- **2.2.0** — надёжность и безопасность. Исправлена **синхронизация в обе стороны**: файлы и папки, которые новее или есть только на сервере, теперь действительно скачиваются на компьютер (раньше эта половина молча не работала). Выгрузка больше не обнуляет файл на сервере, если локальный источник не удалось прочитать. Переименование со сменой только регистра (`foo`→`Foo`) работает на регистронезависимых серверах. Соединения всех профилей закрываются при смене конфига. Усилена безопасность: запрет `CR`/`LF` в именах (защита от инъекций в FTP-команды), маскировка паролей в логах в т.ч. во вложенных профилях и хопах, обновления качаются только с GitHub по HTTPS. В подсказке дерева теперь видны **права доступа**; имена при создании файла/папки проверяются.
-- **2.1.0** — права доступа: команда **«Изменить права (chmod)»** в контекстном меню дерева (пресеты `644`/`755`/… + рекурсивно для папок) и подсказка с **размером и датой** при наведении на файл. Исправлено: явные «Создать»/«Удалить» больше не блокирует фильтр `ignore` (файлы под правилом вроде `*.txt` снова создаются и удаляются), а новая папка сразу показывается папкой, а не файлом.
-- **2.0.9** — убран лишний вопрос «скачать?» при открытии файла из дерева сервера: клик уже скачивал файл через «Edit in Local», и повторный вопрос (с бесполезным «Нет») больше не появляется.
-- **2.0.8** — исправлено «скачивание при открытии» (`downloadOnOpen`): больше не качает сам конфиг и файлы, которых нет на сервере (конец ошибок «No such file»), спрашивает только когда есть что качать. Описания полей в шаблоне и в подсказках стали понятными (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
-- **2.0.7** — конфиг создаётся **по запросу**: расширение спрашивает, нужен ли в проекте SFTP/FTP (с вариантом «не спрашивать в этом проекте»), а не создаёт молча; после удаления конфига спросит снова. Шаблон — на языке `wireferry.alertLanguage`. ПКМ по папке в проводнике → **WireFerry: Config**.
-- **2.0.6** — совместимость с легаси `sftp.*`: старые настройки снова работают (читаются как `wireferry.*`). При старте расширение проверяет `settings.json` и конфиг и подсказывает с номерами строк, что заменить (`sftp.*` → `wireferry.*`) или удалить; умеет починить `settings.json` автоматически и предложить переименовать `.vscode/sftp.json` в `wireferry.json`. Конфиг теперь допускает комментарии (JSONC), а для нового проекта создаётся подробный шаблон. Добавлена проверка обновлений на GitHub (с вашего согласия, один HTTPS-запрос, без телеметрии) и команда **«Проверить обновления»**. Появились настройка языка сообщений (`wireferry.alertLanguage`) и окно-отчёт диагностики, которое висит, пока не закроешь.
-- **2.0.5** — удаление из дерева сервера теперь спрашивает, *где* удалять: **на сервере**, **на компьютере** или **и там и там** (локальная копия уходит в Корзину ОС, а не стирается). Создание папки с уже существующим именем показывает понятное сообщение вместо «Failure». Ошибки SFTP стали читаемее: код 4 расшифровывается, к сообщению добавляются операция и путь. Обновлены руководства (README/INSTALL/FAQ).
-- **2.0.4** — исправлены правила `ignore` на Windows-путях со смешанным регистром (регрессия после 2.0.3 — `node_modules`/`.git` могли выгружаться на сервер); протокол `local` добавлен в схему конфига; уточнения в документации.
-- **2.0.3** — исправлена выгрузка при сохранении на сетевых (UNC) путях Windows (`\\сервер\…`): больше нет «Config Not Found». Синхронизация теперь дожидается завершения удаления файлов; правки в документации и схеме настроек.
-- **2.0.2** — русская локализация команд и настроек (для русского интерфейса VS Code) + пункт «Открыть страницу расширения» в контекстном меню сервера.
-- **2.0.1** — новая иконка на боковой панели (Activity Bar / «Remote Explorer»).
-- **2.0.0** — новое имя: **WireFerry**. Новая иконка, команды и настройки переехали на префикс `wireferry.*`, файл конфигурации теперь `.vscode/wireferry.json` (старый `.vscode/sftp.json` ещё читается). Свои горячие клавиши/настройки под `sftp.*` обновите на `wireferry.*`.
-- **1.1.2** — технический релиз: усиление безопасности (проверка имён файлов, присланных сервером, и полей SSH-подключения).
-- **1.1.1** — переименование и перемещение: «Rename» по ПКМ на сервере, авто-синхрон при переименовании/переносе файла локально, и drag&drop файлов между папками прямо в дереве сервера. Плюс большое обновление зависимостей и движка (минимум VS Code теперь 1.66).
-- **1.0.9** — открыть файл на сервере по полному пути одной кнопкой.
-- **1.0.6** — созданные файлы сразу видны в дереве без «Обновить» (папки — ещё с 1.0.4).
-- **1.0.2** — команда «Copy Path»: копировать серверный путь файла/папки.
-- **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
-
-**English — in short**
-- **2.5.4** — open **any** server file by path, even above your scope. "Open Remote File by Path" no longer refuses a path outside the configured `remotePath`: reading is allowed anywhere (over SSH your account can already read it). When opening such a file downloads a copy to local disk, a **once-per-session** notice explains where the copy landed and how to widen the scope (the `remotePath` setting). Plus review-round hardening: writes stay strict (a local path can't be coaxed into writing above the root) and preview verifies it's a regular file.
-- **2.5.3** — reliability from three rounds of code review + one feature. **Atomic upload/download by default**: a file is staged into a temp copy beside the target and atomically renamed into place — an interrupted transfer (network, cancel, unreadable source) no longer blanks or half-overwrites the existing file; if the directory isn't writable it falls back to a direct write automatically. A new **"Copy Path (Git Bash)"** command in the local Explorer context menu: `C:\path\file` → `/c/path/file` (multi-select supported). Plus a batch of fixes from three external review rounds: `authorized_keys` deploy via append (a dropped connection can't blank the file), atomic `~/.ssh/config` writes, a large-file preview OOM guard, connection dedup, a confirm before server-side deletes in "Upload Changed Files", safe symlink transfer — and a fixed relative-`remotePath` regression (the default `./` works again).
-- **2.5.2** — first-server setup wizard. With no config, the panel hides every button and shows a single **"Create Configuration"**. The wizard asks, step by step, for the protocol (SFTP/FTP), host, port, username, remote path and **how to store the password** (default **🔑 key**, plus **🪟 OS keychain** and **📄 plaintext**), then **actually connects** — the config is created only after a successful login and the server shows up in the tree at once. With the key option you can generate a new one (log in with the password once → key onto the server → switch to the key) or point at an existing key.
-- **2.5.0** — safe auth: keys and passwords without hand-editing JSON. Three new right-click commands on a server. **"Generate SSH Key…"** — creates a key (ed25519/rsa-4096), deploys the public half to the server (`authorized_keys`), registers it in `~/.ssh/config`, and switches the profile to key auth **only after a verified login** (optionally for every server in the config at once). **"Save Password to Keychain…"** — stores the password in the OS keychain (Windows Credential Manager / macOS Keychain / Linux libsecret) and sets `"password": "secretStorage"` — no more plaintext password in JSON; if a key is present it offers to drop it (a clean key↔password switch in one click). **"Delete Saved Password…"** — list saved credentials and remove them from the keychain. Sentinels: `"secretStorage"` reads/saves via the keychain, `"prompt"` asks every time; the new-config template now defaults to `"password": "prompt"`. Plus, from a large code review — a multi-hop fix (the chain was built in reverse order) and a batch of auth hardening.
-- **2.4.18** — delete from all servers. The delete dialog (right-click → Delete) gains an **"All servers + computer"** button (shown when `profiles` are defined): it removes the file/folder from **every** profile's server and the local copy at once — the mirror of "Upload to All Profiles". Per host independently, each `delete.log` row tagged with its server (`← host`), the local copy trashed once.
-- **2.4.17** — multi-profile + polish. **Each profile is its own root in the server tree**: every server is visible at once, browse any without "Set Profile" — an action on a node runs against its server, not the active profile (label = profile name, host alongside; toggle off via `profilesAsRoots`). **`uploadOnSave` is now per-profile** — each profile has its own `true`/`false` (or inherits the base); a save uploads to **every profile whose effective value is `true`** (a base `true` reaches all — a fleet of mirrors; set a profile's to `false` to skip it). And **"Upload … To All Profiles" is now addressed**: `upload.log` shows each row's destination host, failures get their own **`✖ host: reason`** line (permission/space/network), an "N ok, M failed" tally up top, and the server is named right in the error message. From a follow-up review: a save to several profiles now **names the failed server right away** (a partial success is a warning), SFTP errors gained hints for **Permission denied** and "no such path", plus smaller fixes (a temp-file leak from `diff`, FTP symlinks no longer vanishing silently, a closed `sshCustomParams` bypass).
-- **2.4.13** — sizes & MD5 in the tree + a save fix for symlinked / subst drives. The server explorer gains two toggles: **show sizes** for files and folders and **sort by size** (folder sizes via one server-side `du`, in the background — the tree never blocks). A new **"Size & MD5"** report on right-click (in the server tree and the local Explorer): size on both sides + **MD5** locally and on the server + a **✓/✗** verdict; folder MD5 is opt-in; a clear "NOT FOUND on server". Our **Delete (server / local / both)** is now available from the local Explorer too — idempotent, with a permanent-delete fallback when the OS trash is unavailable. And the headline fix: **`uploadOnSave` no longer fails with "Config Not Found"** on projects opened through a symlink (Linux/macOS) or a subst / mapped drive (Windows).
-- **2.3.1** — operation visibility. A **byte progress bar** for right-click uploads/downloads ("45 MB / 200 MB" + **Cancel**) — a big file no longer transfers in silence. After a download, text opens at once while binaries / files **over 10 MB** ask first — VS Code no longer freezes on an exe or video. An **operation report** `delete/upload/download.log` after right-click actions: what and where, size, date, permissions; for deletes it shows where the local and server copies differ. Optional skipping of files over a threshold during folder transfers (`maxFileSize`). Folder delete runs file-by-file, with progress and cancel.
-- **2.2.1** — connect to **legacy SSH servers** with obsolete key exchange (`diffie-hellman-group1-sha1` and friends). These used to fail with `Unknown DH group` because VS Code's crypto backend (Electron/BoringSSL) lacks classic Diffie-Hellman; the extension now computes the key exchange itself when the backend refuses. Modern connections are untouched. Enable it explicitly in the config: `"algorithms": { "kex": { "append": ["diffie-hellman-group1-sha1"] } }`.
-- **2.2.0** — reliability & security. Fixed **Sync Both Directions**: files and folders that are newer or exist only on the server now actually download to your computer (that half used to silently do nothing). An upload no longer empties the file on the server when the local source can't be read. A case-only rename (`foo`→`Foo`) works on case-insensitive servers. Connections from every profile are closed when the config changes. Security hardening: `CR`/`LF` rejected in names (guards against FTP command injection), passwords masked in logs including nested profiles and hops, and updates download only from GitHub over HTTPS. The tree hover now shows **permissions**; names are validated when creating a file/folder.
-- **2.1.0** — permissions: a **"Change Permissions (chmod)"** command in the tree context menu (presets `644`/`755`/… + recursive for folders) and a hover tooltip with **size and date** on files. Fixed: explicit Create/Delete are no longer blocked by the `ignore` filter (files matched by a rule like `*.txt` create/delete again), and a new folder shows as a folder, not a file.
-- **2.0.9** — removed the redundant "download?" prompt when opening a file from the server tree: the click already fetched it via "Edit in Local", so the duplicate question (with a useless "No") is gone.
-- **2.0.8** — fixed download-on-open (`downloadOnOpen`): it no longer tries to download the config itself or files absent on the server (no more "No such file"), and asks only when there is something to fetch. The config field descriptions (template + hover) are now clear (`ignore`, `syncOption`, `profiles`, `remoteExplorer`, `downloadOnOpen`).
-- **2.0.7** — the config is created **on request**: WireFerry asks whether a project needs SFTP/FTP (with a "don't ask in this project" option) instead of creating it silently; delete the config and it asks again. The template follows `wireferry.alertLanguage`. Right-click a folder in the Explorer → **WireFerry: Config**.
-- **2.0.6** — legacy `sftp.*` compatibility: old settings work again (read as `wireferry.*`). On startup WireFerry checks your `settings.json` and config and points out, with line numbers, what to rename (`sftp.*` → `wireferry.*`) or remove; it can fix `settings.json` automatically and offer to rename `.vscode/sftp.json` to `wireferry.json`. Configs now allow comments (JSONC), and a fully-commented template is created for new projects. Added an opt-in GitHub update check (one HTTPS request, only after you agree, no telemetry) and a **"Check for Updates"** command. Plus a `wireferry.alertLanguage` setting and a persistent report tab for the config doctor.
-- **2.0.5** — deleting from the server tree now asks *where* to delete: **on the server**, **on the computer**, or **on both** (the local copy goes to the OS trash, it is not erased). Creating a folder whose name already exists now shows a clear message instead of "Failure". SFTP errors are more readable: status 4 is decoded and the failing operation and path are appended. Manuals updated (README/INSTALL/FAQ).
-- **2.0.4** — fixed `ignore` rules on mixed-case Windows paths (a 2.0.3 regression — `node_modules`/`.git` could be uploaded to the server); the `local` protocol is now in the config schema; documentation clarifications.
-- **2.0.3** — fixed upload-on-save on Windows network (UNC) paths (`\\server\…`): no more "Config Not Found". Sync now waits for file deletions to finish; documentation & settings-schema fixes.
-- **2.0.2** — Russian localization of commands & settings (for Russian VS Code) + an "Open Extension Page" item in the server context menu.
-- **2.0.1** — new side-panel icon (Activity Bar / Remote Explorer).
-- **2.0.0** — new name: **WireFerry**. New icon, commands & settings moved to the `wireferry.*` prefix, and config is now `.vscode/wireferry.json` (legacy `.vscode/sftp.json` still read). Update any custom `sftp.*` keybindings/settings to `wireferry.*`.
-- **1.1.2** — maintenance release: security hardening (validates server-sent filenames and SSH connection fields).
-- **1.1.1** — rename & move: "Rename" on the server via right-click, auto-sync when you rename/move a file locally, and drag&drop files between folders right in the server tree. Plus a large dependency & toolchain update (minimum VS Code is now 1.66).
-- **1.0.9** — open a server file by its full path with one button.
-- **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
-- **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
-- **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
-
-Полный список изменений: [CHANGELOG.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/CHANGELOG.md).
-
-## Возможности
-
-- **SFTP через SSH**: логин по паролю, приватному ключу, passphrase-диалог, ssh-agent/Pageant, keyboard-interactive authentication.
-- **Безопасная авторизация (2.5.0)**: генерация SSH-ключа и деплой на сервер по ПКМ, пароли/passphrase в системном хранилище ОС (`"secretStorage"`), запрос каждый раз (`"prompt"`), удаление сохранённых паролей — всё без правки JSON.
-- **FTP и FTPS**: обычный FTP, TLS-режимы `secure`, passive mode.
-- **Local protocol**: синхронизация с другой папкой на той же машине без серверного подключения.
-- **Upload / Download**: файл, активный файл, папка, активная папка, весь проект.
-- **Upload on save**: выгрузка файла на сервер при сохранении в VS Code.
-- **File watcher**: автозагрузка файлов, изменённых вне редактора.
-- **Sync**: локально -> сервер, сервер -> локально, обе стороны.
-- **Diff**: сравнение локальной версии с удалённой.
-- **Remote Explorer**: дерево удалённых файлов в Activity Bar.
-- **Операции на сервере**: создать файл/папку, переименовать, удалить, скопировать путь, открыть по полному пути.
-- **Несколько профилей**: переключение серверов и команды выгрузки во все профили.
-- **Connection hopping**: подключение к целевому SFTP-серверу через промежуточные SSH-хосты.
-- **Ignore rules**: исключение `.git`, `node_modules`, временных файлов и пользовательских шаблонов.
-- **Open SSH in Terminal**: открыть SSH-подключение к настроенному серверу из VS Code.
-
-## Где находятся GitHub Releases
-
-GitHub Releases — это страница готовых выпусков проекта:
-
-<https://github.com/e-u-shapovalov/vscode-sftp/releases/latest>
-
-На странице релиза найдите блок **Assets**. В нём должен быть файл вида:
-
-```text
-wireferry-<version>.vsix
-```
-
-Именно этот файл устанавливается в VS Code. Архивы **Source code (zip)** и **Source code (tar.gz)** не являются готовым расширением.
-
-## Установка через командную строку
-
-Если команда `code` доступна в терминале:
-
-```bash
-code --install-extension wireferry-<version>.vsix
-```
-
-Запускайте команду из папки, куда скачан `.vsix`, или укажите полный путь к файлу.
-
-## Примеры конфигурации
-
-### SFTP с приватным ключом
-
-```json
-{
-  "name": "VPS",
-  "host": "203.0.113.10",
-  "protocol": "sftp",
-  "port": 22,
-  "username": "deploy",
-  "privateKeyPath": "~/.ssh/id_rsa",
-  "passphrase": true,
-  "remotePath": "/var/www/app",
-  "uploadOnSave": true,
-  "ignore": [".git", "node_modules", "*.log"]
-}
-```
-
-### FTPS
-
-```json
-{
-  "name": "Hosting",
-  "host": "ftp.example.com",
-  "protocol": "ftp",
-  "port": 21,
-  "secure": true,
-  "passive": true,
-  "username": "user",
-  "remotePath": "/public_html"
-}
-```
-
-### Несколько профилей
-
-```json
-{
-  "defaultProfile": "stage",
-  "profiles": {
-    "stage": {
-      "name": "Stage",
-      "host": "stage.example.com",
-      "protocol": "sftp",
-      "username": "deploy",
-      "remotePath": "/var/www/stage"
-    },
-    "production": {
-      "name": "Production",
-      "host": "example.com",
-      "protocol": "sftp",
-      "username": "deploy",
-      "remotePath": "/var/www/site"
-    }
-  }
-}
-```
-
-### Синхронизация с локальной папкой
-
-```json
-{
-  "name": "Local mirror",
-  "protocol": "local",
-  "host": "localhost",
-  "username": "local",
-  "remotePath": "D:/mirror/site"
-}
-```
-
-Для `local` поля `host` и `username` пока нужны валидатору, но не используются для подключения.
-
-## Основные команды
-
-Команды доступны через `Ctrl+Shift+P`, контекстное меню проводника VS Code и Remote Explorer:
-
-| Команда | Что делает |
+| Command | Purpose |
 | --- | --- |
-| `WireFerry: Config` | создаёт или открывает `.vscode/wireferry.json` |
-| `WireFerry: Set Profile` | выбирает активный профиль |
-| `WireFerry: Upload Active File` | выгружает текущий файл |
-| `WireFerry: Upload Changed Files` | выгружает файлы, изменённые в Git; горячая клавиша `Ctrl+Alt+U` |
-| `WireFerry: Upload Project` | выгружает весь проект |
-| `WireFerry: Download Project` | скачивает удалённую папку проекта |
-| `WireFerry: Sync Local -> Remote` | синхронизирует локальную папку на сервер |
-| `WireFerry: Sync Remote -> Local` | синхронизирует серверную папку локально |
-| `WireFerry: Sync Both Directions` | оставляет новые версии файлов на обеих сторонах |
-| `WireFerry: Diff Active File with Remote` | сравнивает текущий файл с сервером |
-| `WireFerry: Open SSH in Terminal` | открывает SSH к серверу в терминале VS Code |
-| `WireFerry: Cancel All Transfers` | останавливает текущие передачи |
-| `Get Folder Size…` (ПКМ по папке в дереве) | считает размер папки (сервер через `du`, локаль через Node fs) и открывает отчёт-вкладку |
+| `WireFerry: Config` | Run the setup wizard or open the existing configuration |
+| `WireFerry: Upload Active File` | Upload the file open in the editor |
+| `WireFerry: Upload Changed Files` | Upload files changed in Git; default shortcut: `Ctrl+Alt+U` |
+| `WireFerry: Upload Project` | Upload everything under the configured `context` |
+| `WireFerry: Download Project` | Download the configured remote project |
+| `WireFerry: Sync Local -> Remote` | Synchronize from the local folder to the server |
+| `WireFerry: Sync Remote -> Local` | Synchronize from the server to the local folder |
+| `WireFerry: Sync Both Directions` | Copy newer files in both directions |
+| `WireFerry: Diff Active File with Remote` | Compare the active local file with its remote copy |
+| `WireFerry: Open SSH in Terminal` | Open an SSH session for the configured SFTP server |
+| `WireFerry: Cancel All Transfers` | Stop current upload and download operations |
 
-Подробный список: [docs/commands.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/docs/commands.md).
+See [docs/commands.md](docs/commands.md) for the full command and context-menu reference.
 
-## Важные ограничения
+## Authentication and safety
 
-- `password` в `.vscode/wireferry.json` хранится открытым текстом. Для SFTP лучше использовать приватный ключ или не указывать пароль, чтобы WireFerry спросил его при подключении.
-- `remoteTimeOffsetInHours` сейчас описан в схеме, но не применяется в transfer pipeline. Не рассчитывайте на него для точной синхронизации по времени.
-- Для `ftp` параметр `concurrency` принудительно равен `1`, даже если в конфиге указано другое значение.
-- Не включайте одновременно `uploadOnSave: true` и `watcher.autoUpload: true` на один и тот же набор файлов: это может привести к двойной выгрузке одного сохранения.
-- Удаление и синхронизация с `syncOption.delete` требуют осторожности: проверяйте `remotePath`, `context` и `ignore`, чтобы не затронуть лишние файлы.
+- Prefer an SSH key for SFTP where the server supports it.
+- `"password": "secretStorage"` stores the password through VS Code SecretStorage instead of in the project file.
+- `"password": "prompt"` asks for the password on each connection and does not save it.
+- A literal password in `.vscode/wireferry.json` is plaintext. Do not commit it.
+- Review `context`, `remotePath`, `ignore` and `syncOption` before enabling deletion during synchronization.
+- Workspace Trust is required; the extension declares untrusted workspaces unsupported.
 
-## FAQ
+The server context menu also provides commands to generate an SSH key, save a password to SecretStorage and delete saved credentials.
 
-### Что скачивать: `.vsix`, `Source code` или `Code -> Download ZIP`?
+## Known limitations
 
-Для установки скачивайте только `.vsix` из **Releases -> Assets**. `Source code` и `Code -> Download ZIP` — это исходники для разработчиков.
+- Visual Studio Code 1.66 or newer is required.
+- WireFerry runs inside desktop VS Code; it is not a standalone GUI or command-line client.
+- `remoteTimeOffsetInHours` is present in the configuration schema but is not currently applied by the transfer pipeline.
+- FTP transfers force `concurrency` to `1`.
+- Enabling both `uploadOnSave` and `watcher.autoUpload` for the same files can cause duplicate uploads.
+- Synchronization can overwrite or delete files depending on `syncOption`; test a new configuration on non-critical data first.
 
-### Где находится установленное расширение?
+Known bugs and inherited technical debt are tracked in [ROADMAP.md](ROADMAP.md).
 
-В VS Code откройте **Extensions / Расширения** и найдите **WireFerry**. Если расширение установлено из `.vsix`, оно отображается так же, как обычные расширения.
+## Troubleshooting
 
-### Как понять, что WireFerry видит мой проект?
+### WireFerry commands do not appear
 
-В проекте должен быть `.vscode/wireferry.json` или legacy-файл `.vscode/sftp.json`. После этого команды WireFerry появляются в палитре команд и контекстных меню.
-
-### Можно ли скачать существующий сайт с сервера?
-
-Да. Откройте пустую локальную папку, создайте конфиг с правильным `remotePath`, затем выполните **WireFerry: Download Project**.
-
-### Можно ли выгружать только папку `dist` или `build`?
-
-Да. Укажите `context`, например `"context": "./dist"`. Тогда содержимое этой папки будет сопоставлено с `remotePath`.
-
-### Что лучше: SFTP, FTP или FTPS?
-
-Если сервер поддерживает SFTP, обычно выбирайте `protocol: "sftp"`: он работает поверх SSH. FTP используйте только когда сервер не даёт SFTP. Для FTP с TLS включайте `secure`.
-
-### Где английская версия README?
-
-Английская версия: [README.en.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/README.en.md).
-
-Больше вопросов и решений: [FAQ.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/FAQ.md).
-
-## Устранение проблем
+Confirm that the extension is installed and enabled, a trusted project folder is open, and the project contains `.vscode/wireferry.json` or legacy `.vscode/sftp.json`. Run **WireFerry: Config** to create a configuration.
 
 ### `Config Not Found`
 
-Проверьте, что вы открыли именно папку проекта, а конфиг лежит внутри неё: `.vscode/wireferry.json`. Если файл находится выше или ниже открытой папки, расширение не сможет сопоставить локальный путь с сервером.
+Open the project root rather than a single file. The configuration must be inside the opened folder, and the current file must be within the configured `context`.
 
-### Файлы выгружаются не туда
+### Files are transferred to the wrong directory
 
-Проверьте пару `context` + `remotePath`. `context` отвечает за локальную подпапку, `remotePath` — за удалённую папку на сервере.
+Check both `context` and `remotePath`: they define the local and remote roots that WireFerry maps to each other.
 
-### На сервер ушёл `node_modules` или `.git`
+### Unwanted files were uploaded
 
-Добавьте исключения:
+Add patterns such as `.git`, `node_modules` and `*.log` to `ignore`, or point `ignoreFile` at an appropriate gitignore-format file.
 
-```json
-{
-  "ignore": [".git", "node_modules", ".DS_Store", "*.log"]
-}
-```
+### I need connection details
 
-В версии 2.0.4 исправлена регрессия с `ignore` на Windows-путях со смешанным регистром.
+Enable `wireferry.debug` in VS Code settings, reload the window and open **View → Output → WireFerry**. The detailed [FAQ](FAQ.md) covers common SFTP errors, old SSH servers, ignore rules and macOS file-watch limits.
 
-### Нужны подробные логи
+## For developers
 
-В настройках VS Code включите `wireferry.debug`, перезагрузите окно и откройте **View -> Output -> WireFerry**.
-
-### SFTP пишет `Connection closed`
-
-На старых серверах может потребоваться явный список SSH-алгоритмов. См. готовый пример в [FAQ.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/FAQ.md#error-connection-closed).
-
-## Разработчикам
-
-Требуется Node.js и npm.
+The repository contains a TypeScript extension bundled by Webpack. Its runtime entry point is `src/extension.ts`, compiled to `dist/extension.js`. The exact minimum Node.js/npm version is not declared; use a current supported Node.js release.
 
 ```bash
 git clone https://github.com/e-u-shapovalov/vscode-sftp.git
 cd vscode-sftp
 npm install
 npm run compile
+npm test
+npx tsc --noEmit
 ```
 
-Полезные команды:
+Development watch mode:
 
 ```bash
 npm run dev
-npm test
-npx tsc --noEmit
-npx @vscode/vsce package
 ```
 
-После упаковки появится файл вида `wireferry-<version>.vsix`. Его можно установить локально:
+Build and install a local package:
 
 ```bash
+npx @vscode/vsce package
 code --install-extension wireferry-<version>.vsix
 ```
 
-Правила участия в разработке: [CONTRIBUTING.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/CONTRIBUTING.md). Планы и известные технические долги: [ROADMAP.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/ROADMAP.md).
+`npx @vscode/vsce package` creates the same package type used by GitHub Releases. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution checks.
 
-## SEO и поисковые фразы
+## FAQ
 
-WireFerry закрывает реальные поисковые сценарии: **SFTP extension for VS Code**, **FTP deploy from Visual Studio Code**, **VS Code SFTP sync**, **upload on save to server**, **remote file explorer for VS Code**, **синхронизация файлов по SFTP в VS Code**, **FTP-клиент для VS Code**, **выгрузка сайта на хостинг из VS Code**, **сравнить локальный файл с файлом на сервере**, **деплой проекта через SFTP/FTPS**.
+### What should I download?
 
-Эти фразы описывают фактические функции расширения и помогают найти проект пользователям, которым нужен не архив исходников, а готовый инструмент для передачи файлов.
+Download `wireferry-<version>.vsix` from the **Assets** section of the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Source archives are for development and cannot be installed as the packaged extension.
 
-## English
+### Does WireFerry include a standalone FTP client or CLI?
 
-WireFerry is a VS Code extension for SFTP, FTP and FTPS file sync, upload, download and remote-server browsing. Download the ready-to-install `.vsix` from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest), then install it via **Extensions -> ... -> Install from VSIX...**.
+No. WireFerry runs inside Visual Studio Code. The optional `code --install-extension` command only asks VS Code to install the `.vsix`.
 
-Full English README: [README.en.md](https://github.com/e-u-shapovalov/vscode-sftp/blob/develop/README.en.md).
+### Can it upload a website when I save a file?
 
-## Обратная связь
+Yes. Set `uploadOnSave` for the relevant configuration or profile. Check `context`, `remotePath` and `ignore` first so the intended local files map to the intended server directory.
 
-- Ошибки и предложения: <https://github.com/e-u-shapovalov/vscode-sftp/issues>
-- Релизы: <https://github.com/e-u-shapovalov/vscode-sftp/releases>
-- Репозиторий: <https://github.com/e-u-shapovalov/vscode-sftp>
+### Can it download an existing website?
 
-## История и лицензия
+Yes. Open an empty local folder, configure the correct remote root, and run **WireFerry: Download Project**. Back up important remote data before experimenting with synchronization options.
 
-WireFerry — независимо поддерживаемый форк [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), который сам является форком [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). Основа форка — upstream `v1.16.3`; дальше проект развивается отдельно.
+### Is this the original `vscode-sftp` extension?
 
-Лицензия: [MIT](LICENSE). Copyright for the fork © 2026 Evgenii Shapovalov; original copyright notices are preserved in the license as required by MIT.
+No. WireFerry is an independently maintained fork and is not presented as the original project. Its lineage is `Natizyskunk/vscode-sftp` ← `liximomo/vscode-sftp`; this fork started from upstream `v1.16.3` and has since developed separately under a new name and publisher.
+
+## Support and license
+
+- Report bugs or request features in [GitHub Issues](https://github.com/e-u-shapovalov/vscode-sftp/issues).
+- Download releases from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
+- Review user-visible changes in the [Changelog](CHANGELOG.md).
+
+WireFerry is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov) and licensed under the [MIT License](LICENSE). The original copyright and attribution notices are preserved in `LICENSE`.

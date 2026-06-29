@@ -102,7 +102,7 @@ List all remote files reachable from the configuration `remotePath`.
 
 ### Get Folder Size…
 
-![Remote Explorer folder context menu](../assets/showcase/folder-context-menu.png)
+![Remote Explorer folder context menu](../assets/showcase/folder-context-menu-2.5.4.png)
 
 Right-click a folder in the Remote Explorer to total its size. Opens a `folder-size.txt` report tab
 with the server path, permissions and size, plus — if the folder is downloaded locally — the local

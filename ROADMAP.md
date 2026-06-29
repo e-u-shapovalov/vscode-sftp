@@ -14,28 +14,30 @@ suite runs. Only the runtime-dep bumps (step 3) remain:
    webpack updated, `skipLibCheck` set). `tslint` → eslint migration is still optional.
 2. ✅ **Tests run** — `test/preprocessor.js` returns `{ code }` for jest@29; the stale
    `syncMode` / `watcher.autoDelete` assertions are gone. (One test is `skip`ped — see below.)
-3. **Only then** move runtime deps, one at a time with the (now working) tests green:
-   `fs-extra` 10 → 11, `joi` 10 → 18 (**breaking**: `Joi.validate` was removed — `config.ts:126`
-   needs rewriting), evaluate replacing the ancient `ftp@0.3.10` with `basic-ftp`.
-   `ssh2` is already at latest (1.17).
+3. **Runtime deps, one at a time with tests green.**
+   ✅ `joi` 10.6.0 → 17.13.4 is done in 2.5.5: the removed `Joi.validate` API was migrated to a
+   compiled schema instance, the production schema was isolated for direct tests, and the vulnerable
+   old `hoek` / `topo` chain is gone. Joi 18 is not suitable while VS Code 1.66 / Node 16 remains the
+   compatibility floor because Joi 18 requires Node 20. Remaining: `fs-extra` 10 → 11 and evaluate
+   replacing the ancient `ftp@0.3.10` with `basic-ftp`. `ssh2` is already at latest (1.17).
 
 Snapshot (for reference): typescript 3.9.7→6.x, @types/node 9→25.x, @types/vscode 1.40→1.120 (engines
-^1.64.2), jest 29→30, webpack ^5.0.0→5.107, ts-loader 9.4→9.6, fs-extra 10.1→11.3, joi 10.6→18.2.
+^1.64.2), jest 29→30, webpack ^5.0.0→5.107, ts-loader 9.4→9.6, fs-extra 10.1→11.3. Joi is now
+17.13.4; 18.x remains blocked by its Node 20 floor.
 
 ## High value (1.1)
 - **Shared task Scheduler per FileService.** ✅ `createTransferScheduler` builds a *new* `Scheduler`
   per transfer call, so a watcher touching N files can open N concurrent transfers instead of
   honoring `concurrency`. Move the scheduler to a single per-service queue. Risk: server IP bans /
   crashes under load.
-- **`MAX_OPEN_FD_NUM` is a module-global** (`sshClient.ts:9`). ✅ Multiple profiles with different
-  `limitOpenFilesOnRemote` overwrite each other. Make it an instance field of `SSHClient`.
-- **Explorer "View Content" reads the whole file into RAM** (`treeDataProvider.ts:231`,
-  `buffer.toString()`). ✅ OOM / event-loop hang on huge files. Add a size cap or stream to a temp
-  file.
+- ✅ **`MAX_OPEN_FD_NUM` is now an `SSHClient` instance field.** Profiles no longer overwrite each
+  other's `limitOpenFilesOnRemote`.
+- ✅ **Explorer preview has a hard byte cap.** Unknown-size and oversized files are refused before
+  they can be buffered into RAM.
 
 ## Medium
-- **Secrets in `SecretStorage`.** Passwords currently live in plaintext in `sftp.json`. Adopt VS Code
-  `SecretStorage` for credentials.
+- ✅ **Secrets in `SecretStorage`.** Passwords and key passphrases can use VS Code SecretStorage;
+  plaintext and prompt modes remain available for compatibility and explicit user choice.
 - ✅ **FIXED: `bothDiretions` typo renamed** to `bothDirections` across `transfer.ts`,
   `fileCommandSyncBothDirections.ts` and the tests. It was internal and consistent (users never typed
   it in JSON; the command id `wireferry.sync.bothDirections` was always correct), so this was cosmetic.
@@ -45,9 +47,7 @@ Snapshot (for reference): typescript 3.9.7→6.x, @types/node 9→25.x, @types/v
 ## Lower
 - **FTP `lstat` is O(N)** — lists the whole parent dir to stat one file; slow in large folders.
 - **`_limitSftpFileDescriptor` monkey-patches `ssh2` internals** — fragile across `ssh2` upgrades.
-- **Upgrade `@types/vscode` 1.40 → 1.64** to match `engines`. Touches ~5 legacy spots (readonly
-  arrays, `EventEmitter.fire()` arity, `Uri` types). For now `onDidDeleteFiles` is reached via a
-  small typed handle in `extension.ts` to avoid that churn in the release.
+- ✅ **`@types/vscode` now matches the VS Code 1.66 engine floor.**
 - Switch ssh-config lookup to `.compute()` for full `Include`/`Match` support.
 
 ## Correctness & error handling
@@ -57,10 +57,8 @@ Two related blockers were **fixed in 1.0.0** (sshClient `.on('close', this.end()
 - ✅ **FIXED (1.1.1): Upload Changed Files now awaits its work.** Previously
   (`commandUploadChangedFiles.ts:98,116`) the `map()` callbacks didn't return the promises, so
   upload/rename/delete were fire-and-forget and async errors were swallowed.
-- **`createCommand` swallows errors.** ✅ `createCommand.ts:40` doesn't `return handleCommand.apply(...)`,
-  so `Command.run()`'s `await` resolves before the work and `try/catch` never sees async errors. This
-  is the root cause beneath the fire-and-forget item above; affects all normal commands (config,
-  setProfile, uploadChangedFiles…). One-line change but touches every normal command — verify.
+- ✅ **`createCommand` returns async work.** `Command.run()` now waits for normal commands and can
+  route their failures through the command error handler.
 - ✅ **FIXED (1.1.1): `renameRemote` rewritten.** It previously used a local path as the remote path
   (`rename.ts:9`) and the caller swapped old/new (`commandUploadChangedFiles.ts:108`), so git-rename
   sync was broken. The handler was rewritten to keep local and remote paths separate.
@@ -73,8 +71,8 @@ Two related blockers were **fixed in 1.0.0** (sshClient `.on('close', this.end()
   mtime comparison does not account for the offset (a re-sync re-uploads an already-synced file).
   Re-enable the option and make the comparison offset-aware together; the `sync --update with time
   offset` test is `skip`ped until then.
-- **"Upload to all profiles" confirm** only covers `file`/`folder`, not `activeFile`/`activeFolder`/
-  `project`/`forceUpload` (`createCommand.ts:55,89`).
+- ✅ **Every "Upload to all profiles" variant confirms**, including active file/folder, project and
+  force upload.
 - **Inverted context menu** for `downloadWhenOpenInRemoteExplorer` (`treeDataProvider.ts:124` vs
   `package.json` menu `when`).
 - ✅ **FIXED: delete/chmod in sync are now awaited** (`transfer.ts`). Deletions are collected into the
@@ -90,12 +88,10 @@ Spot-checked against the code. All inherited from upstream unless noted.
 - ✅ **FIXED: `isSubpathOf` / `isInWorkspace` now append `path.sep` before comparing** (`paths.ts`), so
   `/foo` is no longer treated as a parent of `/foo-bar`. (`isSubpathOf` is currently unused, but kept
   correct.)
-- **`hashOption` stringifies values with `join('')`** (`remoteFs.ts:14`) — object values become
-  `[object Object]`, key order isn't stable → connection-reuse collisions. Hash deterministically.
-- **FTP `chmod` raw-command injection** (`ftpFileSystem.ts:142`) — `path` is interpolated unescaped
-  into `CHMOD ...`. FTP-only; escape/validate.
-- **`symlink` settles twice** (`sftpFileSystem.ts:255-259`) — `reject(err)` then `resolve()`. `reject`
-  wins so the error isn't lost, but add `return` after reject.
+- ✅ **Connection identities are deterministic and secret-free.** Nested objects and key order no
+  longer collide, and credentials are excluded from the long-lived cache key.
+- ✅ **FTP raw-command paths are validated**, including the `SITE CHMOD` path.
+- ✅ **SFTP symlink callbacks settle once** and return immediately after rejection.
 - **Double upload: `uploadOnSave` ⊕ `watcher.autoUpload`.** `fileActivityMonitor` (onSave) and
   `fileWatcher` (onDidChange) both upload the same Ctrl+S — two concurrent `put`s to one remote path,
   no shared lock; paths differ (save uses `realpathSync.native`, watcher doesn't) so they don't even
@@ -115,8 +111,8 @@ Spot-checked against the code. All inherited from upstream unless noted.
 - Security: path-traversal from a malicious server's listing (`uResource`/`treeDataProvider`); SSH
   hop `forwardOut` as open proxy. Lower priority but note for a hardening pass.
 
-Investigated and **not** bugs (don't re-file): symlink double-settle (reject wins, cosmetic only), and
-the service trie longest-prefix lookup (token-split, correct).
+Investigated and **not** a bug (don't re-file): the service trie longest-prefix lookup is
+token-split and correct.
 
 ## Architecture — the highest-leverage fix
 A single **per-service transfer pipeline**: route every source (save, watcher, command, delete)

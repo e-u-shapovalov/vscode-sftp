@@ -1,308 +1,100 @@
-const Joi = require('joi');
+const { validateConfig } = require('../src/modules/configValidation');
 
-const nullable = schema => schema.optional().allow(null);
+function validConfig(overrides = {}) {
+  return {
+    host: 'host',
+    port: 22,
+    username: 'username',
+    protocol: 'sftp',
+    remotePath: '/',
+    ignore: ['**/.vscode', '**/.git', '**/.DS_Store'],
+    ...overrides,
+  };
+}
 
-const configScheme = {
-  context: Joi.string(),
-  protocol: Joi.any().valid('sftp', 'ftp', 'test'),
+function expectValid(config) {
+  expect(validateConfig(config)).toBeUndefined();
+}
 
-  host: Joi.string().required(),
-  port: Joi.number().integer(),
-  username: Joi.string().required(),
-  password: nullable(Joi.string()),
+function expectInvalid(config) {
+  expect(validateConfig(config)).toBeDefined();
+}
 
-  agent: nullable(Joi.string()),
-  privateKeyPath: nullable(Joi.string()),
-  passphrase: nullable(Joi.string().allow(true)),
-  interactiveAuth: Joi.alternatives([
-    Joi.boolean(),
-    Joi.array()
-      .items(Joi.string()),
-  ]).optional(),
-
-  secure: Joi.any().valid(true, false, 'control', 'implicit').optional(),
-  secureOptions: nullable(Joi.object()),
-  passive: Joi.boolean().optional(),
-
-  remotePath: Joi.string().required(),
-  uploadOnSave: Joi.boolean().optional(),
-  useTempFile: Joi.boolean().optional(),
-  openSsh: Joi.boolean().optional(),
-  ignore: Joi.array()
-    .min(0)
-    .items(Joi.string()),
-  watcher: {
-    files: Joi.string()
-      .allow(false, null)
-      .optional(),
-    autoUpload: Joi.boolean().optional(),
-  },
-};
-
-describe("validation config", () => {
-  test("default config", () => {
-    const config = {
-      host: 'host',
-      port: 22,
-      username: 'username',
-      password: null,
-      protocol: 'sftp',
-      agent: null,
-      privateKeyPath: null,
-      passive: false,
-      interactiveAuth: false,
-
-      remotePath: '/',
-      uploadOnSave: false,
-
-      useTempFile: false,
-      openSsh: false,
-
-
-      watcher: {
-        files: false,
-        autoUpload: false,
-      },
-
-      ignore: [
-        '**/.vscode',
-        '**/.git',
-        '**/.DS_Store',
-      ],
-    };
-
-    const result = Joi.validate(config, configScheme, {
-      convert: false,
-    });
-    expect(result.error).toBe(null);
+describe('configuration validation', () => {
+  test('accepts a complete configuration', () => {
+    expectValid(
+      validConfig({
+        password: null,
+        agent: null,
+        privateKeyPath: null,
+        passive: false,
+        interactiveAuth: false,
+        uploadOnSave: false,
+        useTempFile: true,
+        openSsh: false,
+        watcher: {
+          files: false,
+          autoUpload: false,
+        },
+      })
+    );
   });
 
-  test("partial config", () => {
-    const config = {
-      host: 'host',
-      port: 22,
-      username: 'username',
-      protocol: 'sftp',
-
-      remotePath: '/',
-
-
-      watcher: {},
-
-      ignore: [
-        '**/.vscode',
-        '**/.git',
-        '**/.DS_Store',
-      ],
-    };
-
-    let result = Joi.validate(config, configScheme, {
-      convert: false,
-    });
-    expect(result.error).toBe(null);
-
-    delete config.watcher;
-    result = Joi.validate(config, configScheme, {
-      convert: false,
-    });
-    expect(result.error).toBe(null);
+  test('accepts partial optional settings and unknown compatibility keys', () => {
+    expectValid(validConfig({ watcher: {} }));
+    expectValid(validConfig({ compatibilityExtensionField: 'kept' }));
   });
 
-  describe("key validaiton", () => {
-    test("protocol must be one of ['sftp', 'ftp']", () => {
-      const config = {
-        host: 'host',
-        port: 22,
-        username: 'username',
-        protocol: 'unknown',
-        passive: false,
-        interactiveAuth: false,
+  test.each(['sftp', 'ftp', 'local'])('accepts protocol %s', protocol => {
+    expectValid(validConfig({ protocol }));
+  });
 
-        remotePath: '/',
-        uploadOnSave: false,
+  test('rejects an unknown protocol', () => {
+    expectInvalid(validConfig({ protocol: 'unknown' }));
+  });
 
-        useTempFile: false,
-        openSsh: false,
+  test('does not coerce port strings and enforces the valid port range', () => {
+    expectInvalid(validConfig({ port: '22' }));
+    expectInvalid(validConfig({ port: 0 }));
+    expectInvalid(validConfig({ port: 65536 }));
+    expectValid(validConfig({ port: 1 }));
+    expectValid(validConfig({ port: 65535 }));
+  });
 
+  test('watcher files must be false, null, or a glob string', () => {
+    expectValid(validConfig({ watcher: { files: false, autoUpload: false } }));
+    expectValid(validConfig({ watcher: { files: '**/*.js', autoUpload: true } }));
+    expectValid(validConfig({ watcher: { files: null } }));
+    expectInvalid(validConfig({ watcher: { files: true } }));
+  });
 
-        watcher: {
-          files: false,
-          autoUpload: false,
-        },
+  test('ignore must contain strings', () => {
+    expectInvalid(validConfig({ ignore: [1, '**/.git'] }));
+    expectValid(validConfig({ ignore: [] }));
+  });
 
-        ignore: [
-          '**/.vscode',
-          '**/.git',
-          '**/.DS_Store',
-        ],
-      };
+  test('passphrase accepts strings, true, and null but rejects false', () => {
+    expectValid(validConfig({ passphrase: 'secretStorage' }));
+    expectValid(validConfig({ passphrase: true }));
+    expectValid(validConfig({ passphrase: null }));
+    expectInvalid(validConfig({ passphrase: false }));
+  });
 
-      const result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).not.toBe(null);
-    });
+  test('interactive authentication accepts a boolean or string answers', () => {
+    expectValid(validConfig({ interactiveAuth: false }));
+    expectValid(validConfig({ interactiveAuth: ['answer one', 'answer two'] }));
+    expectInvalid(validConfig({ interactiveAuth: [1] }));
+    expectInvalid(validConfig({ interactiveAuth: 'yes' }));
+  });
 
-    test("watcher files must be false or string", () => {
-      const config = {
-        host: 'host',
-        port: 22,
-        username: 'username',
-        protocol: 'sftp',
-        passive: false,
-        interactiveAuth: false,
+  test('uploadOnSave remains a boolean for profile fan-out', () => {
+    expectValid(validConfig({ uploadOnSave: true }));
+    expectValid(validConfig({ uploadOnSave: false }));
+    expectInvalid(validConfig({ uploadOnSave: 'allProfiles' }));
+  });
 
-        remotePath: '/',
-        uploadOnSave: false,
-
-        useTempFile: false,
-        openSsh: false,
-
-
-        watcher: {
-          files: false,
-          autoUpload: false,
-        },
-
-        ignore: [
-          '**/.vscode',
-          '**/.git',
-          '**/.DS_Store',
-        ],
-      };
-
-      let result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-
-      config.watcher.files = '**/*.js';
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-
-      config.watcher.files = null;
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-
-      config.watcher.files = true;
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).not.toBe(null);
-
-      delete config.watcher;
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-    });
-
-    test("ignore must be an array of string", () => {
-      const config = {
-        host: 'host',
-        port: 22,
-        username: 'username',
-        protocol: 'sftp',
-        passive: false,
-        interactiveAuth: false,
-
-        remotePath: '/',
-        uploadOnSave: false,
-
-        useTempFile: false,
-        openSsh: false,
-
-
-        watcher: {
-          files: false,
-          autoUpload: false,
-        },
-
-        ignore: [
-          1,
-          '**/.git',
-          '**/.DS_Store',
-        ],
-      };
-
-      let result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).not.toBe(null);
-
-      config.ignore = [];
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-    });
-
-    test("pass", () => {
-      const config = {
-        host: 'host',
-        port: 22,
-        username: 'username',
-        protocol: 'sftp',
-        passive: false,
-        interactiveAuth: false,
-        passphrase: 'true',
-
-        remotePath: '/',
-        uploadOnSave: false,
-
-        useTempFile: false,
-        openSsh: false,
-
-
-        watcher: {
-          files: false,
-          autoUpload: false,
-        },
-
-        ignore: [
-          '**/.git',
-          '**/.DS_Store',
-        ],
-      };
-
-      let result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).toBe(null);
-
-      config.passphrase = false;
-      result = Joi.validate(config, configScheme, {
-        convert: false,
-      });
-      expect(result.error).not.toBe(null);
-    });
-
-    test("uploadOnSave is a boolean (per-profile fan-out is driven by booleans, not a string)", () => {
-      const base = {
-        host: 'host',
-        port: 22,
-        username: 'username',
-        protocol: 'sftp',
-        remotePath: '/',
-        ignore: [],
-      };
-
-      [true, false].forEach(value => {
-        const result = Joi.validate({ ...base, uploadOnSave: value }, configScheme, {
-          convert: false,
-        });
-        expect(result.error).toBe(null);
-      });
-
-      // A string value is rejected — each profile opts in/out with a plain boolean.
-      const bad = Joi.validate({ ...base, uploadOnSave: 'allProfiles' }, configScheme, {
-        convert: false,
-      });
-      expect(bad.error).not.toBe(null);
-    });
+  test('password sentinels remain valid strings', () => {
+    expectValid(validConfig({ password: 'prompt' }));
+    expectValid(validConfig({ password: 'secretStorage' }));
   });
 });

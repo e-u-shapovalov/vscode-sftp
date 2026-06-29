@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fse from 'fs-extra';
 import * as path from 'path';
-import * as Joi from 'joi';
 import { parse as parseJsonc, printParseErrorCode, ParseError } from 'jsonc-parser';
 import { CONFIG_PATH, LEGACY_CONFIG_PATH } from '../constants';
 import { reportError } from '../helper';
@@ -9,81 +8,7 @@ import { showTextDocument } from '../host';
 import { getConfigTemplate } from './legacyDoctor/template';
 import { getAlertLang } from '../i18n';
 
-const nullable = schema => schema.optional().allow(null);
-
-const configScheme = {
-  name: Joi.string(),
-
-  context: Joi.string(),
-  protocol: Joi.any().valid('sftp', 'ftp', 'local'),
-
-  host: Joi.string().required(),
-  port: Joi.number().integer().min(1).max(65535),
-  connectTimeout: Joi.number().integer(),
-  username: Joi.string().required(),
-  // A plaintext password, or a reserved sentinel: "secretStorage" (store/read via the OS keychain)
-  // or "prompt" (always ask, never store). Any string validates; the sentinels are interpreted in
-  // resolveCredentials (src/core/fileService.ts) before connect.
-  password: nullable(Joi.string()),
-
-  agent: nullable(Joi.string()),
-  privateKeyPath: nullable(Joi.string()),
-  // Real passphrase string, `true` (prompt), or the "secretStorage"/"prompt" sentinels — same
-  // keychain semantics as `password`, resolved in resolveCredentials before connect.
-  passphrase: nullable(Joi.string().allow(true)),
-  interactiveAuth: Joi.alternatives([
-    Joi.boolean(),
-    Joi.array()
-      .items(Joi.string()),
-  ]).optional(),
-  algorithms: Joi.any(),
-  sshConfigPath: Joi.string(),
-  sshCustomParams: Joi.string(),
-
-  secure: Joi.any().valid(true, false, 'control', 'implicit'),
-  secureOptions: nullable(Joi.object()),
-  passive: Joi.boolean(),
-
-  remotePath: Joi.string().required(),
-  uploadOnSave: Joi.boolean(),
-  useTempFile: Joi.boolean(),
-  openSsh: Joi.boolean(),
-  downloadOnOpen: Joi.boolean().allow('confirm'),
-
-  ignore: Joi.array()
-    .min(0)
-    .items(Joi.string()),
-  ignoreFile: Joi.string(),
-  watcher: {
-    files: Joi.string().allow(false, null),
-    autoUpload: Joi.boolean(),
-  },
-  concurrency: Joi.number().integer().min(1).max(512),
-
-  syncOption: {
-    delete: Joi.boolean(),
-    skipCreate: Joi.boolean(),
-    ignoreExisting: Joi.boolean(),
-    update: Joi.boolean(),
-  },
-  remoteTimeOffsetInHours: Joi.number(),
-
-  remoteExplorer: {
-    filesExclude: Joi.array()
-      .min(0)
-      .items(Joi.string()),
-    order: Joi.number(),
-  },
-
-  // Skip files larger than this threshold (in megabytes) during batch transfers (folder upload /
-  // download / sync). A single explicit file command is never filtered. Absent or 0 = disabled.
-  maxFileSize: Joi.number().min(0),
-
-  // Opt-out marker written by the legacy-config migration prompt: when true, WireFerry stops
-  // offering to rename .vscode/sftp.json -> wireferry.json. Declared here so it isn't flagged
-  // as an unknown key by the legacy doctor's config scan.
-  keepLegacyConfigFormat: Joi.boolean(),
-};
+export { KNOWN_CONFIG_KEYS, validateConfig } from './configValidation';
 
 const defaultConfig = {
   // common
@@ -133,20 +58,6 @@ const defaultConfig = {
   },
 };
 
-// Top-level config keys WireFerry recognises. Single source of truth for the legacy doctor's
-// "unknown key" scan (src/modules/legacyDoctor). Derived from `configScheme` plus keys that
-// exist in the JSON schema (schema/definitions.json) / at runtime but aren't in the Joi shape.
-export const KNOWN_CONFIG_KEYS: ReadonlyArray<string> = [
-  ...Object.keys(configScheme),
-  'filePerm',
-  'dirPerm',
-  'defaultProfile',
-  'limitOpenFilesOnRemote',
-  'hop',
-  'profiles',
-  'remote',
-];
-
 function mergedDefault(config) {
   return {
     ...defaultConfig,
@@ -176,19 +87,6 @@ export async function resolveConfigPath(basePath): Promise<string | null> {
   }
 
   return null;
-}
-
-export function validateConfig(config) {
-  const { error } = Joi.validate(config, configScheme, {
-    allowUnknown: true,
-    convert: false,
-    language: {
-      object: {
-        child: '!!prop "{{!child}}" fails because {{reason}}',
-      },
-    },
-  });
-  return error;
 }
 
 export function readConfigsFromFile(configPath): Promise<any[]> {
