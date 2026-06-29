@@ -80,7 +80,7 @@ npx @vscode/vsce package
 - Avoid mixing refactoring, dependency upgrades and user-facing behavior in one change.
 - Add tests for bug fixes where practical.
 - Update README, CHANGELOG or docs for user-facing changes.
-- Keep Russian sections before English sections in release-facing documents.
+- In release-facing documents put the English section first, then Russian — keep the Russian section in full (it stays clearly visible, not trimmed). Existing historical entries are left unchanged.
 
 ### Publishing
 

@@ -2,7 +2,7 @@
 
 > **WireFerry** — независимо поддерживаемый форк [vscode-sftp](https://github.com/Natizyskunk/vscode-sftp) (Natizyskunk ← liximomo).
 > Сверху — коротко о новом простым языком; технические детали каждого релиза спрятаны в блок **«Подробности»** (нажмите, чтобы развернуть).
-> _Plain-language highlights up top; per-release specifics are tucked into **"Details"**. Russian first, then English._
+> _Plain-language highlights up top; per-release specifics are tucked into **"Details"**. New entries: English first, then Russian (Russian kept in full); older entries below predate this order._
 
 ## ✨ Что нового · What's New
 
