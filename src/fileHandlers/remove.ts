@@ -175,7 +175,16 @@ export const removeRemote = createFileHandler<
               useTrash: false,
             });
           } catch (err2) {
+            // Both trash and permanent delete failed (e.g. a read-only / ACL-locked file). The server
+            // copy is already gone, so we don't throw — but the user MUST be told the local file is still
+            // there: a silent warn would let the report/toast say "deleted" while the file remains on disk.
             logger.warn(`Failed to delete local copy '${localFsPath}': ${err2.message}`);
+            vscode.window.showWarningMessage(
+              L({
+                en: `WireFerry: the server copy was deleted, but the local file could not be removed (${err2.message}). It is still on disk: ${localFsPath}`,
+                ru: `WireFerry: копия на сервере удалена, но локальный файл убрать не удалось (${err2.message}). Он остался на диске: ${localFsPath}`,
+              })
+            );
           }
         }
       }

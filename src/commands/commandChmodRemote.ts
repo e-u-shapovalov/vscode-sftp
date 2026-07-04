@@ -195,10 +195,16 @@ export default checkCommand({
         const it = item as ExplorerItem;
         it.mode = mode;
         if (app.remoteExplorer) {
-          app.remoteExplorer.refreshItem(it);
-          // Permission bits changed → recompute the write hint + repaint the RO decoration now, so it
-          // doesn't stay stale until the folder is re-expanded.
-          app.remoteExplorer.recomputeWriteHint(it);
+          if (recursive) {
+            // chmod -R changed the mode of every descendant too; refreshItem only repaints this node and
+            // leaves children with stale RO decorations. Re-read the subtree so their write hints reset.
+            app.remoteExplorer.refresh();
+          } else {
+            app.remoteExplorer.refreshItem(it);
+            // Permission bits changed → recompute the write hint + repaint the RO decoration now, so it
+            // doesn't stay stale until the folder is re-expanded.
+            app.remoteExplorer.recomputeWriteHint(it);
+          }
         }
       }
 

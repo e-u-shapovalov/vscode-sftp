@@ -87,7 +87,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 
 ## Latest release highlights
 
-The latest release adds a **Show Tree** command that renders an ASCII tree of a server or local folder — optionally with file sizes and a depth limit — into a text tab from the folder right-click menu. This release also ships refreshed and expanded documentation.
+The latest release adds code-review reliability fixes — a visible warning when a server-and-local delete leaves the local file behind, and a full tree refresh after a recursive `chmod -R` — plus a large documentation and schema alignment pass. The recent **Show Tree** command draws an ASCII tree of a server or local folder from the folder right-click menu.
 
 See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 
