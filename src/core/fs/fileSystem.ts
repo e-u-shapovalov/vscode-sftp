@@ -35,6 +35,10 @@ export interface FileStats {
   size: number;
   mtime: number;
   atime: number;
+  // Numeric owner/group ids straight from the protocol stat. SFTP always reports them; other
+  // backends (FTP) leave them undefined. Names are resolved separately (see FileEntry.owner/group).
+  uid?: number;
+  gid?: number;
   // symbol link target
   target?: string;
 }
@@ -42,6 +46,11 @@ export interface FileStats {
 export type FileEntry = FileStats & {
   fspath: string;
   name: string;
+  // Owner/group NAMES (e.g. "root", "www-data"). Only a directory listing can carry them cheaply —
+  // OpenSSH puts them in each readdir entry's `longname` (the `ls -l` line), so no extra request is
+  // needed. A bare lstat has no names, only the numeric uid/gid above.
+  owner?: string;
+  group?: string;
 };
 
 export default abstract class FileSystem {

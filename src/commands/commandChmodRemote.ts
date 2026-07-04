@@ -5,13 +5,28 @@ import { chmodRemote, handleCtxFromUri } from '../fileHandlers';
 import { reportError } from '../helper';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { checkCommand } from './abstract/createCommand';
+import { canElevate, execAsRoot, ElevationCancelled, shQuote } from '../modules/privilegedExec';
 import { L } from '../i18n';
 import app from '../app';
+
+// An SFTP chmod rejected for lack of permission (root-owned target). ssh2 maps
+// SSH_FX_PERMISSION_DENIED to code 3; the string aliases are defensive.
+function isPermissionDenied(err: any): boolean {
+  const code = err && err.code;
+  return code === 3 || code === 'EACCES' || code === 'EPERM';
+}
 
 // `mode & 0o777` rendered as a 3-digit octal string, e.g. 0o755 -> "755".
 function toOctal(mode: number): string {
   // tslint:disable-next-line:no-bitwise
   return (mode & 0o777).toString(8).padStart(3, '0');
+}
+
+// Full 4-digit octal INCLUDING the setuid/setgid/sticky bits, for the actual `chmod` argument — the
+// SFTP path preserves them, so the root fallback must not silently drop them by masking to 0o777.
+function toOctalFull(mode: number): string {
+  // tslint:disable-next-line:no-bitwise
+  return (mode & 0o7777).toString(8).padStart(4, '0');
 }
 
 const PRESETS: Array<{ mode: number; rwx: string; hint: { en: string; ru: string } }> = [
@@ -30,7 +45,10 @@ async function pickMode(currentMode: number | undefined): Promise<number | undef
 
   const items = PRESETS.map(p => ({
     label: p.mode.toString(8).padStart(3, '0'),
-    description: p.rwx + (currentMode === p.mode ? currentTag : ''),
+    // Compare only the rwx part: currentMode may carry setuid/setgid/sticky (0o7000) since the stat now
+    // keeps them, but the presets are 3-digit — mask so a 4755 file still marks its 755 preset current.
+    // tslint:disable-next-line:no-bitwise
+    description: p.rwx + (currentMode !== undefined && (currentMode & 0o777) === p.mode ? currentTag : ''),
     detail: L(p.hint),
     mode: p.mode as number | undefined,
   }));
@@ -50,7 +68,15 @@ async function pickMode(currentMode: number | undefined): Promise<number | undef
   }
 
   const input = await window.showInputBox({
-    value: currentMode !== undefined ? toOctal(currentMode) : '',
+    // Prefill with 4 digits ONLY when a setuid/setgid/sticky bit is set, so editing rwx doesn't
+    // silently drop it; plain files stay 3-digit to avoid a confusing leading zero.
+    // tslint:disable-next-line:no-bitwise
+    value:
+      currentMode !== undefined
+        ? currentMode & 0o7000
+          ? toOctalFull(currentMode)
+          : toOctal(currentMode)
+        : '',
     prompt: L({ en: 'Octal permissions, e.g. 755', ru: 'Права в восьмеричном виде, напр. 755' }),
     validateInput: v =>
       /^[0-7]{3,4}$/.test((v || '').trim())
@@ -133,11 +159,46 @@ export default checkCommand({
         recursive = choice;
       }
 
-      await chmodRemote(ctx, { mode, recursive });
+      try {
+        await chmodRemote(ctx, { mode, recursive });
+      } catch (err) {
+        // Root-owned target: SFTP can't escalate. Offer to redo the chmod as root over `su -`.
+        if (!isPermissionDenied(err) || !canElevate(remoteFs)) {
+          throw err;
+        }
+        const retry = L({ en: 'Change as root', ru: 'Изменить от root' });
+        const pick = await window.showWarningMessage(
+          L({
+            en: `No permission to change '${upath.basename(remotePath)}'. Retry as root via su?`,
+            ru: `Нет прав изменить «${upath.basename(remotePath)}». Повторить от root через su?`,
+          }),
+          { modal: true },
+          retry
+        );
+        if (pick !== retry) {
+          return;
+        }
+        const host = (ctx.config as any).host || '';
+        const cmd = `chmod ${recursive ? '-R ' : ''}-- ${toOctalFull(mode)} ${shQuote(remotePath)}`;
+        const { code, output } = await execAsRoot(remoteFs, host, cmd);
+        if (code !== 0) {
+          window.showErrorMessage(
+            L({
+              en: `WireFerry: chmod exited with ${code}${output ? ` — ${output.trim().slice(-160)}` : ''}`,
+              ru: `WireFerry: chmod завершился с кодом ${code}${output ? ` — ${output.trim().slice(-160)}` : ''}`,
+            })
+          );
+          return;
+        }
+      }
       if (item && (item as ExplorerItem).resource) {
-        (item as ExplorerItem).mode = mode;
+        const it = item as ExplorerItem;
+        it.mode = mode;
         if (app.remoteExplorer) {
-          app.remoteExplorer.refreshItem(item as ExplorerItem);
+          app.remoteExplorer.refreshItem(it);
+          // Permission bits changed → recompute the write hint + repaint the RO decoration now, so it
+          // doesn't stay stale until the folder is re-expanded.
+          app.remoteExplorer.recomputeWriteHint(it);
         }
       }
 
@@ -150,6 +211,9 @@ export default checkCommand({
           : L({ en: `Permissions set to ${toOctal(mode)}`, ru: `Права изменены на ${toOctal(mode)}` })
       );
     } catch (error) {
+      if (error instanceof ElevationCancelled) {
+        return; // user backed out of the root-password prompt
+      }
       reportError(error);
     }
   },

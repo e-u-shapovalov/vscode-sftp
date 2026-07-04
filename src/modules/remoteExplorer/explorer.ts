@@ -28,6 +28,7 @@ import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
 import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
 import RemoteDragAndDropController from './dragAndDrop';
+import WriteDecorationProvider from './writeDecorationProvider';
 
 // Is `target` the same as `rootPath` or nested inside it? Remote paths are POSIX, so we compare with
 // upath (forward slashes) instead of the platform-specific `path`, which would break on Windows.
@@ -48,6 +49,14 @@ export default class RemoteExplorer {
     this._treeDataProvider = new RemoteTreeDataProvider();
     context.subscriptions.push(
       vscode.workspace.registerTextDocumentContentProvider(REMOTE_SCHEME, this._treeDataProvider)
+    );
+
+    // Dim files the current user can't write (advisory, like git's decorations). The provider reads the
+    // per-node `writable` flag the tree computes and repaints on its change signal.
+    const writeDecorations = new WriteDecorationProvider(this._treeDataProvider);
+    context.subscriptions.push(
+      writeDecorations,
+      vscode.window.registerFileDecorationProvider(writeDecorations)
     );
 
     this._explorerView = vscode.window.createTreeView('remoteExplorer', {
@@ -127,6 +136,11 @@ export default class RemoteExplorer {
 
   refreshItem(item: ExplorerItem): void {
     this._treeDataProvider.refreshItem(item);
+  }
+
+  // Recompute + repaint the write-permission hint for one item after our own chmod/chown changed it.
+  recomputeWriteHint(item: ExplorerItem): void {
+    this._treeDataProvider.recomputeWriteHint(item).catch(() => undefined);
   }
 
   // Toolbar toggle: persist the sort preference, then re-list so getChildren re-sorts (and, for size,

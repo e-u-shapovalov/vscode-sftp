@@ -9,6 +9,7 @@ import RemoteFileSystem from './remoteFileSystem';
 import { SSHClient } from '../remote-client';
 import logger from '../../logger';
 import { isUnsafeRemoteSegment } from '../../utils';
+import { parseLongnameOwner } from '../../helper/longname';
 
 type FileHandle = Buffer;
 
@@ -25,8 +26,11 @@ interface WriteStream extends Writable {
   close(): void;
 }
 
+// Keep the permission bits AND the setuid/setgid/sticky bits (0o7777), dropping only the file-type
+// bits (0o170000). Display code masks to 0o777 itself; the root `chmod` fallback needs the high bits
+// so it doesn't silently strip an existing setuid/setgid/sticky when re-applying the mode.
 function toSimpleFileMode(mode: number) {
-  return mode & parseInt('777', 8); // tslint:disable-line:no-bitwise
+  return mode & parseInt('7777', 8); // tslint:disable-line:no-bitwise
 }
 
 export default class SFTPFileSystem extends RemoteFileSystem {
@@ -41,14 +45,19 @@ export default class SFTPFileSystem extends RemoteFileSystem {
       size: stat.size,
       mtime: this.toLocalTime(stat.mtime * 1000),
       atime: this.toLocalTime(stat.atime * 1000),
+      uid: typeof stat.uid === 'number' ? stat.uid : undefined,
+      gid: typeof stat.gid === 'number' ? stat.gid : undefined,
     };
   }
 
   toFileEntry(fullPath, item): FileEntry {
+    const { owner, group } = parseLongnameOwner(item.longname);
     return {
       fspath: fullPath,
       name: item.filename,
       ...this.toFileStat(item.attrs),
+      owner,
+      group,
     };
   }
 

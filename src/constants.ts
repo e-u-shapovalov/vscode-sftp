@@ -94,6 +94,7 @@ export const COMMAND_CREATE_FOLDER = 'wireferry.create.folder';
 export const COMMAND_CREATE_FILE = 'wireferry.create.file';
 export const COMMAND_RENAME = 'wireferry.rename';
 export const COMMAND_CHMOD_REMOTE = 'wireferry.chmod.remote';
+export const COMMAND_CHOWN_REMOTE = 'wireferry.chown.remote';
 export const COMMAND_DELETE_SAVED_PASSWORD = 'wireferry.deleteSavedPassword';
 export const COMMAND_GENERATE_SSH_KEY = 'wireferry.generateSshKey';
 export const COMMAND_SAVE_PASSWORD_TO_KEYCHAIN = 'wireferry.savePasswordToKeychain';

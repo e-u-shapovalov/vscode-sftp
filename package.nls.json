@@ -38,6 +38,7 @@
   "wireferry.create.folder": "Create Folder",
   "wireferry.create.file": "Create File",
   "wireferry.chmod": "Change Permissions (chmod)",
+  "wireferry.chown": "Change Owner / Group (chown, as root)",
   "wireferry.deleteSavedPassword": "Delete Saved Password…",
   "wireferry.generateSshKey": "Generate SSH Key…",
   "wireferry.savePasswordToKeychain": "Save Password to Keychain…",

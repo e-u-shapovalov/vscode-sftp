@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.5.7",
+  "version": "2.6.0",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -330,6 +330,11 @@
         "category": "WireFerry"
       },
       {
+        "command": "wireferry.chown.remote",
+        "title": "%wireferry.chown%",
+        "category": "WireFerry"
+      },
+      {
         "command": "wireferry.deleteSavedPassword",
         "title": "%wireferry.deleteSavedPassword%",
         "category": "WireFerry"
@@ -597,6 +602,10 @@
         },
         {
           "command": "wireferry.chmod.remote",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.chown.remote",
           "when": "false"
         },
         {
@@ -897,6 +906,11 @@
         },
         {
           "command": "wireferry.chmod.remote",
+          "group": "7_modification",
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+        },
+        {
+          "command": "wireferry.chown.remote",
           "group": "7_modification",
           "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
         },

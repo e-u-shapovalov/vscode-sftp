@@ -3,6 +3,7 @@ import { TransferTask, fileOperations } from '../core';
 import { TransferDirection } from '../core/transferTask';
 import logger from '../logger';
 import { L } from '../i18n';
+import { canElevate, execAsRoot, ElevationCancelled, shQuote } from './privilegedExec';
 
 // Only one recovery dialog at a time. A batch upload (a whole folder of root-owned files) can throw
 // many permission errors back-to-back; we open one dialog and quietly log the rest of that wave so
@@ -43,11 +44,6 @@ function remoteBasename(p: string): string {
 function modeToOctal(mode: number): string {
   // tslint:disable-next-line no-bitwise
   return (mode & 0o777).toString(8).padStart(3, '0');
-}
-
-// POSIX single-quote a path so spaces/special chars survive being pasted into a root shell.
-function shQuote(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
 // Entry point from the afterTransfer hook (fire-and-forget). Resolves once the user has dealt with
@@ -120,6 +116,14 @@ async function runFallbackFlow(task: TransferTask): Promise<void> {
       if (!v) {
         return L({ en: 'Enter a destination path', ru: 'Укажите путь для сохранения' });
       }
+      // The copy is written over SFTP (relative to the login user's home) but applied by `su -` (whose
+      // cwd is root's home) — a relative path would resolve differently on each side. Require absolute.
+      if (!v.startsWith('/')) {
+        return L({
+          en: 'Use an absolute path (starting with /)',
+          ru: 'Укажите абсолютный путь (начинается с /)',
+        });
+      }
       if (v === remotePath) {
         return L({
           en: 'That is the path you have no access to — pick a writable one',
@@ -143,24 +147,73 @@ async function runFallbackFlow(task: TransferTask): Promise<void> {
     remotePath
   );
 
-  // One pasteable line that applies the copy and cleans the staging file up afterwards.
-  const applyCmd = `cat ${shQuote(destPath)} > ${shQuote(remotePath)} && rm -fv ${shQuote(destPath)}`;
+  // One pasteable line that applies the copy and cleans the staging file up afterwards. `--` guards
+  // paths that begin with `-`; the `>` redirect keeps the target's existing owner and mode.
+  const applyCmd = `cat -- ${shQuote(destPath)} > ${shQuote(remotePath)} && rm -fv -- ${shQuote(destPath)}`;
 
+  // Offer to run it for the user via `su -` when the connection has a shell (SFTP). On FTP there's
+  // no shell, so we only hand back the command to run elsewhere.
+  const applyAsRoot = L({ en: 'Apply as root now', ru: 'Применить от root сейчас' });
   const copyCmd = L({ en: 'Copy command', ru: 'Копировать команду' });
   const copyPath = L({ en: 'Copy path', ru: 'Копировать путь' });
+  const actions = canElevate(targetFs)
+    ? [applyAsRoot, copyCmd, copyPath]
+    : [copyCmd, copyPath];
+
   const choice = await window.showInformationMessage(
     L({
-      en: `Saved to ${destPath}${host ? ` on ${host}` : ''}. Run this as root on the server to apply it:`,
-      ru: `Сохранено в ${destPath}${host ? ` на ${host}` : ''}. Выполните это от root на сервере, чтобы применить:`,
+      en: `Saved to ${destPath}${host ? ` on ${host}` : ''}. Apply it as root now, or run this on the server yourself:`,
+      ru: `Сохранено в ${destPath}${host ? ` на ${host}` : ''}. Применить от root сейчас или выполнить это на сервере вручную:`,
     }),
     { modal: true, detail: applyCmd },
-    copyCmd,
-    copyPath
+    ...actions
   );
 
-  if (choice === copyCmd) {
+  if (choice === applyAsRoot) {
+    await applyViaRoot(task, applyCmd, remotePath, host);
+  } else if (choice === copyCmd) {
     await env.clipboard.writeText(applyCmd);
   } else if (choice === copyPath) {
     await env.clipboard.writeText(destPath);
+  }
+}
+
+// Run the apply one-liner as root over `su -`, prompting for the root password. Reports success or
+// failure inline; a cancelled password prompt is a silent no-op (the staged copy + command remain,
+// so the user can still apply it by hand).
+async function applyViaRoot(
+  task: TransferTask,
+  applyCmd: string,
+  remotePath: string,
+  host: string | undefined
+): Promise<void> {
+  try {
+    const { code } = await execAsRoot(task.targetFs, host || '', applyCmd);
+    if (code === 0) {
+      window.showInformationMessage(
+        L({
+          en: `Applied to ${remotePath} as root.`,
+          ru: `Применено к ${remotePath} от root.`,
+        })
+      );
+    } else {
+      window.showErrorMessage(
+        L({
+          en: `WireFerry: the apply command exited with ${code}. The staged copy is still on the server.`,
+          ru: `WireFerry: команда применения завершилась с кодом ${code}. Промежуточная копия осталась на сервере.`,
+        })
+      );
+    }
+  } catch (e) {
+    if (e instanceof ElevationCancelled) {
+      return; // user backed out — staged copy + command stay available
+    }
+    logger.error(`apply-as-root failed: ${(e && (e as Error).message) || e}`, remotePath);
+    window.showErrorMessage(
+      L({
+        en: `WireFerry: couldn't apply as root — ${(e && (e as Error).message) || e}`,
+        ru: `WireFerry: не удалось применить от root — ${(e && (e as Error).message) || e}`,
+      })
+    );
   }
 }

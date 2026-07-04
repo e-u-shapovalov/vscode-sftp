@@ -37,7 +37,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` confi
 
 ## What's new
 
-**2.5.7 — save an edited copy elsewhere when you lack write permission.** When an upload fails because the server denies the write, WireFerry no longer just shows a red error: it offers to save your edited copy to a writable path (default `/tmp/<name>`) and hands you a ready-to-paste root command to apply it — `cat '/tmp/file' > '/real/path' && rm -fv '/tmp/file'`, with **"Copy command"** and **"Copy path"** buttons (paths are shell-quoted). Ideal for editing root-owned configs (nginx, php) locally and applying them as root. Plus two review fixes: the `local` protocol no longer fails validation without `host`/`username`, and an SFTP channel leak after a request timeout is closed.
+**2.6.0 — edit root-owned files via `su`, plus owner/group and read-only hints in the tree.** When an upload is denied for lack of permission, the recovery dialog now has an **"Apply as root now"** button: WireFerry stages your edited copy and applies it over an SSH PTY with `su -` (asking for the root password), keeping the target's owner and mode — ideal for editing root-owned nginx/php configs locally. A new **"Change Owner / Group (chown)"** command runs `chown` as root, and a denied `chmod` can be retried as root. The hover tooltip now shows a file's **owner and group**, and files you **can't write** are dimmed with an **"RO"** badge and a reason (e.g. "not the owner and not in group `www-data`"). The root password never touches disk or logs. Hardened over three rounds of external code review.
 
 See the [Changelog](CHANGELOG.md) for technical details and previous releases.
 

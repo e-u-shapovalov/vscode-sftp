@@ -7,6 +7,8 @@ import RemoteClient, { ErrorCode, ConnectOption, Config } from './remoteClient';
 import localFs from '../localFs';
 import logger from '../../logger';
 import CustomError from '../customError';
+import { parseId, UserIdentity } from '../../helper/identity';
+import { parseSentinelCode, sanitizeSuOutput } from '../../helper/suOutput';
 
 const DEFAULT_MAX_OPEN_FD_NUM = 222;
 
@@ -21,6 +23,9 @@ export default class SSHClient extends RemoteClient {
   // (reject the awaiting caller) so a disconnect can drain the queue instead of wedging it forever.
   private _queuedFdRequireCall: Array<{ exec: () => any; fail: (err: Error) => void }> = [];
   private _ended: boolean = false;
+  // The connected user's identity (uid + groups), fetched once via `id` and reused for the advisory
+  // write-permission hints in the tree. A failed fetch is not cached, so a later call can retry.
+  private _identity: Promise<UserIdentity> | null = null;
 
   _initClient() {
     return new Client();
@@ -129,6 +134,8 @@ export default class SSHClient extends RemoteClient {
     this._opendFdNum = 0;
     this._queuedFdRequireCall = [];
     this._ended = false;
+    // A reconnect may be under a different user — drop the cached `id` so write-hints recompute.
+    this._identity = null;
 
     if (lastOption.limitOpenFilesOnRemote) {
       if (typeof lastOption.limitOpenFilesOnRemote !== 'boolean') {
@@ -482,6 +489,28 @@ export default class SSHClient extends RemoteClient {
     return this.sftp;
   }
 
+  // The connected user's identity (uid + effective group ids), memoized per connection. Runs `id`
+  // once; a failure clears the cache so a later call retries rather than sticking with the error.
+  getIdentity(): Promise<UserIdentity> {
+    if (!this._identity) {
+      this._identity = this.exec('id').then(
+        out => {
+          const parsed = parseId(out);
+          if (!parsed) {
+            this._identity = null;
+            throw new Error(`could not parse id output: ${String(out).trim().slice(0, 120)}`);
+          }
+          return parsed;
+        },
+        err => {
+          this._identity = null;
+          throw err;
+        }
+      );
+    }
+    return this._identity;
+  }
+
   // Run a command over an SSH exec channel and resolve its stdout. Rejects on a non-zero exit or a
   // channel error. Used for cheap server-side aggregates (e.g. `du`) instead of walking over SFTP.
   // The CALLER is responsible for shell-escaping any path it injects into the command.
@@ -508,6 +537,124 @@ export default class SSHClient extends RemoteClient {
             }
           })
           .on('error', reject);
+      });
+    });
+  }
+
+  // The host/port of the connection this client actually talks to (the final target for a hop chain).
+  // Used to key the cached root password so two different servers behind the same hostname string
+  // (e.g. localhost:2201 vs localhost:2202 tunnels) never share a password.
+  getEndpoint(): { host: string; port: number } {
+    return { host: this._option.host, port: this._option.port };
+  }
+
+  // Run `command` AS ROOT via `su -`, feeding `password` to su's terminal prompt over an allocated
+  // PTY (su reads the password from the controlling tty, not stdin — so a PTY is mandatory). The
+  // command runs in a POSIX shell (`-s /bin/sh`) so `$?` is the exit code regardless of root's login
+  // shell, and under `LC_ALL=C` so su's prompt/error text is the English we match. The CALLER must
+  // shell-escape any path inside `command`.
+  //
+  // Resolves { code, output } with the INNER command's exit status (parsed from a sentinel we append,
+  // NOT su's own exit code). A wrong root password rejects with an Error carrying `.authFailed = true`
+  // so the caller can re-prompt. `output` is sanitized (password + auth phase + marker stripped) before
+  // it ever leaves this method, so a caller that surfaces it can't leak the password.
+  execRoot(command: string, password: string): Promise<{ code: number; output: string }> {
+    const sentinel = '__WF_RC_';
+    // Append an exit-code marker so we read the INNER command's status, not su's. `$?` is the inner
+    // command's code in the `-s /bin/sh` shell. The marker itself has no shell metacharacters.
+    const payload = `${command}; echo "${sentinel}$?__"`;
+    // Single-quote the whole payload for `su … -c '...'`, escaping embedded quotes the POSIX way.
+    const quoted = `'${payload.replace(/'/g, `'\\''`)}'`;
+    // `env LC_ALL=C` works from both sh and csh login shells (unlike a bare `VAR=val` prefix).
+    const suCommand = `env LC_ALL=C su - -s /bin/sh -c ${quoted}`;
+    // One wall-clock cap for the whole exec. It covers both waiting for the prompt AND running the
+    // command, so a passwordless `su` (which never prompts) still gets the full budget for a slow
+    // `chmod/chown -R`. A wrong password does NOT depend on this: su exits and 'close' fires promptly.
+    const SU_TIMEOUT_MS = 600000;
+
+    // Strip the password/marker/prompt before any buffer is returned or logged — nothing secret leaks.
+    const sanitize = (raw: string): string => sanitizeSuOutput(raw, password, sentinel);
+
+    return new Promise((resolve, reject) => {
+      this._client.exec(suCommand, { pty: true }, (err: Error | undefined, stream: any) => {
+        if (err) {
+          return reject(err);
+        }
+        let output = '';
+        let passwordSent = false;
+        let settled = false;
+        let timer: NodeJS.Timeout | undefined;
+        const finish = (fn: () => void) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          stream.removeListener('data', onChunk);
+          if (stream.stderr) {
+            stream.stderr.removeListener('data', onChunk);
+          }
+          fn();
+        };
+        timer = setTimeout(() => {
+          finish(() => {
+            try {
+              stream.close();
+            } catch {
+              // best effort
+            }
+            reject(new Error('su timed out'));
+          });
+        }, SU_TIMEOUT_MS);
+
+        const onChunk = (chunk: any) => {
+          output += chunk.toString();
+          if (passwordSent) {
+            return;
+          }
+          // Match su's prompt at the END of a line at the END of the buffer: `su` prints "Password: "
+          // (no trailing newline) and waits. Anchoring to a line start rejects a banner/MOTD line like
+          // "change your password:"; stripping \r tolerates PTYs that terminate with CR.
+          if (/(^|\n)[^\S\r\n]*password:[^\S\r\n]*$/i.test(output.replace(/\r/g, ''))) {
+            passwordSent = true;
+            try {
+              stream.write(`${password}\n`);
+            } catch {
+              // stream already closed — the close handler will settle
+            }
+            // Discard everything up to and including the auth phase: the command hasn't run yet, so no
+            // command output is lost, but the prompt (and any echoed password) is dropped.
+            output = '';
+          }
+        };
+        stream.on('data', onChunk);
+        if (stream.stderr) {
+          stream.stderr.on('data', onChunk);
+        }
+        stream
+          .on('close', (code: number) => {
+            finish(() => {
+              const code2 = parseSentinelCode(output, sentinel);
+              if (code2 !== null) {
+                resolve({ code: code2, output: sanitize(output) });
+                return;
+              }
+              // No sentinel => the payload never ran. Only classify as an auth rejection (so the caller
+              // re-prompts) when we actually sent a password AND see a known rejection phrase — a bare
+              // "su: command not found" must fall through to the generic error, not loop on the password.
+              if (
+                passwordSent &&
+                /authentication failure|incorrect password|permission denied|sorry, try again/i.test(output)
+              ) {
+                const e: any = new Error('su authentication failed');
+                e.authFailed = true;
+                reject(e);
+                return;
+              }
+              reject(new Error(`su failed (exit ${code}): ${sanitize(output).slice(-200)}`));
+            });
+          })
+          .on('error', (e: Error) => finish(() => reject(e)));
       });
     });
   }

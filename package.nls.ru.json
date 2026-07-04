@@ -38,6 +38,7 @@
   "wireferry.create.folder": "Создать папку",
   "wireferry.create.file": "Создать файл",
   "wireferry.chmod": "Изменить права (chmod)",
+  "wireferry.chown": "Сменить владельца / группу (chown, от root)",
   "wireferry.deleteSavedPassword": "Удалить сохранённый пароль…",
   "wireferry.generateSshKey": "Создать SSH-ключ…",
   "wireferry.savePasswordToKeychain": "Сохранить пароль в хранилище…",

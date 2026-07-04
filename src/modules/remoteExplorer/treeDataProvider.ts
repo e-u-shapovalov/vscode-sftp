@@ -21,6 +21,7 @@ import { getExtensionSetting } from '../ext';
 import { L } from '../../i18n';
 import logger from '../../logger';
 import { duSizes } from './folderSize';
+import { canUserWrite, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
 
 type Id = number;
 
@@ -61,6 +62,18 @@ interface ExplorerChild {
   size?: number;
   mode?: number;
   mtime?: number;
+  // Owner/group of the entry. Names come free from the listing's `longname` (OpenSSH); the numeric
+  // ids are the fallback for servers that don't send names. Shown in the hover tooltip.
+  owner?: string;
+  group?: string;
+  uid?: number;
+  gid?: number;
+  // Advisory write access for the CURRENT user: false = they almost certainly can't edit this file
+  // (drives the dimmed decoration in the tree). undefined = unknown (FTP, or identity not fetched).
+  // Computed for files only — a directory's writability (create/delete inside) needs w+x semantics
+  // we don't model here. `accessNote` is the human-readable reason shown in the tooltip.
+  writable?: boolean;
+  accessNote?: string;
   // Real folder size from a server-side `du`, populated only while sort-by-size is active (files use
   // `size` from the listing; a directory's listing size is the inode size, not its contents).
   folderBytes?: number;
@@ -130,6 +143,33 @@ function formatTime(ms: number): string {
   )}`;
 }
 
+// A localized "Your access: …" line explaining why the current user can or can't edit the file, given
+// their relation to its owner/group and whether the relevant write bit is set. `group` is the file's
+// group NAME (for the message); may be undefined.
+function buildAccessNote(
+  rel: OwnershipRelation,
+  writable: boolean,
+  group: string | undefined
+): string {
+  const g = group ? (L({ en: `group '${group}'`, ru: `группе «${group}»` })) : L({ en: 'the group', ru: 'группе' });
+  if (writable) {
+    const reason =
+      rel === 'owner'
+        ? L({ en: 'you are the owner', ru: 'вы владелец' })
+        : rel === 'group'
+        ? L({ en: `via ${g}`, ru: `через ${g}` })
+        : L({ en: 'world-writable', ru: 'доступно всем' });
+    return L({ en: `Your access: read-write (${reason})`, ru: `Ваш доступ: запись (${reason})` });
+  }
+  const reason =
+    rel === 'owner'
+      ? L({ en: 'you own it, but no owner-write bit', ru: 'вы владелец, но нет бита записи владельца' })
+      : rel === 'group'
+      ? L({ en: `in ${g}, but no group-write bit`, ru: `в ${g}, но нет бита записи группы` })
+      : L({ en: `not the owner and not in ${g}`, ru: `не владелец и не в ${g}` });
+  return L({ en: `Your access: read-only — ${reason}`, ru: `Ваш доступ: только чтение — ${reason}` });
+}
+
 // Hover tooltip: full server path, plus size (files only), permissions, and modified time when the
 // listing carried them. All data comes from the listing already in memory — building this does no I/O.
 function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
@@ -143,6 +183,23 @@ function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
   }
   if (!isRoot && typeof item.mode === 'number') {
     lines.push(`${L({ en: 'Permissions', ru: 'Права' })}: ${formatMode(item.mode)}`);
+  }
+  // Owner / group: prefer the names from the listing, fall back to the numeric ids. Skipped entirely
+  // when neither is known (e.g. FTP), so the tooltip stays clean.
+  if (!isRoot) {
+    const owner = item.owner || (typeof item.uid === 'number' ? String(item.uid) : undefined);
+    const group = item.group || (typeof item.gid === 'number' ? String(item.gid) : undefined);
+    if (owner !== undefined) {
+      lines.push(`${L({ en: 'Owner', ru: 'Владелец' })}: ${owner}`);
+    }
+    if (group !== undefined) {
+      lines.push(`${L({ en: 'Group', ru: 'Группа' })}: ${group}`);
+    }
+    // Why the file is (or isn't) editable by the current user — computed at list time when the user's
+    // identity is known. Absent on FTP / before identity is fetched.
+    if (item.accessNote) {
+      lines.push(item.accessNote);
+    }
   }
   if (typeof item.mtime === 'number' && item.mtime > 0) {
     lines.push(`${L({ en: 'Modified', ru: 'Изменён' })}: ${formatTime(item.mtime)}`);
@@ -162,13 +219,26 @@ export default class RemoteTreeData
   private _measuring = new Set<string>();
   // Parent uri.query keys whose symlink targets a background readlink pass is currently resolving.
   private _resolvingLinks = new Set<string>();
+  // Parent uri.query keys whose write-permission hints a background `id`+compute pass is handling.
+  private _hintingWrite = new Set<string>();
 
   private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem | undefined> = new vscode.EventEmitter<
     ExplorerItem | undefined
   >();
   private _onDidChangeFile: vscode.EventEmitter<vscode.Uri> = new vscode.EventEmitter<vscode.Uri>();
+  // Fired with the uris whose write-permission decoration just changed, so the FileDecorationProvider
+  // can repaint only those rows (the dimmed "read-only for you" cue).
+  private _onDidChangeDecorations: vscode.EventEmitter<vscode.Uri[]> = new vscode.EventEmitter<
+    vscode.Uri[]
+  >();
   readonly onDidChangeTreeData: vscode.Event<ExplorerItem | undefined> = this._onDidChangeFolder.event;
   readonly onDidChange: vscode.Event<vscode.Uri> = this._onDidChangeFile.event;
+  readonly onDidChangeDecorations: vscode.Event<vscode.Uri[]> = this._onDidChangeDecorations.event;
+
+  // Look up the cached tree node for a remote uri (used by the write-permission decoration provider).
+  getItemByUri(uri: vscode.Uri): ExplorerItem | undefined {
+    return this._map.get(uri.query);
+  }
 
   async refresh(item?: ExplorerItem): Promise<any> {
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
@@ -176,6 +246,10 @@ export default class RemoteTreeData
     this._map.forEach(node => {
       node.folderBytes = undefined;
       node.linkTarget = undefined;
+      // Ownership/permissions may have changed server-side — drop the cached write hints so they
+      // recompute against the fresh listing.
+      node.writable = undefined;
+      node.accessNote = undefined;
     });
     // refresh root
     if (!item) {
@@ -332,9 +406,19 @@ export default class RemoteTreeData
       if (mapItem) {
         // Keep the cached node's identity, pinned type, any cached folderBytes and resolved linkTarget;
         // refresh the rest.
+        // If ownership/permissions changed on the server since we last listed, drop the cached write
+        // hint so it recomputes against the new mode/uid/gid instead of showing a stale RO badge.
+        if (mapItem.mode !== file.mode || mapItem.uid !== file.uid || mapItem.gid !== file.gid) {
+          mapItem.writable = undefined;
+          mapItem.accessNote = undefined;
+        }
         mapItem.size = file.size;
         mapItem.mode = file.mode;
         mapItem.mtime = file.mtime;
+        mapItem.owner = file.owner;
+        mapItem.group = file.group;
+        mapItem.uid = file.uid;
+        mapItem.gid = file.gid;
         mapItem.isSymbolicLink = isSymbolicLink;
         return mapItem;
       }
@@ -347,6 +431,10 @@ export default class RemoteTreeData
         size: file.size,
         mode: file.mode,
         mtime: file.mtime,
+        owner: file.owner,
+        group: file.group,
+        uid: file.uid,
+        gid: file.gid,
       };
       this._map.set(newItem.resource.uri.query, newItem);
       return newItem;
@@ -362,6 +450,11 @@ export default class RemoteTreeData
     if (unresolvedLinks.length > 0) {
       this._resolveSymlinkTargets(remotefs, unresolvedLinks, item).catch(() => undefined);
     }
+
+    // Advisory write-permission hints: dim the files the current user can't edit. Non-blocking — needs
+    // the user's identity (one `id` per connection), then repaints the affected rows and re-renders the
+    // parent so tooltips pick up the "Your access: …" note.
+    this._applyWriteHints(remotefs, items, item).catch(() => undefined);
 
     // Folder sizes (for display and/or sort) are measured with ONE server-side `du`, but NOT awaited
     // here: the tree shows folder names and file sizes immediately, while a background measurement fills
@@ -391,6 +484,112 @@ export default class RemoteTreeData
       (a, b) => (b.size || 0) - (a.size || 0) || a.resource.fsPath.localeCompare(b.resource.fsPath)
     );
     return dirs.concat(files);
+  }
+
+  // Compute the current user's write access for each file in the listing and store it on the node (for
+  // the dimmed decoration + the tooltip "Your access: …" line). Needs one `id` per connection (memoized
+  // on the client). De-duped per parent; only files whose flag is still unknown are (re)computed, so the
+  // re-render this triggers finds them all set and does nothing — no loop. Folders/symlinks are skipped
+  // (a folder's writability is a different, w+x question). Silent on FTP / when identity can't be read.
+  private async _applyWriteHints(
+    remotefs: FileSystem,
+    items: ExplorerItem[],
+    parent: ExplorerItem
+  ): Promise<void> {
+    const parentKey = parent.resource.uri.query;
+    if (this._hintingWrite.has(parentKey)) {
+      return;
+    }
+    const client: any = (remotefs as any).getClient ? (remotefs as any).getClient() : null;
+    if (!client || typeof client.getIdentity !== 'function') {
+      return; // FTP / no shell — no identity to compare against
+    }
+    const need = items.filter(i => {
+      const c = i as ExplorerChild;
+      return (
+        !i.isDirectory &&
+        !c.isSymbolicLink &&
+        c.writable === undefined &&
+        typeof c.mode === 'number'
+      );
+    });
+    if (need.length === 0) {
+      return;
+    }
+    this._hintingWrite.add(parentKey);
+    try {
+      const id: UserIdentity = await client.getIdentity();
+      // root can write everything — no RO badges, and the "via group/world" note would misdescribe the
+      // real reason (it's the root override). Skip hints entirely.
+      if (id.uid === 0) {
+        return;
+      }
+      const changed: vscode.Uri[] = [];
+      for (const it of need) {
+        const c = it as ExplorerChild;
+        const writable = canUserWrite(c.mode as number, c.uid, c.gid, id);
+        if (writable === undefined) {
+          continue; // owner/group unknown for this entry — make no claim
+        }
+        const rel = relationTo(c.uid, c.gid, id) as OwnershipRelation;
+        c.writable = writable;
+        c.accessNote = buildAccessNote(rel, writable, c.group);
+        changed.push(c.resource.uri);
+      }
+      if (changed.length > 0) {
+        this._onDidChangeDecorations.fire(changed);
+        // Re-render the parent so getTreeItem rebuilds tooltips with the new access note.
+        this._onDidChangeFolder.fire(parent);
+      }
+    } catch (e) {
+      logger.debug(`write-permission hints skipped: ${(e && (e as Error).message) || e}`);
+    } finally {
+      this._hintingWrite.delete(parentKey);
+    }
+  }
+
+  // Recompute one file's write hint after its mode/ownership changed via our own chmod/chown, so the RO
+  // decoration + tooltip update at once instead of waiting for the next folder expand. Clears the hint
+  // (neutral, no badge) when it can't be determined — unknown identity/uid/gid, root, FTP, or a folder.
+  async recomputeWriteHint(item: ExplorerItem): Promise<void> {
+    const c = item as ExplorerChild;
+    const uri = item.resource.uri;
+    const clear = () => {
+      c.writable = undefined;
+      c.accessNote = undefined;
+      this._onDidChangeDecorations.fire([uri]);
+    };
+    if (item.isDirectory || c.isSymbolicLink || typeof c.mode !== 'number') {
+      clear();
+      return;
+    }
+    const root = this.findRoot(uri);
+    if (!root) {
+      clear();
+      return;
+    }
+    try {
+      const config = root.explorerContext.config;
+      const remotefs = await root.explorerContext.fileService.getRemoteFileSystem(config);
+      const client: any = (remotefs as any).getClient ? (remotefs as any).getClient() : null;
+      if (!client || typeof client.getIdentity !== 'function') {
+        clear();
+        return;
+      }
+      const id: UserIdentity = await client.getIdentity();
+      const writable = id.uid === 0 ? undefined : canUserWrite(c.mode as number, c.uid, c.gid, id);
+      if (writable === undefined) {
+        clear();
+        return;
+      }
+      const rel = relationTo(c.uid, c.gid, id) as OwnershipRelation;
+      c.writable = writable;
+      c.accessNote = buildAccessNote(rel, writable, c.group);
+      this._onDidChangeDecorations.fire([uri]);
+      this._onDidChangeFolder.fire(item);
+    } catch (e) {
+      clear();
+    }
   }
 
   // Measure the given folders with one background `du` (status-bar spinner), store each size (or -1 when
