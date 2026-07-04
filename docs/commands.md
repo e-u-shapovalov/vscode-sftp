@@ -103,7 +103,7 @@ When profiles exist, the delete dialog can also remove the server copy from ever
 
 WireFerry requests the operating-system trash for a local deletion. If trash is unavailable, for example on some network or substituted drives, the implementation falls back to permanent deletion.
 
-Privileged `chmod` retry and `chown` require SFTP/SSH, a working `su` command and valid root credentials.
+Privileged `chmod` retry and `chown` require SFTP/SSH, a working `su` command and valid root credentials. The root password is held in memory only for the duration of the prompt, tied to the connection's host and port, and is never written to disk or to the log.
 
 ## Credentials
 

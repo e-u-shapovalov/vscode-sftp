@@ -96,6 +96,8 @@ Verify both paths before uploading or synchronizing a project.
 
 `maxFileSize` does not block an explicitly selected single-file transfer. A value of `0` or an omitted field disables the size filter.
 
+With `useTempFile: false` WireFerry writes directly over the destination, truncating it before the new data arrives; an interrupted transfer then loses the original. Keep the default `true` unless you have a specific reason to disable it.
+
 ## Authentication
 
 ### Passwords

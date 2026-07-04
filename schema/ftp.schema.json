@@ -31,7 +31,7 @@
                   "$ref": "definitions.json#/host"
                 },
                 {
-                  "$ref": "definitions.json#/sftp"
+                  "$ref": "definitions.json#/ftp"
                 }
               ]
             }

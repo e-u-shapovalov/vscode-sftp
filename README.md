@@ -65,6 +65,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 - Connect over SFTP/SSH, FTP or FTPS, or mirror to another local folder.
 - Use SSH jump hosts and open an SSH terminal for SFTP configurations.
 - Authenticate with an SSH key, an OS-backed VS Code secret store or a password prompt.
+- Pass keyboard-interactive challenges on servers that require 2FA (`interactiveAuth`).
 - Generate and deploy an SSH key from the server context menu.
 - Recover from SFTP permission errors by staging an edited copy; on compatible SSH servers, apply it through `su`.
 - Change owner, group and permissions on the server, see the owner and group in tooltips, and spot files you cannot write as read-only in the tree.
