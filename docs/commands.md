@@ -1,168 +1,122 @@
-## Common commands
+# WireFerry Command Reference
 
-### WireFerry: Config
-Create a new configuration file for a project.
+[Русская версия](commands.RU.md) · [Main README](../README.md) · [Configuration](configuration.md) · [FAQ](../FAQ.md)
 
-### WireFerry: Set Profile
-Set the current profile.
-           
-#### KeyBindings Args
-func(profileName: string)
+Open the Command Palette with `Ctrl+Shift+P` and type `WireFerry`. Many transfer commands also appear in the local Explorer, editor, Source Control or Remote Explorer context menu.
 
-### WireFerry: Upload Active File
-Upload the current file.
+Commands that need a server are available after a valid `.vscode/wireferry.json` or legacy `.vscode/sftp.json` has been loaded.
 
-### WireFerry: Upload Changed Files
-Upload all files changed or created since the last commit to your Git.
-Can be called by default keyboard shortcut `Ctrl+Alt+U`.
+## Setup and connection
 
-### WireFerry: Upload Active Folder
-Upload the entire folder the current file is located in.
+| Command | Purpose |
+| --- | --- |
+| `WireFerry: Config` | Run the setup wizard when no config exists, or open the current config |
+| `WireFerry: Set Profile` | Select the active profile for commands without an explicit profile context |
+| `WireFerry: Open SSH in Terminal` | Open an SSH terminal for the current SFTP connection |
+| `WireFerry: Check for Updates` | Query the latest GitHub Release and offer an update when one is available |
+| `WireFerry: Open Extension Page` | Open the extension page in VS Code |
+| `WireFerry: Cancel All Transfers` | Stop current upload and download tasks |
 
-### WireFerry: Download Active File
-Download the remote version of the current file and overwrite the local copy.
+`Open SSH in Terminal` applies only to SFTP/SSH configurations.
 
-### WireFerry: Download Active Folder
-Download the entire folder the current file is located in.
+## Upload
 
-### WireFerry: Sync Local -> Remote
-1. Any files that exist on both local and remote that have a different timestamp between local and remote are copied over.
-2. Any files that only exist on the local are copied over.
+| Command | Purpose |
+| --- | --- |
+| `Upload File` | Upload the selected local or mapped file |
+| `Upload Active File` | Upload the file open in the editor |
+| `Upload Folder` | Upload the selected folder |
+| `Upload Active Folder` | Upload the folder containing the active file |
+| `Upload Project` | Upload everything under the configured `context` |
+| `Force Upload` | Upload while bypassing ignore rules; exposed as an alternate context-menu action |
+| `Upload Changed Files` | Apply Git working-tree/index additions, modifications and renames to the server; asks before server deletions |
 
-You can change the default behavior with `syncOption`.
-See [configuration](./configuration.md).
+The default shortcut for **Upload Changed Files** is `Ctrl+Alt+U`.
 
-### WireFerry: Sync Remote -> Local
-Same as `Sync Local -> Remote`, but in the opposite direction.
+When `profiles` are configured, file, active-file, folder, active-folder, project and force-upload commands also have **To All Profiles** variants.
 
-### WireFerry: Sync Both Directions
-Compare file modification times, and will always perform the action that causes the newest file to be present in both locations.
+## Download
 
-*Only `skipCreate` and `ignoreExisting` are valid for this command.*
+| Command | Purpose |
+| --- | --- |
+| `Download File` | Download the selected remote version and replace the mapped local file |
+| `Download Active File` | Download the remote version of the active local file |
+| `Download Folder` | Download the selected folder |
+| `Download Active Folder` | Download the folder containing the active file |
+| `Download Project` | Download the configured remote project |
+| `Force Download` | Download while bypassing ignore rules; exposed as an alternate context-menu action |
 
-### WireFerry: List Active Folder
-List the folder the current file is located in.
+Transfers can overwrite existing files. Verify `context`, `remotePath`, the selected profile and ignore rules first.
 
-### wireferry.upload
-Upload file or folders.
+## Synchronization and comparison
 
-#### KeyBindings Args
-func(fspaths: string[])
+| Command | Purpose |
+| --- | --- |
+| `Sync Local -> Remote` | Use the local tree as source and the server as destination |
+| `Sync Remote -> Local` | Use the server as source and the local tree as destination |
+| `Sync Both Directions` | Compare modification times and place the newer version on both sides |
+| `Diff with Remote` | Compare a selected local file with its remote copy |
+| `Diff Active File with Remote` | Compare the active editor file with its remote copy |
+| `List` | List a remote folder and choose a file |
+| `List Active Folder` | List the remote folder mapped to the active file's folder |
+| `List All` | List remote files reachable below `remotePath` |
 
-### wireferry.download
-Download file or folders.
-
-#### KeyBindings Args
-func(fspaths: string[])
-
-### WireFerry: Cancel All Transfers
-Stop the current transfers (upload and download).
-
-### WireFerry: Open SSH in Terminal
-Open a terminal in VSCode and auto login to a specific server.
-
-### WireFerry: Open Extension Page
-Open the WireFerry extension page inside VS Code.
-
-### WireFerry: Generate SSH Key
-Right-click a server in the Remote Explorer to create an SSH key (ed25519/rsa-4096), deploy the public half to the server's `authorized_keys`, register it in `~/.ssh/config`, and switch the profile to key auth after a verified login. Can provision every server in the config at once. SFTP, local extension host only (2.5.0).
-
-### WireFerry: Save Password to Keychain
-Right-click a server to store its password in the OS keychain and set `"password": "secretStorage"` in the config — no plaintext password in JSON. If the server uses a key, it offers to drop it for a clean switch to password auth (2.5.0).
-
-### WireFerry: Delete Saved Password
-List passwords/passphrases saved in the OS keychain and remove the selected ones (2.5.0).
-
-### WireFerry: Upload File / Upload Folder
-Upload the selected file or folder (used from the explorer context menu).
-
-### WireFerry: Upload Project
-Upload the whole project (everything under the configuration `context`).
-
-### WireFerry: Download File / Download Folder
-Download the selected file or folder, overwriting the local copy.
-
-### WireFerry: Download Project
-Download the whole project from the remote.
-
-### WireFerry: Diff with Remote
-Compare the selected file with its remote version.
-
-#### KeyBindings Args
-func(fspaths: string[])
-
-### WireFerry: Diff Active File with Remote
-Compare the current editor file with its remote version.
-
-### WireFerry: List
-List a remote folder and pick a file to open.
-
-### WireFerry: List All
-List all remote files reachable from the configuration `remotePath`.
-
-### Get Folder Size…
-
-![Remote Explorer folder context menu](../assets/showcase/folder-context-menu-2.5.4.png)
-
-Right-click a folder in the Remote Explorer to total its size. Opens a `folder-size.txt` report tab
-with the server path, permissions and size, plus — if the folder is downloaded locally — the local
-path, size and the difference. On SFTP the size is read with a single server-side `du -sb` (byte
-exact); FTP / servers without `du` fall back to a recursive walk with a live counter and Cancel. The
-local size is summed with Node's `fs` (Windows/Linux/macOS). Sizes show as exact grouped bytes and a
-human-readable form, e.g. `12 930 967 152 bytes (12 GB)`.
-
-### Open on click (Remote Explorer)
-By default (`wireferry.downloadWhenOpenInRemoteExplorer: true`) a single click on a server file
-downloads it with a byte progress bar and then opens it: text/source opens straight away, while a
-binary, an unrecognized type, or a file over 10 MB asks first (so VS Code doesn't choke on a blob).
-Set the option to `false` to get a read-only preview without downloading instead.
-
-
-## Alt commands
-An alternative command can be found when pressing `Alt` while opening a menu.
-
-### Force Download
-Download file but disregard ignore rules.
-
-### Force Upload
-Upload file but disregard ignore rules.
-
+`syncOption` controls creation, update and deletion behavior. Review it before synchronizing important data. For **Sync Both Directions**, only `skipCreate` and `ignoreExisting` apply.
 
 ## Remote Explorer
-These commands appear in the **Remote Explorer** view (right-click a server, folder or file).
 
-### Edit in Local
-Download the remote file and open the local copy for editing.
+| Command | Purpose |
+| --- | --- |
+| `Edit in Local` | Download a remote file and open the mapped local copy for editing |
+| `View Content` | Open a remote file read-only without saving it into the workspace |
+| `Open Remote File by Path` | Enter an absolute remote path and open the file |
+| `Open Symlink Target` | Resolve a remote symlink and offer to open its target |
+| `Reveal in Explorer` | Reveal a remote item's local counterpart |
+| `Reveal in Remote Explorer` | Reveal a local file in the server tree |
+| `Copy Path` | Copy the remote path |
+| `Refresh` | Reload the Remote Explorer tree |
+| `Refresh Active Remote File` | Reload the remote entry for the active file |
+| `Show Sizes` / `Hide Sizes` | Toggle sizes in the tree |
+| `Sort by Size` / `Sort by Name` | Change the tree sort mode |
+| `Size & MD5...` | Report server/local size and, when available, MD5 for a file or folder |
+| `Show Tree...` | Render an ASCII tree of the selected folder into a text tab, with optional file sizes and a depth limit |
 
-### View Content
-Open the remote file read-only, without downloading it into the workspace.
+With `wireferry.downloadWhenOpenInRemoteExplorer: true`, clicking a remote file downloads it with progress and then opens it. When the setting is `false`, WireFerry opens a read-only preview instead.
 
-### Reveal in Explorer
-Reveal the local counterpart of a remote item in the local Explorer.
+Folder size uses a server-side `du` command when available over SFTP and otherwise falls back to walking the remote tree. Server-side MD5 requires suitable shell commands and is unavailable on FTP.
 
-### Reveal in Remote Explorer
-Reveal the active file in the Remote Explorer tree.
+`Show Tree...` first asks how to draw the tree (folders only, with files, or with files and sizes) and a maximum depth (empty or `0` means no limit). The tree opens in a text tab and stops at 20000 entries for very large folders. It is available on folders in both the Remote Explorer and the local Explorer.
 
-### Refresh / Refresh Active Remote File
-Reload the tree (or just the entry for the active file).
+## Remote file management
 
-### Open Remote File by Path
-Prompt for an absolute remote path and open that file.
+| Command | Purpose |
+| --- | --- |
+| `Create File` / `Create Folder` | Create an item below the selected remote directory |
+| `Rename` | Rename or move a selected remote item |
+| `Delete (server / local / both)...` | Choose whether to delete the server copy, local copy or both |
+| `Change Permissions (chmod)` | Change remote Unix mode; folders can be handled recursively |
+| `Change Owner / Group (chown, as root)` | Run `chown` through `su` on a compatible SSH server |
 
-### Copy Path
-Copy the remote path of the selected item to the clipboard.
+When profiles exist, the delete dialog can also remove the server copy from every profile and move the one local copy to the operating-system trash.
 
-### Create File / Create Folder
-Create a new file or folder on the remote under the selected node.
+WireFerry requests the operating-system trash for a local deletion. If trash is unavailable, for example on some network or substituted drives, the implementation falls back to permanent deletion.
 
-### Rename
-Rename the selected remote file or folder.
+Privileged `chmod` retry and `chown` require SFTP/SSH, a working `su` command and valid root credentials.
 
-### Delete
-Delete the selected remote file or folder.
+## Credentials
 
+| Command | Purpose |
+| --- | --- |
+| `Generate SSH Key...` | Create an SSH key, deploy the public key and switch after a verified key login |
+| `Save Password to Keychain...` | Store a password through VS Code SecretStorage and update the config |
+| `Delete Saved Password...` | Remove selected passwords or passphrases from SecretStorage |
 
-## Upload to All Profiles
-When the config defines multiple `profiles`, each upload command has a **To All Profiles** variant
-(`Upload File`, `Upload Active File`, `Upload Folder`, `Upload Active Folder`, `Upload Project`, `Force Upload`)
-that runs the same upload against every profile in turn.
+SSH key generation is SFTP-only. Password storage is available for main configurations and profiles; jump-host credentials are not stored in SecretStorage.
+
+## Local Explorer integration
+
+The local Explorer context menu provides upload, download, sync, diff, delete, size/MD5 and Show Tree actions for mapped items.
+
+`Copy Path (Git Bash)` converts selected Windows paths such as `C:\project\file` to Git Bash form such as `/c/project/file`.
+
+Local rename and move events can be applied to the server after confirmation. Local deletions made through VS Code can likewise be deleted on the server after confirmation; external filesystem changes do not trigger those two confirmation handlers.

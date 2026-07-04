@@ -1,647 +1,351 @@
-# WireFerry
+# WireFerry Configuration Reference
 
-Configurations are stored in your project working directory under `.vscode/wireferry.json` (or the legacy `.vscode/sftp.json`). <br>
-The configuration file can always be accessed with `CTRL` + `Shift` + `P`, and searching for `WireFerry: Config`.
+[Русская версия](configuration.RU.md) · [Main README](../README.md) · [Commands](commands.md) · [FAQ](../FAQ.md)
 
-## Table of Contents
+WireFerry stores project configuration in `.vscode/wireferry.json`. Legacy `.vscode/sftp.json` files are still read, but new projects should use `wireferry.json`.
 
-### Configuration
-- [name](#name)
-- [context](#context)
-- [defaultProfile](#defaultprofile)
-- [protocol](#protocol)
-- [host](#host)
-- [port](#port)
-- [username](#username)
-- [password](#password)
-- [remotePath](#remotepath)
-- [filePerm](#fileperm)
-- [dirPerm](#dirperm)
-- [uploadOnSave](#uploadonsave)
-- [useTempFile](#usetempfile)
-- [openSsh](#openssh)
-- [downloadOnOpen](#downloadonopen)
-- [syncOption](#syncoption)
-- [ignore](#ignore)
-- [ignoreFile](#ignorefile)
-- [watcher](#watcher)
-- [remoteTimeOffsetInHours](#remotetimeoffsetinhours)
-- [remoteExplorer](#remoteexplorer)
-- [concurrency](#concurrency)
-- [connectTimeout](#connecttimeout)
-- [limitOpenFilesOnRemote](#limitopenfilesonremote)
+The format is JSONC: `//` and `/* ... */` comments plus trailing commas are accepted. VS Code validates known fields with the schemas in `schema/`.
 
-### SFTP only configuration
-- [agent](#agent)
-- [privateKeyPath](#privatekeypath)
-- [passphrase](#passphrase)
-- [interactiveAuth](#interactiveauth)
-- [algorithms](#algorithms)
-- [sshConfigPath](#sshconfigpath)
-- [sshCustomParams](#sshcustomparams)
+## Create or open a configuration
 
-### FTP(s) only configuration
-- [secure](#secure)
-- [secureOptions](#secureoptions)
-- [passive](#passive)
+Open a project folder, press `Ctrl+Shift+P`, and run **WireFerry: Config**.
 
+- If no configuration exists, the setup wizard collects SFTP or FTP connection details, verifies the login, and writes `.vscode/wireferry.json`.
+- If a current or legacy configuration exists, the command opens it.
+- FTPS, `local`, profiles, jump hosts and advanced transfer options are edited in the file after initial setup.
 
+## Basic examples
 
-## Configuration
-
-### name
-A string to identify your configuration.
-
-| Key | Value |
-| --- | --- |
-| *name* | *string* |
+### SFTP
 
 ```json
 {
-  "name": "My Server"
+  "name": "Production",
+  "host": "example.com",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "deploy",
+  "password": "prompt",
+  "remotePath": "/var/www/site",
+  "context": "./",
+  "uploadOnSave": false,
+  "ignore": [".vscode", ".git", "node_modules"]
 }
 ```
 
-### context
-A path relative to the workspace root folder. <br>
-Use this when you want to map a subfolder to the `remotePath`.
+### FTP or FTPS
 
-| Key | Value | Default |
+```json
+{
+  "name": "Hosting",
+  "host": "ftp.example.com",
+  "protocol": "ftp",
+  "port": 21,
+  "username": "account",
+  "password": "prompt",
+  "remotePath": "/public_html",
+  "secure": true
+}
+```
+
+For plain FTP, omit `secure` or set it to `false`. For FTPS modes, see [`secure`](#ftp-and-ftps-fields).
+
+### Local mirror
+
+```json
+{
+  "name": "Local mirror",
+  "protocol": "local",
+  "context": "./build",
+  "remotePath": "/absolute/path/to/preview"
+}
+```
+
+`local` uses another directory on the same machine. It does not require `host`, `username` or server credentials. Use an absolute `remotePath` so the destination does not depend on the extension host's working directory.
+
+## Path mapping
+
+`context` is the local root, relative to the opened workspace unless an absolute path is used. `remotePath` is the corresponding root on the server, or the destination directory for `local`.
+
+With `"context": "./build"` and `"remotePath": "/var/www/site"`, the local file `build/css/app.css` maps to `/var/www/site/css/app.css`.
+
+Verify both paths before uploading or synchronizing a project.
+
+## Common fields
+
+| Field | Type | Runtime default | Purpose |
+| --- | --- | --- | --- |
+| `name` | string | — | Label shown in the status bar and Remote Explorer |
+| `protocol` | `sftp`, `ftp`, `local` | `sftp` | Connection or mirror type |
+| `context` | string | workspace root | Local root mapped to `remotePath` |
+| `remotePath` | string | `./` | Remote root, or destination path for `local` |
+| `host` | string | — | Server hostname or IP; required for SFTP/FTP |
+| `port` | integer | protocol/client default | Server port |
+| `username` | string | — | Login name; required for SFTP/FTP |
+| `connectTimeout` | integer | `10000` | Connection timeout in milliseconds |
+| `uploadOnSave` | boolean | `false` | Upload files saved in VS Code |
+| `downloadOnOpen` | boolean or `"confirm"` | `false` | Replace a local file with the remote copy when opened |
+| `concurrency` | integer, 1–512 | `4` | Parallel transfer limit; FTP is always forced to `1` |
+| `useTempFile` | boolean | `true` | Stage a transfer beside the destination and rename it into place |
+| `openSsh` | boolean | `false` | Use OpenSSH rename behavior for the staged-file replacement |
+| `filePerm` | number | — | Octal mode applied to uploaded files, for example `644` |
+| `dirPerm` | number | — | Octal mode applied to created directories, for example `755` |
+| `maxFileSize` | number | disabled | Skip larger files, in MB, during folder/batch transfers |
+| `limitOpenFilesOnRemote` | boolean or number | disabled | Limit remote open-file operations; use only for a confirmed server limit |
+| `remoteTimeOffsetInHours` | number | `0` | Present in config, but currently not applied by the transfer pipeline |
+
+`maxFileSize` does not block an explicitly selected single-file transfer. A value of `0` or an omitted field disables the size filter.
+
+## Authentication
+
+### Passwords
+
+`password` accepts:
+
+- `"secretStorage"` — store/read the password through VS Code SecretStorage;
+- `"prompt"` — ask on every connection without saving;
+- a literal string — use the plaintext value from the config.
+
+Do not commit plaintext credentials.
+
+### SFTP keys
+
+| Field | Type | Purpose |
 | --- | --- | --- |
-| *context* | *string* | *The workspace root.* |
+| `privateKeyPath` | string | Path to the private key; `~` and workspace-relative paths are resolved |
+| `passphrase` | string or `true` | Literal passphrase, `"secretStorage"`, or `true` to prompt |
+| `agent` | string | SSH-agent socket; `pageant` is supported on Windows |
+| `interactiveAuth` | boolean or string array | Enable keyboard-interactive authentication or provide predefined answers |
+| `sshConfigPath` | string | SSH config file to read; defaults to `~/.ssh/config` |
+
+The server context menu can generate and deploy an SSH key, save a password through SecretStorage, or remove stored credentials.
+
+### SSH jump hosts
+
+For SFTP, `hop` accepts one jump host or an array ordered from the first bastion to the final jump before the target:
 
 ```json
 {
-  "context": "/_subfolder_"
-}
-```
-
-### defaultProfile
-When you define multiple server profiles (a `profiles` object in the config), this is the name of the profile selected by default.
-
-| Key | Value |
-| --- | --- |
-| *defaultProfile* | *string* |
-
-```json
-{
-  "defaultProfile": "dev"
-}
-```
-
-### protocol
-Protocol to be used. Use `local` to sync to another folder on the same machine (no server connection). The `host` and `username` values aren't used for a local sync, but the config validator still requires them — set any placeholder (e.g. `"host": "localhost"`, `"username": "local"`).
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *protocol* | `sftp` *,* `ftp` *or* `local` | `sftp` |
-
-```json
-{
-  "protocol": "sftp"
-}
-```
-
-### host
-Hostname or IP address of the server.
-
-| Key | Value |
-| --- | --- |
-| *host* | *string* |
-
-```json
-{
-  "host": "server.example.com"
-}
-```
-
-### port
-Port number of the server.
-
-| Key | Value |
-| --- | --- |
-| *port* | *integer* |
-
-```json
-{
-  "port": 22
-}
-```
-
-### username
-Username for authentication.
-
-| Key | Value |
-| --- | --- |
-| *username* | *string* |
-
-```json
-{
-  "username": "user1"
-}
-```
-
-### password
-The password for password-based user authentication. Since 2.5.0 you do not have to keep it in plain text:
-
-- `"password": "secretStorage"` — read/save the password from the **OS keychain** (Windows Credential Manager / macOS Keychain / Linux Secret Service). Set it from the Remote Explorer: right-click the server → **Save Password to Keychain…** (it also offers to save after a successful connect). Manage saved entries with **Delete Saved Password…**.
-- `"password": "prompt"` — ask for the password on every connect, never store it.
-- A plain string — used as-is (still supported, but stored as plain text). New configs default to `"prompt"`.
-
-| Key | Value |
-| --- | --- |
-| *password* | *string* |
-
-```json
-{
-  "password": "secretStorage"
-}
-```
-
-### remotePath
-The absolute path on the remote host.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *remotePath* | *string* | `/` |
-
-```json
-{
-  "remotePath": "/_subfolder_"
-}
-```
-
-### filePerm
-Set octal file permissions for new files.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *filePerm* | *number* | `false` |
-
-```json
-{
-  "filePerm": 644
-}
-```
- 
-### dirPerm
-Set octal directory permissions for new directories.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *dirPerm* | *number* | `false` |
-
-```json
-{
-  "dirPerm": 750
-}
-```
-
-### uploadOnSave
-Upload on every save operation of VSCode.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *uploadOnSave* | *boolean* | `false` |
-
-With **profiles**, `uploadOnSave` is per-profile: a profile uses its own value or inherits the base one, and a save uploads to **every** profile whose effective value is `true`. So a base `true` reaches every profile (a fleet of mirrors; no active profile needs to be selected, and an unreachable host doesn't stop the rest); set a profile's `uploadOnSave` to `false` to skip it.
-
-```json
-{
-  "uploadOnSave": true,
-  "profiles": {
-    "prod": { "host": "10.0.0.1" },
-    "staging": { "host": "10.0.0.2", "uploadOnSave": false }
+  "name": "Internal server",
+  "host": "10.0.0.20",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "deploy",
+  "password": "prompt",
+  "remotePath": "/srv/app",
+  "hop": {
+    "host": "bastion.example.com",
+    "port": 22,
+    "username": "jump-user",
+    "privateKeyPath": "~/.ssh/bastion_ed25519"
   }
 }
 ```
 
-### useTempFile
-Upload temp file on every save operation of VSCode to avoid breaking a webpage when a user accesses it while the file is still being uploaded (is incomplete).
+Jump-host credentials are not stored in SecretStorage. A literal hop password remains plaintext; `"prompt"` and `"secretStorage"` on a hop are both treated as a prompt.
 
-| Key | Value | Default |
-| --- | --- | --- |
-| *useTempFile* | *boolean* | `false` |
+## Profiles and multiple servers
 
-```json
-{
-  "useTempFile": true
-}
-```
-
-### openSsh
-Enable atomic file uploads (*only supported by openSSH servers*).
-
-| 💡 Important |
-| :--- |
-| *If set to* `true`*, the* `useTempFile` *option must also be set to* `true`.|
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *openSsh* | *boolean* | `false` |
+`profiles` contains alternate values merged over the top-level configuration:
 
 ```json
 {
-  "openSsh": true,
-  "useTempFile": true
-}
-```
-
-### downloadOnOpen
-Download the file from the remote server whenever it is opened. Set to `"confirm"` to be asked before each download instead of downloading automatically.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *downloadOnOpen* | `true` *,* `false` *or* `"confirm"` | `false` |
-
-```json
-{
-  "downloadOnOpen": true
-}
-```
-
-### syncOption
-Configure the behavior of the `Sync` command.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *syncOption* | *object* | `{}` |
-
-#### syncOption.delete
-Delete extraneous files from destination directories.
-
-| Key | Value |
-| --- | --- |
-| *syncOption.delete* | *boolean* |
-
-#### syncOption.skipCreate
-Skip creating new files on the destination.
-
-| Key | Value |
-| --- | --- |
-| *syncOption.skipCreate* | *boolean* |
-
-#### syncOption.ignoreExisting
-Skip updating files that exist on the destination.
-
-| Key | Value |
-| --- | --- |
-| *syncOption.ignoreExisting* | *boolean* |
-
-#### syncOption.update
-Update the destination only if a newer version is on the source filesystem.
-
-| Key | Value |
-| --- | --- |
-| *syncOption.update* | *boolean* |
-
-```json
-{
-  "syncOption": {
-    "delete": true,
-    "skipCreate": false,
-    "ignoreExisting": false,
-    "update": true
+  "name": "Website",
+  "protocol": "sftp",
+  "port": 22,
+  "username": "deploy",
+  "password": "prompt",
+  "remotePath": "/var/www/site",
+  "uploadOnSave": true,
+  "profiles": {
+    "staging": {
+      "host": "staging.example.com"
+    },
+    "production": {
+      "host": "example.com",
+      "uploadOnSave": false
+    }
   },
+  "defaultProfile": "staging"
 }
 ```
 
-### ignore
-Ignore can be used to ignore files and folders from sync, and even supports wildcards using `*`. <br>
-This is the same behavior as gitignore, all paths relative to context of the current configuration.
- 
-| Key | Value | Default |
-| --- | --- | --- |
-| *ignore* | *string[]* | `[]` |
- 
+- A profile inherits fields omitted from it.
+- `defaultProfile` selects the initial active profile.
+- By default, each profile is also visible as a root in Remote Explorer.
+- Actions on a profile root use that profile's connection.
+- Upload commands have **To All Profiles** variants.
+- On save, WireFerry uploads to every profile whose effective `uploadOnSave` value is `true`.
+
+To configure unrelated servers rather than profiles of one configuration, make the entire file an array:
+
+```json
+[
+  {
+    "name": "Server A",
+    "host": "a.example.com",
+    "username": "deploy",
+    "password": "prompt",
+    "remotePath": "/srv/a"
+  },
+  {
+    "name": "Server B",
+    "host": "b.example.com",
+    "username": "deploy",
+    "password": "prompt",
+    "remotePath": "/srv/b"
+  }
+]
+```
+
+## Ignore rules
+
+`ignore` uses gitignore-style patterns relative to `context` locally and `remotePath` remotely:
+
 ```json
 {
   "ignore": [
-    "/.vscode",
-    "/.git",
-    "/.cache",
-    "/_subfolder_",
-    ".DS_Store",
-    "*.gz",
+    ".vscode",
+    ".git",
+    "node_modules",
     "*.log"
-  ],
+  ]
 }
 ```
 
-### ignoreFile
-Absolute path to the ignore file or Relative path relative to the workspace root folder.
- 
-| Key | Value |
-| --- | --- |
-| *ignoreFile* | *string* |
- 
+No ignore patterns are added automatically to a hand-written configuration. The setup wizard writes `.vscode`, `.git` and `.DS_Store` into the configuration it creates.
+
+To load additional patterns from a file:
+
 ```json
 {
   "ignoreFile": ".gitignore"
 }
 ```
 
-### watcher
-Configure the behavior of the `watcher` command.
+`ignoreFile` can be workspace-relative or absolute. It is not enabled unless set.
 
-| Key | Value | Default |
-| --- | --- | --- |
-| *watcher* | *object* | `{}` |
+## External file watcher
 
-#### watcher.files
-Glob patterns that are watched and when edited outside of the VSCode editor are processed.
-
-| 💡 Important |
-| :--- |
-| *Set* `uploadOnSave` *to* `false` *when you watch everything.*| 
-
-| Key | Value |
-| --- | --- |
-| *watcher.files* | *string* |
- 
-#### watcher.autoUpload
-Upload when the file changed.
-
-| Key | Value |
-| --- | --- |
-| *watcher.autoUpload* | *boolean* |
+`uploadOnSave` handles saves made by VS Code. `watcher` can react to changes made by external tools:
 
 ```json
 {
+  "uploadOnSave": false,
   "watcher": {
     "files": "**/*",
     "autoUpload": true
-  },
+  }
 }
 ```
 
-### remoteTimeOffsetInHours
-The number of hours difference between the local machine and the remote server (remote minus local).
+`watcher.files` is a glob string. Avoid matching the same files with both automatic mechanisms unless duplicate uploads are acceptable.
 
-> **Note:** this option is currently inactive — it is not yet applied by the transfer pipeline (planned; see the project ROADMAP).
+## Synchronization
 
-| Key | Value | Default |
-| --- | --- | --- |
-| *remoteTimeOffsetInHours* | *number* | `0` |
+`syncOption` changes the behavior of **Sync Local -> Remote** and **Sync Remote -> Local**:
 
 ```json
 {
-  "remoteTimeOffsetInHours": 3
+  "syncOption": {
+    "delete": false,
+    "skipCreate": false,
+    "ignoreExisting": false,
+    "update": true
+  }
 }
 ```
 
-### remoteExplorer
-Configure the behavior of the `remoteExplorer` command.
-
-| Key | Value | Default |
-| --- | --- | --- | 
-| *remoteExplorer* | *object* | `{}` |
- 
-#### remoteExplorer.filesExclude
-Configure that patterns for excluding files and folders. <br>
-The Remote Explorer decides which files and folders to show or hide based on this setting..
-
-| Key | Value |
+| Field | Effect |
 | --- | --- |
-| *remoteExplorer.filesExclude* | *string[]* |
+| `delete` | Delete destination items that do not exist in the source |
+| `skipCreate` | Do not create destination items that exist only in the source |
+| `ignoreExisting` | Do not modify items already present in the destination |
+| `update` | Replace an existing destination item only when the source is newer |
 
-#### remoteExplorer.order
+Source and destination depend on the chosen direction. **Sync Both Directions** compares both sides; only `skipCreate` and `ignoreExisting` apply to that command.
 
-| Key | Value |
-| --- | --- |
-| *remoteExplorer.order* | *number* |
+Test deletion and overwrite behavior on non-critical data first.
+
+## Remote Explorer
+
+Project-level `remoteExplorer` fields:
+
 ```json
 {
   "remoteExplorer": {
-    "filesExclude": [],
-    "order": 0
+    "filesExclude": ["*.log", "cache"],
+    "order": 10
   }
 }
 ```
 
-### concurrency
-Lowering the concurrency could get more stability because some clients/servers have some sort of configured/hard coded limit.
-
-> **Note:** for the `ftp` protocol concurrency is always forced to `1`, regardless of this setting.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *concurrency* | *number* | `4` |
-
-```json
-{
-  "concurrency": 3
-}
-```
-
-### connectTimeout
-The maximum connection time.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *connectTimeout* | *number* | `10000` |
-
-```json
-{
-  "connectTimeout": 15000
-}
-```
-
-### limitOpenFilesOnRemote
-Limit open file descriptors to the specific number in a remote server. <br>
-Set to true for using default `limit(222)`.
-
-| 💡 Important |
-| :--- |
-| *Do not set this unless you have to!* | 
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *limitOpenFilesOnRemote* | *mixed* | `false` |
-
-```json
-{
-  "limitOpenFilesOnRemote": 15000
-}
-```
-
-
-## SFTP only configuration
-
-### agent
-Path to ssh-agent's UNIX socket for ssh-agent-based user authentication. <br>
-Windows users must set to 'pageant' for authenticating with Pagenat or (actual) path to a Cygwin "UNIX socket". <br>
-It'd get more stability because some client/server have some sort of configured/hard coded limit.
-
-| Key | Value |
+| Field | Effect |
 | --- | --- |
-| *agent* | *string* |
+| `filesExclude` | Hide matching items in the tree only; transfers are unaffected |
+| `order` | Sort this server among other roots; lower numbers appear first |
 
-```json
-{
-  "agent": "/_subfolder_/agent"
-}
-```
+## SFTP-only fields
 
-### privateKeyPath
-Absolute path to user private key.
+### `algorithms`
 
-| Key | Value |
-| --- | --- |
-| *privateKeyPath* | *string* |
+`algorithms` overrides or adjusts SSH transport algorithms. Prefer `append`, `prepend` or `remove` so modern defaults remain available:
 
-```json
-{
-  "privateKeyPath": "/.ssh/key.pem"
-}
-```
-
-### passphrase
-For an encrypted private key, this is the passphrase string used to decrypt it. <br>
-Set to 'true' for enable passphrase dialog. This will prevent from using cleartext passphrase in this config.
-
-| Key | Value |
-| --- | --- |
-| *passphrase* | *mixed* |
-
-```json
-{
-  "passphrase": true
-}
-```
-
-### interactiveAuth
-Enable keyboard interaction authentication mechanism. Set to 'true' to enable `verifyCode` dialog. <br>
-For example using Google Authentication (multi-factor). Or pass array of predefined phrases to automatically enter them without user prompting.
-
-| 💡 Note |
-| :--- |
-| *Requires the server to have keyboard-interactive authentication enabled.* | 
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *interactiveAuth* | *boolean*\|*string[]* | 'false' |
-
-```json
-{
-  "interactiveAuth": true
-}
-```
-
-### algorithms
-Explicit overrides for the default transport layer algorithms used for the connection.
-
-**Default**:
 ```json
 {
   "algorithms": {
-    "kex": [
-      "ecdh-sha2-nistp256",
-      "ecdh-sha2-nistp384",
-      "ecdh-sha2-nistp521",
-      "diffie-hellman-group-exchange-sha256"
-    ],
-    "cipher": [
-      "aes128-gcm",
-		"aes128-gcm@openssh.com",
-		"aes256-gcm",
-		"aes256-gcm@openssh.com",
-		"aes128-cbc",
-		"aes192-cbc",
-		"aes256-cbc",
-		"aes128-ctr",
-		"aes192-ctr",
-		"aes256-ctr"
-    ],
-    "serverHostKey": [
-      "ssh-rsa",
-      "ssh-dss",
-      "ssh-ed25519",
-      "ecdsa-sha2-nistp256",
-      "ecdsa-sha2-nistp384",
-      "ecdsa-sha2-nistp521",
-      "rsa-sha2-512",
-      "rsa-sha2-256"
-    ],
-    "hmac": [
-      "hmac-sha2-256",
-      "hmac-sha2-512"
-    ]
-  },
-}
-```
-
-### sshConfigPath
-Absolute path to your SSH configuration file.
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *sshConfigPath* | *string* | `~/.ssh/config` |
-
-```json
-{
-  "sshConfigPath": "~/.ssh/config"
-}
-```
-
-### sshCustomParams
-Extra parameters appended to the SSH command used by "Open SSH in Terminal".
-
-| Key | Value |
-| --- | --- |
-| *sshCustomParams* | *string* |
-
-```json
-{
-  "sshCustomParams": "-g"
-}
-```
-
-
-## FTP(s) only configuration
-
-### secure
-Set to true for both control and data connection encryption. <br>
-Set to `control` for control encryption only, or `implicit` for implicitly encrypted control connection (this mode is deprecated in modern times, but usually uses port 990).
-
-| Key | Value | Default |
-| --- | --- | --- |
-| *secure* | *mixed* | `false` |
-
-```json
-{
-  "secure": "control"
-}
-```
-
-### secureOptions
-Additional options to be passed to `tls.connect()`.
-
-| 💡 Note |
-| :--- |
-| *See [TLS connect options callback](https://nodejs.org/api/tls.html#tls_tls_connect_options_callback).* | 
-
-| Key | Value |
-| --- | --- |
-| *secureOptions* | *object* |
-
-```json
-{
-  "secureOptions": {
-    "enableTrace": true
+    "kex": {
+      "append": ["diffie-hellman-group1-sha1"]
+    }
   }
 }
 ```
 
-### passive
-Use passive mode for FTP data connections (the client opens the data connection to the server). Useful behind NAT/firewalls.
+Supported groups are `kex`, `cipher`, `serverHostKey` and `hmac`. Legacy algorithms should be enabled only for a server that requires them.
 
-| Key | Value | Default |
-| --- | --- | --- |
-| *passive* | *boolean* | `false` |
+### `sshCustomParams`
+
+Extra parameters appended to the command used by **Open SSH in Terminal**:
 
 ```json
 {
-  "passive": true
+  "sshCustomParams": "-v"
 }
 ```
+
+This field affects the terminal command, not the SFTP library connection.
+
+## FTP and FTPS fields
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| `secure` | boolean, `"control"`, or `"implicit"` | `true` encrypts control and data; `"control"` encrypts control only; `"implicit"` uses implicit FTPS |
+| `secureOptions` | object | Additional options passed to Node.js `tls.connect()` |
+| `passive` | boolean | Use passive FTP data connections |
+
+FTP transfer concurrency is always `1`.
+
+## VS Code settings
+
+These values belong in VS Code settings, not `.vscode/wireferry.json`:
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `wireferry.debug` | `false` | Enable detailed output logging |
+| `wireferry.downloadWhenOpenInRemoteExplorer` | `true` | Download a clicked remote file before opening it; `false` opens a read-only preview |
+| `wireferry.checkForUpdates` | consent required | Check GitHub Releases on startup after the user agrees |
+| `wireferry.suppressLegacyConfigNotice` | `false` | Hide legacy migration notices |
+| `wireferry.alertLanguage` | `en` | Language of WireFerry prompts: `en` or `ru` |
+| `wireferry.remoteExplorer.showSize` | `false` | Show file/folder sizes in the tree |
+| `wireferry.remoteExplorer.sortBySize` | `false` | Sort the tree by size instead of name |
+| `wireferry.remoteExplorer.profilesAsRoots` | `true` | Show profiles as separate Remote Explorer roots |
+
+The startup update check makes no request until the user explicitly consents. The manual **Check for Updates** command is an explicit check.
+
+## Legacy and advanced fields
+
+- `keepLegacyConfigFormat` suppresses prompts to rename `.vscode/sftp.json`.
+- `remote` can merge a named legacy `remotefs.remote` entry from VS Code user settings.
+- The schemas under `schema/` contain detailed allowed values for SSH algorithms and `secureOptions`.
+
+When documentation and editor completion differ, check both the runtime validator in `src/modules/configValidation.ts` and the bundled schemas before relying on a field.

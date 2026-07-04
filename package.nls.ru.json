@@ -49,6 +49,7 @@
   "wireferry.remoteExplorer.copyPath": "Копировать путь",
   "wireferry.copyPathAsGitBash": "Копировать путь (Git Bash)",
   "wireferry.remoteExplorer.calculateFolderSize": "Размер и MD5…",
+  "wireferry.tree": "Показать дерево…",
   "wireferry.remoteExplorer.sortTreeBySize": "Сортировать по размеру (сначала большие)",
   "wireferry.remoteExplorer.sortTreeByName": "Сортировать по имени",
   "wireferry.remoteExplorer.showSizes": "Показать размеры",

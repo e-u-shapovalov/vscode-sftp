@@ -1,70 +1,87 @@
 # WireFerry — SFTP, FTP and FTPS Sync for Visual Studio Code
 
-**WireFerry is a VS Code SFTP extension for uploading, downloading, comparing and synchronizing project files with remote servers.** It brings SFTP, FTP and FTPS transfers, upload on save and a remote file explorer into Visual Studio Code, reducing the need to switch to a separate FTP client for routine website and server-file updates.
+WireFerry is a Visual Studio Code extension for uploading, downloading, comparing and synchronizing project files with remote servers over SFTP, FTP or FTPS. It keeps routine website, shared-hosting and VPS file work inside VS Code, with upload on save and a built-in Remote Explorer.
 
-[Русская версия](README.RU.md) · [Installation](INSTALL.md) · [Configuration](docs/configuration.md) · [FAQ](FAQ.md) · [Changelog](CHANGELOG.md)
+[Русская версия](README.RU.md) · [Installation](INSTALL.md) · [Configuration](docs/configuration.md) · [Commands](docs/commands.md) · [FAQ](FAQ.md) · [Changelog](CHANGELOG.md)
 
 ## Download and install
 
-WireFerry is distributed as a ready-to-install Visual Studio Code extension package through GitHub Releases.
+WireFerry is distributed as a ready-to-install `.vsix` package through GitHub Releases.
 
-**Download [`wireferry-<version>.vsix` from the latest release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
+**[Download `wireferry-<version>.vsix` from the latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
 
 > **If you are a regular user, do not use Code → Download ZIP. Download the ready-to-use release package from GitHub Releases instead.**
 
-If you are new to GitHub:
+If you have not used GitHub before:
 
 1. Open the [latest release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
-2. Find the **Assets** section.
-3. Download the file named `wireferry-<version>.vsix`. Do not download either **Source code** archive.
-4. Open Visual Studio Code and select **Extensions** (`Ctrl+Shift+X`).
-5. Open the **...** menu in the Extensions panel and select **Install from VSIX...**.
+2. Find the **Assets** section and expand it if necessary.
+3. Download `wireferry-<version>.vsix`. Do not choose either **Source code** archive.
+4. In desktop Visual Studio Code, open **Extensions** (`Ctrl+Shift+X`).
+5. Open the **...** menu and select **Install from VSIX...**.
 6. Select the downloaded `.vsix` file and reload VS Code if prompted.
 
-The `.vsix` is the extension package; do not extract it. There is no separate installer or standalone WireFerry application. See [INSTALL.md](INSTALL.md) for terminal installation and common installation problems.
+Do not extract the `.vsix`. It is the extension package, not an archive that must be unpacked. WireFerry has no separate installer or standalone application. See the [installation guide](INSTALL.md) for terminal installation and common installation problems.
+
+## What WireFerry is for
+
+WireFerry maps a local folder in your VS Code workspace to a directory on a server. You can transfer one file, a folder or a complete configured project without repeatedly locating the same paths in a separate FTP client.
+
+Typical uses include:
+
+- publishing small website changes to shared hosting;
+- editing files on a VPS over SFTP;
+- keeping development, staging and production profiles in one project;
+- downloading an existing remote project into a local workspace;
+- comparing a local file with the server copy before replacing it;
+- mirroring files to another local directory with the `local` protocol.
+
+WireFerry is a direct file-transfer tool. It is not a CI/CD pipeline, a release-management system or a replacement for version control.
 
 ## Quick start
 
-1. Open your local project **folder** in VS Code.
-2. Open the Command Palette (`Ctrl+Shift+P`) and run **WireFerry: Config**.
-3. Follow the setup wizard. It asks for the protocol, server, port, username, remote path and authentication method, then verifies the connection.
-4. After a successful connection, WireFerry creates `.vscode/wireferry.json` and shows the server in **Remote Explorer**.
-5. Use the Command Palette, Explorer context menu or Remote Explorer to upload, download, compare or synchronize files.
+1. Open the local project **folder** in VS Code.
+2. Open the Command Palette with `Ctrl+Shift+P`.
+3. Run **WireFerry: Config**.
+4. Complete the setup wizard. It asks for the protocol, host, port, username, remote path and authentication method, and verifies the connection.
+5. After a successful check, the wizard creates `.vscode/wireferry.json` and the server appears in **Remote Explorer**.
+6. Use `WireFerry:` commands, Explorer context menus or Remote Explorer to upload, download, compare and synchronize files.
 
-The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` configurations remain supported as a legacy format.
+The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files are still recognized as a legacy format. Advanced options such as FTPS, profiles, jump hosts and local mirroring are configured in JSONC.
 
-![WireFerry first-server setup prompt in Visual Studio Code](assets/showcase/setup-wizard-welcome-2.5.4.png)
+![WireFerry first-server setup in Visual Studio Code](assets/showcase/setup-wizard-welcome-2.5.4.png)
 
-## What's new
+## Key features
 
-**2.6.0 — edit root-owned files via `su`, plus owner/group and read-only hints in the tree.** When an upload is denied for lack of permission, the recovery dialog now has an **"Apply as root now"** button: WireFerry stages your edited copy and applies it over an SSH PTY with `su -` (asking for the root password), keeping the target's owner and mode — ideal for editing root-owned nginx/php configs locally. A new **"Change Owner / Group (chown)"** command runs `chown` as root, and a denied `chmod` can be retried as root. The hover tooltip now shows a file's **owner and group**, and files you **can't write** are dimmed with an **"RO"** badge and a reason (e.g. "not the owner and not in group `www-data`"). The root password never touches disk or logs. Hardened over three rounds of external code review.
-
-See the [Changelog](CHANGELOG.md) for technical details and previous releases.
-
-## What WireFerry does
-
-- Upload or download one file, a folder, the active file or folder, or the configured project.
-- Synchronize local to remote, remote to local, or in both directions.
-- Upload files when they are saved, or watch for changes made outside VS Code.
+- Upload or download a file, folder, active file, active folder or configured project.
+- Synchronize local to remote, remote to local or in both directions.
+- Upload files when they are saved in VS Code.
+- Watch files changed by external tools and optionally upload them.
 - Compare a local file with its remote version.
-- Browse and manage remote files in a dedicated VS Code Remote Explorer.
+- Browse remote files in a dedicated VS Code Remote Explorer.
 - Create, rename, move and delete remote files and folders.
-- Use multiple profiles for environments such as development, staging and production.
-- Upload to every configured profile when the same files must reach multiple servers.
-- Connect over SFTP/SSH, FTP or FTPS; a `local` protocol can mirror files to another local folder.
-- Use SSH jump hosts for SFTP connections.
-- Store passwords and key passphrases through VS Code SecretStorage, prompt on each connection, or use an SSH private key.
+- Inspect sizes and permissions; calculate folder sizes and compare local/remote size and MD5.
+- Use multiple profiles and upload the same files to all configured profiles.
+- Connect over SFTP/SSH, FTP or FTPS, or mirror to another local folder.
+- Use SSH jump hosts and open an SSH terminal for SFTP configurations.
+- Authenticate with an SSH key, an OS-backed VS Code secret store or a password prompt.
 - Generate and deploy an SSH key from the server context menu.
+- Recover from SFTP permission errors by staging an edited copy; on compatible SSH servers, apply it through `su`.
+- Draw an ASCII tree of a server or local folder from the folder context menu, with an optional depth limit and file sizes.
 
 ![WireFerry Remote Explorer](assets/showcase/remote-explorer-overview-2.5.4.png)
 
-WireFerry is useful for website maintenance, shared hosting, VPS file updates, staging environments and other workflows where files must be transferred directly from a VS Code workspace. It is a file-transfer tool, not a CI/CD or release-management system.
+## Latest release highlights
+
+The latest release adds a **Show Tree** command that renders an ASCII tree of a server or local folder — optionally with file sizes and a depth limit — into a text tab from the folder right-click menu. This release also ships refreshed and expanded documentation.
+
+See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 
 ## Configuration
 
-WireFerry uses a JSON-with-comments configuration file at `.vscode/wireferry.json`. The setup wizard creates it, and VS Code provides field descriptions and validation from the bundled schema.
+WireFerry reads JSON with comments and trailing commas from `.vscode/wireferry.json`. The setup wizard creates the first configuration, and VS Code provides field descriptions and validation from the bundled schema.
 
-A minimal manually edited SFTP configuration looks like this:
+A minimal manually edited SFTP configuration:
 
 ```json
 {
@@ -75,13 +92,21 @@ A minimal manually edited SFTP configuration looks like this:
   "username": "deploy",
   "password": "prompt",
   "remotePath": "/var/www/site",
-  "uploadOnSave": false
+  "uploadOnSave": false,
+  "ignore": [".vscode", ".git", "node_modules"]
 }
 ```
 
-`context` selects the local directory to map, while `remotePath` selects the corresponding directory on the server. Add `ignore` rules before transferring a project if local-only files are not already covered by the defaults or your `.gitignore`.
+`context` selects the local directory to map; `remotePath` selects the corresponding server directory. Ignore patterns are not automatically inferred from `.gitignore`: set `ignoreFile` explicitly if you want WireFerry to read it.
 
-For SFTP, FTP/FTPS, profiles, jump hosts and all supported fields, read the [configuration guide](docs/configuration.md).
+Before the first project upload or synchronization, verify:
+
+- `context` and `remotePath`;
+- `ignore` and `ignoreFile`;
+- the active profile;
+- `syncOption`, especially any deletion behavior.
+
+Read the [configuration reference](docs/configuration.md) for SFTP, FTP/FTPS, `local`, profiles, jump hosts, watchers and all supported fields.
 
 ## Main commands
 
@@ -91,70 +116,80 @@ Open the Command Palette with `Ctrl+Shift+P` and type `WireFerry`.
 | --- | --- |
 | `WireFerry: Config` | Run the setup wizard or open the existing configuration |
 | `WireFerry: Upload Active File` | Upload the file open in the editor |
-| `WireFerry: Upload Changed Files` | Upload files changed in Git; default shortcut: `Ctrl+Alt+U` |
+| `WireFerry: Upload Changed Files` | Upload Git working-tree changes; default shortcut: `Ctrl+Alt+U` |
 | `WireFerry: Upload Project` | Upload everything under the configured `context` |
 | `WireFerry: Download Project` | Download the configured remote project |
 | `WireFerry: Sync Local -> Remote` | Synchronize from the local folder to the server |
 | `WireFerry: Sync Remote -> Local` | Synchronize from the server to the local folder |
-| `WireFerry: Sync Both Directions` | Copy newer files in both directions |
+| `WireFerry: Sync Both Directions` | Copy the newer version of each file in both directions |
 | `WireFerry: Diff Active File with Remote` | Compare the active local file with its remote copy |
-| `WireFerry: Open SSH in Terminal` | Open an SSH session for the configured SFTP server |
+| `WireFerry: Open SSH in Terminal` | Open an SSH session for an SFTP configuration |
 | `WireFerry: Cancel All Transfers` | Stop current upload and download operations |
 
-See [docs/commands.md](docs/commands.md) for the full command and context-menu reference.
+The [command reference](docs/commands.md) covers context-menu actions, Remote Explorer and multi-profile commands.
 
 ## Authentication and safety
 
-- Prefer an SSH key for SFTP where the server supports it.
+- Prefer SSH keys for SFTP when the server supports them.
 - `"password": "secretStorage"` stores the password through VS Code SecretStorage instead of in the project file.
-- `"password": "prompt"` asks for the password on each connection and does not save it.
+- `"password": "prompt"` asks on each connection and does not save the password.
 - A literal password in `.vscode/wireferry.json` is plaintext. Do not commit it.
-- Review `context`, `remotePath`, `ignore` and `syncOption` before enabling deletion during synchronization.
-- Workspace Trust is required; the extension declares untrusted workspaces unsupported.
-
-The server context menu also provides commands to generate an SSH key, save a password to SecretStorage and delete saved credentials.
+- The setup wizard writes `.vscode`, `.git` and `.DS_Store` to its initial `ignore` list. A hand-written configuration must define its own ignore rules.
+- Synchronization can overwrite or delete files depending on `syncOption`. Test a new configuration with non-critical data and keep backups.
+- WireFerry does not run in VS Code Restricted Mode. Trust only workspaces whose contents you have reviewed.
 
 ## Known limitations
 
-- Visual Studio Code 1.66 or newer is required.
-- WireFerry runs inside desktop VS Code; it is not a standalone GUI or command-line client.
-- `remoteTimeOffsetInHours` is present in the configuration schema but is not currently applied by the transfer pipeline.
-- FTP transfers force `concurrency` to `1`.
+- Desktop Visual Studio Code 1.66 or newer is required.
+- WireFerry runs inside VS Code; there is no standalone GUI or WireFerry CLI.
+- Browser-based VS Code environments are not documented as supported.
+- `remoteTimeOffsetInHours` exists in the schema but is not currently applied by the transfer pipeline.
+- FTP transfer concurrency is forced to `1`.
 - Enabling both `uploadOnSave` and `watcher.autoUpload` for the same files can cause duplicate uploads.
-- Synchronization can overwrite or delete files depending on `syncOption`; test a new configuration on non-critical data first.
+- Server permissions, storage quotas, SSH/FTP policy and available shell commands remain controlled by the server.
 
 Known bugs and inherited technical debt are tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Troubleshooting
 
-### WireFerry commands do not appear
+### I downloaded Source code instead of the extension
 
-Confirm that the extension is installed and enabled, a trusted project folder is open, and the project contains `.vscode/wireferry.json` or legacy `.vscode/sftp.json`. Run **WireFerry: Config** to create a configuration.
+Delete the ZIP or TAR.GZ, return to the [latest release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest), expand **Assets** and download `wireferry-<version>.vsix`. Source archives cannot be installed as the packaged extension.
+
+### WireFerry commands or the server tree do not appear
+
+Confirm that the extension is installed and enabled, reload VS Code, open a folder rather than an individual file, and ensure the workspace is trusted. Run **WireFerry: Config** to create a configuration. Transfer-specific menus remain unavailable until a valid configuration is loaded.
 
 ### `Config Not Found`
 
-Open the project root rather than a single file. The configuration must be inside the opened folder, and the current file must be within the configured `context`.
+Open the project root rather than a single file. Confirm that `.vscode/wireferry.json` is inside the opened workspace and that the current file is under the configured `context`.
 
 ### Files are transferred to the wrong directory
 
-Check both `context` and `remotePath`: they define the local and remote roots that WireFerry maps to each other.
+Check both `context` and `remotePath`. They are the local and remote roots that WireFerry maps to each other.
 
 ### Unwanted files were uploaded
 
-Add patterns such as `.git`, `node_modules` and `*.log` to `ignore`, or point `ignoreFile` at an appropriate gitignore-format file.
+Add gitignore-style patterns to `ignore`, or set `ignoreFile` to a suitable file. Changing Remote Explorer's `filesExclude` only hides items in the tree; it does not exclude them from transfers.
 
-### I need connection details
+### The connection closes on an old SSH server
 
-Enable `wireferry.debug` in VS Code settings, reload the window and open **View → Output → WireFerry**. The detailed [FAQ](FAQ.md) covers common SFTP errors, old SSH servers, ignore rules and macOS file-watch limits.
+The server may require a legacy key-exchange or host-key algorithm. Add only the algorithm required by that server with the `algorithms` setting; see the [FAQ](FAQ.md#the-sftp-connection-closes-or-reports-unknown-dh-group).
+
+### I need diagnostic logs
+
+Enable `wireferry.debug`, reload the VS Code window, then open **View → Output → WireFerry**. Remove passwords and sensitive paths before sharing logs.
+
+More solutions are in the [FAQ and troubleshooting guide](FAQ.md).
 
 ## For developers
 
-The repository contains a TypeScript extension bundled by Webpack. Its runtime entry point is `src/extension.ts`, compiled to `dist/extension.js`. The exact minimum Node.js/npm version is not declared; use a current supported Node.js release.
+The repository contains a TypeScript extension bundled by Webpack. The source entry point is `src/extension.ts`; `npm run compile` writes `dist/extension.js`. The project does not declare an exact minimum Node.js/npm version, so use a current supported Node.js release.
 
 ```bash
 git clone https://github.com/e-u-shapovalov/vscode-sftp.git
 cd vscode-sftp
-npm install
+npm ci
 npm run compile
 npm test
 npx tsc --noEmit
@@ -166,41 +201,41 @@ Development watch mode:
 npm run dev
 ```
 
-Build and install a local package:
+Build an installable package:
 
 ```bash
 npx @vscode/vsce package
 code --install-extension wireferry-<version>.vsix
 ```
 
-`npx @vscode/vsce package` creates the same package type used by GitHub Releases. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution checks.
+The `code` command is optional; the resulting package can also be installed through **Extensions → ... → Install from VSIX...**. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution checks.
 
 ## FAQ
 
 ### What should I download?
 
-Download `wireferry-<version>.vsix` from the **Assets** section of the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Source archives are for development and cannot be installed as the packaged extension.
+Download `wireferry-<version>.vsix` from **Assets** in the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Do not download a source archive for normal installation.
 
-### Does WireFerry include a standalone FTP client or CLI?
+### Does WireFerry have a standalone FTP client or CLI?
 
-No. WireFerry runs inside Visual Studio Code. The optional `code --install-extension` command only asks VS Code to install the `.vsix`.
+No. WireFerry runs inside desktop Visual Studio Code. `code --install-extension` is a VS Code installation command, not a WireFerry CLI.
 
-### Can it upload a website when I save a file?
+### Can it upload a website whenever I save a file?
 
-Yes. Set `uploadOnSave` for the relevant configuration or profile. Check `context`, `remotePath` and `ignore` first so the intended local files map to the intended server directory.
+Yes. Set `uploadOnSave` for the relevant configuration or profile. Check `context`, `remotePath` and ignore rules before enabling it.
 
 ### Can it download an existing website?
 
-Yes. Open an empty local folder, configure the correct remote root, and run **WireFerry: Download Project**. Back up important remote data before experimenting with synchronization options.
+Yes. Open an empty local folder, configure the correct `remotePath`, and run **WireFerry: Download Project**. Back up important data before testing synchronization options.
 
 ### Is this the original `vscode-sftp` extension?
 
-No. WireFerry is an independently maintained fork and is not presented as the original project. Its lineage is `Natizyskunk/vscode-sftp` ← `liximomo/vscode-sftp`; this fork started from upstream `v1.16.3` and has since developed separately under a new name and publisher.
+No. WireFerry is an independently maintained fork and is not presented as the original project. Its lineage is Natizyskunk/vscode-sftp ← liximomo/vscode-sftp; this fork started from upstream `v1.16.3` and now uses a different name and publisher.
 
-## Support and license
+## Support, attribution and license
 
 - Report bugs or request features in [GitHub Issues](https://github.com/e-u-shapovalov/vscode-sftp/issues).
-- Download releases from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
+- Download packages from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
 - Review user-visible changes in the [Changelog](CHANGELOG.md).
 
-WireFerry is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov) and licensed under the [MIT License](LICENSE). The original copyright and attribution notices are preserved in `LICENSE`.
+WireFerry is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov) and licensed under the [MIT License](LICENSE). Required original copyright and attribution notices are preserved in `LICENSE`.

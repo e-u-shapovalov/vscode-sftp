@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -436,6 +436,12 @@
         "command": "wireferry.remoteExplorer.openSymlink",
         "title": "%wireferry.remoteExplorer.openSymlink%",
         "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.tree",
+        "title": "%wireferry.tree%",
+        "category": "WireFerry",
+        "icon": "$(list-tree)"
       }
     ],
     "menus": {
@@ -446,6 +452,10 @@
         },
         {
           "command": "wireferry.remoteExplorer.openSymlink",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.tree",
           "when": "false"
         },
         {
@@ -707,6 +717,11 @@
           "when": "wireferry.enabled && !explorerResourceIsRoot"
         },
         {
+          "command": "wireferry.tree",
+          "group": "3_compare",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
+        },
+        {
           "command": "wireferry.delete.remote",
           "group": "7_modification",
           "when": "wireferry.enabled && !explorerResourceIsRoot"
@@ -860,6 +875,11 @@
           "command": "wireferry.remoteExplorer.calculateFolderSize",
           "group": "2_files",
           "when": "view == remoteExplorer"
+        },
+        {
+          "command": "wireferry.tree",
+          "group": "2_files",
+          "when": "view == remoteExplorer && viewItem =~ /^(folder|root)/"
         },
         {
           "command": "wireferry.upload.folder",
