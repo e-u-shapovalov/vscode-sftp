@@ -69,6 +69,18 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 - Recover from SFTP permission errors by staging an edited copy; on compatible SSH servers, apply it through `su`.
 - Change owner, group and permissions on the server, see the owner and group in tooltips, and spot files you cannot write as read-only in the tree.
 - Draw an ASCII tree of a server or local folder from the folder context menu, with an optional depth limit and file sizes.
+- Move files and folders on the server by dragging them inside the Remote Explorer.
+- Follow uploads and downloads with a byte progress bar and a Cancel button; large files (over 10 MB) and binaries ask before they open.
+- Read an operation report after each right-click transfer or delete — an `upload.log`, `download.log` or `delete.log` tab listing every file with its size, date and permissions.
+- Transfer atomically by default: each file is staged into a temporary copy and renamed into place, so an interrupted transfer never truncates the original.
+- Recognize symbolic links in the server tree and open their real target.
+- Apply local deletions, renames and moves to the server after a confirmation.
+- Download the server copy automatically when you open a mapped local file (`downloadOnOpen`).
+- Give each profile its own tree root and its own upload-on-save, and delete from every profile's server plus the local copy in one action.
+- Open any server file by its absolute path, even outside the configured `remotePath`.
+- Migrate an old `sftp.*` setup: a startup doctor finds legacy settings and `sftp.json` and offers to convert them.
+- Check GitHub for a newer release from inside VS Code, and connect to legacy SSH servers that only offer old Diffie-Hellman key exchange.
+- Copy a Windows path in Git Bash form (`/c/…`).
 
 ![WireFerry Remote Explorer](assets/showcase/remote-explorer-overview-2.5.4.png)
 

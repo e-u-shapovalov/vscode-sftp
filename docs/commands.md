@@ -87,6 +87,8 @@ Folder size uses a server-side `du` command when available over SFTP and otherwi
 
 `Show Tree...` first asks how to draw the tree (folders only, with files, or with files and sizes) and a maximum depth (empty or `0` means no limit). The tree opens in a text tab and stops at 20000 entries for very large folders. It is available on folders in both the Remote Explorer and the local Explorer.
 
+You can also **drag and drop** items inside the Remote Explorer to move or rename them on the server; a matching local copy is updated after a confirmation. Moves stay within a single connection — dragging across different profiles is not performed.
+
 ## Remote file management
 
 | Command | Purpose |
@@ -112,6 +114,10 @@ Privileged `chmod` retry and `chown` require SFTP/SSH, a working `su` command an
 | `Delete Saved Password...` | Remove selected passwords or passphrases from SecretStorage |
 
 SSH key generation is SFTP-only. Password storage is available for main configurations and profiles; jump-host credentials are not stored in SecretStorage.
+
+## Operation reports
+
+After a right-click upload, download or delete, WireFerry opens an `upload.log`, `download.log` or `delete.log` tab that lists each file with its size, modification date and permissions, plus an "N ok, M failed" tally. For deletes it also shows where the local and server copies differ, and a multi-profile run tags each row with its server.
 
 ## Local Explorer integration
 

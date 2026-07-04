@@ -51,8 +51,8 @@
       },
       "useTempFile": {
         "type": "boolean",
-        "description": "True to upload temp file on every save operation of VS Code to avoid breaking a webpage when a user acceses it while the file is still being uploaded (is incomplete).",
-        "default": false
+        "description": "Stage each upload/download into a unique temp file beside the target and atomically rename it into place, so an interrupted transfer never truncates the existing file. Falls back to a direct write when the target directory isn't writable. Set to false to force a direct overwrite. Default: true.",
+        "default": true
       },
       "openSsh": {
         "type": "boolean",
@@ -82,23 +82,23 @@
         "properties": {
           "delete": {
             "type": "boolean",
-            "description": "Delete files in the destination that don't exist in the source (mirror the source).",
-            "default": true
+            "description": "Delete files in the destination that don't exist in the source (mirror the source). Off unless set.",
+            "default": false
           },
           "skipCreate": {
             "type": "boolean",
-            "description": "Don't create files in the destination that exist only in the source.",
-            "default": true
+            "description": "Don't create files in the destination that exist only in the source. Off unless set.",
+            "default": false
           },
           "ignoreExisting": {
             "type": "boolean",
-            "description": "Don't touch files that already exist in the destination.",
-            "default": true
+            "description": "Don't touch files that already exist in the destination. Off unless set.",
+            "default": false
           },
           "update": {
             "type": "boolean",
-            "description": "Overwrite an existing destination file only when the source copy is newer.",
-            "default": true
+            "description": "Overwrite an existing destination file only when the source copy is newer. Off unless set.",
+            "default": false
           }
         }
       },
@@ -113,8 +113,7 @@
       },
       "ignoreFile": {
         "type": "string",
-        "description": "Also read ignore patterns from this file (.gitignore format, one per line); they are added to `ignore`. Path relative to the workspace root folder, or absolute. Default: \".gitignore\".",
-        "default": ".gitignore"
+        "description": "Also read ignore patterns from this file (.gitignore format, one per line); they are added to `ignore`. Path relative to the workspace root folder, or absolute. Not read unless you set it explicitly."
       },
       "remoteExplorer": {
         "type": "object",
