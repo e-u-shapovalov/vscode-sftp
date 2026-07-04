@@ -67,6 +67,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 - Authenticate with an SSH key, an OS-backed VS Code secret store or a password prompt.
 - Generate and deploy an SSH key from the server context menu.
 - Recover from SFTP permission errors by staging an edited copy; on compatible SSH servers, apply it through `su`.
+- Change owner, group and permissions on the server, see the owner and group in tooltips, and spot files you cannot write as read-only in the tree.
 - Draw an ASCII tree of a server or local folder from the folder context menu, with an optional depth limit and file sizes.
 
 ![WireFerry Remote Explorer](assets/showcase/remote-explorer-overview-2.5.4.png)
