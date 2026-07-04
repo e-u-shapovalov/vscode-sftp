@@ -1,49 +1,5 @@
 # Contributing to WireFerry
 
-## Русский
-
-WireFerry — независимо поддерживаемый форк [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), который сам является форком [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). Основная ветка разработки: `develop`.
-
-Перед изменениями убедитесь, что понимаете текущий формат конфигурации (`.vscode/wireferry.json`), legacy-совместимость с `.vscode/sftp.json` и реальные команды из `package.json`.
-
-### Локальная разработка
-
-```bash
-git clone https://github.com/e-u-shapovalov/vscode-sftp.git
-cd vscode-sftp
-npm install
-npm run compile
-npm test
-npx tsc --noEmit
-```
-
-Упаковка локального `.vsix`:
-
-```bash
-npx @vscode/vsce package
-```
-
-### Что проверять перед pull request
-
-- `npm run compile` завершается с exit code `0`.
-- `npx tsc --noEmit` проходит без ошибок.
-- `npm test` проходит; один тест для `remoteTimeOffsetInHours` может быть намеренно пропущен, пока функция не включена в transfer pipeline.
-- Документация обновлена вместе с изменением поведения.
-- Новые команды добавлены не только в код, но и в `package.json`, локализацию и документацию.
-- Изменения не ломают legacy `.vscode/sftp.json`, если задача не требует обратного.
-
-### Стиль изменений
-
-- Делайте небольшие PR с одной темой.
-- Не смешивайте рефакторинг, обновление зависимостей и пользовательскую функцию без необходимости.
-- Для исправления бага добавляйте тест там, где это разумно.
-- Для пользовательских изменений обновляйте README, CHANGELOG или docs.
-- Если меняется релизная информация, держите английский раздел перед русским.
-
-### Публикация
-
-Публикация и упаковка описаны в [PUBLISHING.md](PUBLISHING.md). Опубликованную версию нельзя заменить тем же номером: для нового пакета нужен bump версии.
-
 ## English
 
 WireFerry is an independently maintained fork of [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), which itself is a fork of [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). The main development branch is `develop`.
@@ -53,7 +9,7 @@ WireFerry is an independently maintained fork of [Natizyskunk/vscode-sftp](https
 ```bash
 git clone https://github.com/e-u-shapovalov/vscode-sftp.git
 cd vscode-sftp
-npm install
+npm ci
 npm run compile
 npm test
 npx tsc --noEmit
@@ -85,3 +41,47 @@ npx @vscode/vsce package
 ### Publishing
 
 Packaging and publishing are documented in [PUBLISHING.md](PUBLISHING.md). A published version cannot be overwritten; bump the version for every new package.
+
+## Русский
+
+WireFerry — независимо поддерживаемый форк [Natizyskunk/vscode-sftp](https://github.com/Natizyskunk/vscode-sftp), который сам является форком [liximomo/vscode-sftp](https://github.com/liximomo/vscode-sftp). Основная ветка разработки: `develop`.
+
+Перед изменениями убедитесь, что понимаете текущий формат конфигурации (`.vscode/wireferry.json`), legacy-совместимость с `.vscode/sftp.json` и реальные команды из `package.json`.
+
+### Локальная разработка
+
+```bash
+git clone https://github.com/e-u-shapovalov/vscode-sftp.git
+cd vscode-sftp
+npm ci
+npm run compile
+npm test
+npx tsc --noEmit
+```
+
+Упаковка локального `.vsix`:
+
+```bash
+npx @vscode/vsce package
+```
+
+### Что проверять перед pull request
+
+- `npm run compile` завершается с exit code `0`.
+- `npx tsc --noEmit` проходит без ошибок.
+- `npm test` проходит; один тест для `remoteTimeOffsetInHours` может быть намеренно пропущен, пока функция не включена в transfer pipeline.
+- Документация обновлена вместе с изменением поведения.
+- Новые команды добавлены не только в код, но и в `package.json`, локализацию и документацию.
+- Изменения не ломают legacy `.vscode/sftp.json`, если задача не требует обратного.
+
+### Стиль изменений
+
+- Делайте небольшие PR с одной темой.
+- Не смешивайте рефакторинг, обновление зависимостей и пользовательскую функцию без необходимости.
+- Для исправления бага добавляйте тест там, где это разумно.
+- Для пользовательских изменений обновляйте README, CHANGELOG или docs.
+- Если меняется релизная информация, держите английский раздел перед русским.
+
+### Публикация
+
+Публикация и упаковка описаны в [PUBLISHING.md](PUBLISHING.md). Опубликованную версию нельзя заменить тем же номером: для нового пакета нужен bump версии.
