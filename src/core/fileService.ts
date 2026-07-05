@@ -11,7 +11,7 @@ import { SETTING_KEY_REMOTE } from '../constants';
 import upath from './upath';
 import Ignore from './ignore';
 import { FileSystem } from './fs';
-import Scheduler from './scheduler';
+import TransferSchedulerGroup, { TransferBatch } from './transferSchedulerGroup';
 import {
   createRemoteIfNoneExist,
   removeRemoteFs,
@@ -119,14 +119,6 @@ export interface ServiceConfig
 export interface WatcherService {
   create(watcherBase: string, watcherConfig: WatcherConfig): any;
   dispose(watcherBase: string): void;
-}
-
-interface TransferScheduler {
-  // readonly _scheduler: Scheduler;
-  size: number;
-  add(x: TransferTask): void;
-  run(): Promise<void>;
-  stop(): void;
 }
 
 type ConfigValidator = (x: any) => { message: string } | undefined;
@@ -573,7 +565,10 @@ export default class FileService {
   private _watcherConfig: WatcherConfig;
   private _profiles: string[];
   private _pendingTransferTasks: Set<TransferTask> = new Set();
-  private _transferSchedulers: TransferScheduler[] = [];
+  // One bounded scheduler shared by every transfer this service runs, so `concurrency` is a single
+  // global limit instead of a per-operation budget (N simultaneous operations used to open N ×
+  // concurrency parallel transfers). See transferSchedulerGroup.ts.
+  private _schedulerGroup: TransferSchedulerGroup;
   // Host infos we actually opened a connection for, keyed for de-duplication. Used so dispose()
   // can tear down connections from EVERY profile, not just the one active at dispose time.
   private _openedHostInfos: Map<string, object> = new Map();
@@ -600,6 +595,18 @@ export default class FileService {
     if (config.profiles) {
       this._profiles = Object.keys(config.profiles);
     }
+    // Wire the shared gate's per-task hooks once: track pending tasks and emit the transfer events
+    // exactly as each per-call scheduler used to.
+    this._schedulerGroup = new TransferSchedulerGroup(
+      task => {
+        this._pendingTransferTasks.add(task as TransferTask);
+        this._eventEmitter.emit(Event.BEFORE_TRANSFER, task);
+      },
+      (err, task) => {
+        this._pendingTransferTasks.delete(task as TransferTask);
+        this._eventEmitter.emit(Event.AFTER_TRANSFER, err, task);
+      }
+    );
   }
 
   get name(): string {
@@ -632,16 +639,15 @@ export default class FileService {
   }
 
   isTransferring() {
-    return this._transferSchedulers.length > 0;
+    return this._schedulerGroup.isBusy;
   }
 
   cancelTransferTasks() {
-    // keep the order
-    // 1, remove tasks not start
-    this._transferSchedulers.forEach(transfer => transfer.stop());
-    this._transferSchedulers.length = 0;
+    // 1. stop every active operation: drops future adds and cancels each batch's own tasks (queued
+    //    and running). Cancelled tasks still drain through the shared gate, so nothing wedges.
+    this._schedulerGroup.cancelAll();
 
-    // 2. cancel running task
+    // 2. belt-and-suspenders: cancel anything still mid-flight the instant we tear down.
     this._pendingTransferTasks.forEach(t => t.cancel());
     this._pendingTransferTasks.clear();
   }
@@ -654,64 +660,8 @@ export default class FileService {
     this._eventEmitter.on(Event.AFTER_TRANSFER, listener);
   }
 
-  createTransferScheduler(concurrency): TransferScheduler {
-    const fileService = this;
-    const scheduler = new Scheduler({
-      autoStart: false,
-      concurrency,
-    });
-    scheduler.onTaskStart(task => {
-      this._pendingTransferTasks.add(task as TransferTask);
-      this._eventEmitter.emit(Event.BEFORE_TRANSFER, task);
-    });
-    scheduler.onTaskDone((err, task) => {
-      this._pendingTransferTasks.delete(task as TransferTask);
-      this._eventEmitter.emit(Event.AFTER_TRANSFER, err, task);
-    });
-
-    let runningPromise: Promise<void> | null = null;
-    let isStopped: boolean = false;
-    const transferScheduler: TransferScheduler = {
-      get size() {
-        return scheduler.size;
-      },
-      stop() {
-        isStopped = true;
-        scheduler.empty();
-      },
-      add(task: TransferTask) {
-        if (isStopped) {
-          return;
-        }
-
-        scheduler.add(task);
-      },
-      run() {
-        if (isStopped) {
-          return Promise.resolve();
-        }
-
-        if (scheduler.size <= 0) {
-          fileService._removeScheduler(transferScheduler);
-          return Promise.resolve();
-        }
-
-        if (!runningPromise) {
-          runningPromise = new Promise(resolve => {
-            scheduler.onIdle(() => {
-              runningPromise = null;
-              fileService._removeScheduler(transferScheduler);
-              resolve();
-            });
-            scheduler.start();
-          });
-        }
-        return runningPromise;
-      },
-    };
-    fileService._storeScheduler(transferScheduler);
-
-    return transferScheduler;
+  createTransferScheduler(concurrency): TransferBatch {
+    return this._schedulerGroup.createBatch(concurrency);
   }
 
   getLocalFileSystem(): FileSystem {
@@ -788,17 +738,6 @@ export default class FileService {
     serviceConfig.ignore = this._createIgnoreFn(fileServiceConfig);
 
     return serviceConfig;
-  }
-
-  private _storeScheduler(scheduler: TransferScheduler) {
-    this._transferSchedulers.push(scheduler);
-  }
-
-  private _removeScheduler(scheduler: TransferScheduler) {
-    const index = this._transferSchedulers.findIndex(s => s === scheduler);
-    if (index !== -1) {
-      this._transferSchedulers.splice(index, 1);
-    }
   }
 
   private _createIgnoreFn(config: FileServiceConfig): ServiceConfig['ignore'] {
