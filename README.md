@@ -87,7 +87,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 
 ## Latest release highlights
 
-The latest release adds code-review reliability fixes — a visible warning when a server-and-local delete leaves the local file behind, and a full tree refresh after a recursive `chmod -R` — plus a large documentation and schema alignment pass. The recent **Show Tree** command draws an ASCII tree of a server or local folder from the folder right-click menu.
+The latest release makes `concurrency` a real per-connection limit: "Upload Changed Files" and simultaneous transfers no longer open connections beyond the configured cap (which could trip sshd limits or get you banned on shared hosting), because each connection now shares one bounded scheduler. It also stops a profile from wiping sibling `watcher`/`syncOption`/`remoteExplorer` sub-keys, reports deleting an unsupported remote type (socket/device) as a failure instead of "deleted", and expands Windows `~\` home paths for keys and ssh-config.
 
 See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 
