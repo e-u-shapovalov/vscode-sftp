@@ -98,27 +98,28 @@ async function handleCommand(hint: any) {
     }
   }
 
-  // The map callbacks are async and awaited inside, so Promise.all actually waits for each transfer
-  // and try/catch sees rejections (a bare sync try/catch around an un-awaited promise would not).
-  await Promise.all(creates.concat(uploads).map(async change => {
+  // Process each change one at a time. Every uploadFile/renameRemote/removeRemote builds its own
+  // transfer Scheduler, so a Promise.all over N changes opened N transfers at once and ignored
+  // `concurrency` — a git commit with hundreds of files could trip sshd MaxSessions/MaxStartups,
+  // exhaust file descriptors, or get the IP banned on shared hosting. Serial keeps the blast
+  // radius bounded; the per-change try/catch still logs a failure and moves on to the next.
+  for (const change of creates.concat(uploads)) {
     try {
       await uploadFile(change.uri);
     } catch (e) {
       logger.error('Upload failed.', e);
     }
-  }));
-  await Promise.all(
-    renames.map(async change => {
-      try {
-        await renameRemote(change.originalUri, {
-          newLocalPath: change.renameUri!.fsPath,
-          skipRefresh: true,
-        });
-      } catch (e) {
-        logger.error('Rename failed.', e);
-      }
-    })
-  );
+  }
+  for (const change of renames) {
+    try {
+      await renameRemote(change.originalUri, {
+        newLocalPath: change.renameUri!.fsPath,
+        skipRefresh: true,
+      });
+    } catch (e) {
+      logger.error('Rename failed.', e);
+    }
+  }
   // Deleting on the server is destructive and irreversible, and the user clicked an "upload" action —
   // confirm the delete fan-out explicitly (uploads/renames just overwrite content they already saved).
   if (deletes.length > 0) {
@@ -138,13 +139,13 @@ async function handleCommand(hint: any) {
       deletes.length = 0; // keep uploads/renames, drop the server deletions
     }
   }
-  await Promise.all(deletes.map(async change => {
+  for (const change of deletes) {
     try {
       await removeRemote(change.uri);
     } catch (e) {
       logger.error('Deletion failed.', e);
     }
-  }));
+  }
 
   logger.log('');
   logger.log('------ Upload Changed Files Result ------');
