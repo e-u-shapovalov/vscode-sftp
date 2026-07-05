@@ -12,6 +12,7 @@ import upath from './upath';
 import Ignore from './ignore';
 import { FileSystem } from './fs';
 import TransferSchedulerGroup, { TransferBatch } from './transferSchedulerGroup';
+import { mergeProfile } from './mergeProfile';
 import {
   createRemoteIfNoneExist,
   removeRemoteFs,
@@ -529,27 +530,6 @@ function getCompleteConfig(
   }
 
   return mergedConfig;
-}
-
-function mergeProfile(
-  target: FileServiceConfig,
-  source: FileServiceConfig
-): FileServiceConfig {
-  const res = Object.assign({}, target);
-  delete res.profiles;
-
-  const keys = Object.keys(source);
-  for (const key of keys) {
-    if (key === 'ignore') {
-      // Guard against a base config without `ignore`: Object.assign copies it as undefined, and
-      // undefined.concat would throw, breaking getConfig() for every operation on that profile.
-      res.ignore = (res.ignore || []).concat(source.ignore || []);
-    } else {
-      res[key] = source[key];
-    }
-  }
-
-  return res;
 }
 
 enum Event {
