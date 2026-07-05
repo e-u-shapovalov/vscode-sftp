@@ -1,3 +1,7 @@
+jest.mock('../../src/logger', () => ({
+  default: { warn: jest.fn(), info: jest.fn(), error: jest.fn(), trace: jest.fn() },
+}));
+
 const TransferTaskModule = require('../../src/core/transferTask');
 const TransferTask = TransferTaskModule.default;
 const { TransferDirection } = TransferTaskModule;
@@ -148,5 +152,32 @@ describe('TransferTask atomicity', () => {
 
     expect(target.files.get('/dst/file.txt')).toBe('NEW');
     expect(stagedTemps(target).length).toBe(0);
+  });
+});
+
+describe('TransferTask mtime-permission warning', () => {
+  const logger = require('../../src/logger').default;
+
+  function targetThatRejectsFutimes() {
+    const t = makeMemFs({ '/dst/file.txt': 'OLD' });
+    t.futimes = () => Promise.reject(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
+    return t;
+  }
+
+  test('warns once per target filesystem, not once per session', async () => {
+    logger.warn.mockClear();
+    const src = makeMemFs({ '/src/file.txt': 'NEW' });
+
+    // First server: warns once, and a second transfer to the SAME fs stays quiet.
+    const serverA = targetThatRejectsFutimes();
+    await runTransfer(src, serverA, { useTempFile: true });
+    await runTransfer(src, serverA, { useTempFile: true });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    // A different server with the same restriction must surface its own warning (the old
+    // module-level flag stayed silent here after the first server ever warned).
+    const serverB = targetThatRejectsFutimes();
+    await runTransfer(src, serverB, { useTempFile: true });
+    expect(logger.warn).toHaveBeenCalledTimes(2);
   });
 });

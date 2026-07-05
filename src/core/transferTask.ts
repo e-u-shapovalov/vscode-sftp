@@ -7,7 +7,9 @@ import { Task } from './scheduler';
 import logger from '../logger';
 import * as transferProgress from '../ui/transferProgress';
 
-let hasWarnedModifedTimePermission = false;
+// Warn once per target filesystem (≈ per connection/host) that mtimes can't be set — not once per
+// session globally, which left a second server with the same restriction silent after the first warned.
+const _warnedModifiedTimeFs = new WeakSet<FileSystem>();
 
 // A staging temp file couldn't be created. Treat a permission failure as "directory not writable" and
 // fall back to a direct overwrite (the file itself may still be writable); surface anything else.
@@ -299,8 +301,8 @@ export default class TransferTask implements Task {
             Math.floor(mtime / 1000)
           );
         } catch (error) {
-          if (!hasWarnedModifedTimePermission) {
-            hasWarnedModifedTimePermission = true;
+          if (!_warnedModifiedTimeFs.has(targetFs)) {
+            _warnedModifiedTimeFs.add(targetFs);
             logger.warn(
               `Can't set modified time to the file because ${error.message}`
             );
