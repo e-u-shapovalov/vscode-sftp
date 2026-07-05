@@ -78,7 +78,13 @@ export function isRemoteSubpathOf(possiableParentPath: string, pathname: string)
 }
 
 export function replaceHomePath(pathname: string) {
-  return pathname.substr(0, 2) === '~/' ? path.join(os.homedir(), pathname.slice(2)) : pathname;
+  // Accept a backslash home prefix (~\) as well as ~/ so a Windows privateKeyPath / sshConfigPath
+  // written with native separators is expanded instead of being passed to fs verbatim. `~\` is a
+  // Windows-ism; treating it as home on any platform is harmless (it never denotes a real POSIX path).
+  const prefix = pathname.slice(0, 2);
+  return prefix === '~/' || prefix === '~\\'
+    ? path.join(os.homedir(), pathname.slice(2))
+    : pathname;
 }
 
 export function resolvePath(from: string, to: string) {

@@ -1,4 +1,6 @@
-const { isRemoteSubpathOf, isSubpathOf } = require('../src/helper/paths');
+const os = require('os');
+const path = require('path');
+const { isRemoteSubpathOf, isSubpathOf, replaceHomePath } = require('../src/helper/paths');
 
 // Regression guard for the containment check used by UResource.from (both the remote branch and the
 // local branch added in the reliability pass). A relative remotePath — including the DEFAULT './' —
@@ -37,5 +39,22 @@ describe('isSubpathOf', () => {
     expect(isSubpathOf(root, `${root}${sep}c`)).toBe(true);
     expect(isSubpathOf(root, root)).toBe(true);
     expect(isSubpathOf(root, `${sep}a${sep}b-x${sep}c`)).toBe(false);
+  });
+});
+
+describe('replaceHomePath', () => {
+  test('expands a ~/ home prefix', () => {
+    expect(replaceHomePath('~/foo')).toBe(path.join(os.homedir(), 'foo'));
+  });
+
+  test('expands a ~\\ home prefix (Windows-style privateKeyPath / sshConfigPath)', () => {
+    expect(replaceHomePath('~\\foo')).toBe(path.join(os.homedir(), 'foo'));
+  });
+
+  test('leaves non-home paths untouched', () => {
+    expect(replaceHomePath('relative/path')).toBe('relative/path');
+    expect(replaceHomePath('/abs/path')).toBe('/abs/path');
+    // "~user" is a username prefix, not a home shortcut — must not be expanded.
+    expect(replaceHomePath('~user/foo')).toBe('~user/foo');
   });
 });
