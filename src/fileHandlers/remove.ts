@@ -62,6 +62,24 @@ export const removeRemote = createFileHandler<
       }
 
       if (stat) {
+      // Refuse a type we can't delete BEFORE claiming anything happened: the report row and the
+      // afterHandle refresh below both signal "deleted", so a special file (socket, device, fifo →
+      // FileType.Unknown) was reported as removed while the switch's default branch left the work
+      // undone. Directories and files/symlinks are the only removable kinds.
+      if (
+        stat.type !== FileType.Directory &&
+        stat.type !== FileType.File &&
+        stat.type !== FileType.SymbolicLink
+      ) {
+        logger.warn(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
+        throw new Error(
+          L({
+            en: `Cannot delete "${remoteFsPath}": unsupported remote file type.`,
+            ru: `Не удалось удалить «${remoteFsPath}»: неподдерживаемый тип удалённого файла.`,
+          })
+        );
+      }
+
       // ── Top-level target: capture both sides for the comparison row ──────
       // For a single file this gives the user a clear local↔server diff.
       // For directories we still show the top-level, but only the server side
@@ -128,7 +146,9 @@ export const removeRemote = createFileHandler<
           promise = fileOperations.removeFile(remoteFsPath, remoteFs, {});
           break;
         default:
-          logger.warn(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
+          // Unreachable: the guard above already rejected unsupported types. Defensive so a future
+          // FileType can never fall through to `await undefined` and be reported as deleted.
+          throw new Error(`Unsupported file type (type = ${stat.type}). File ${remoteFsPath}`);
       }
       await promise;
       } // end if (stat) — server file existed
