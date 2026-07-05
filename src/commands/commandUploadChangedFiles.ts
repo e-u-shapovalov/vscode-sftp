@@ -98,11 +98,12 @@ async function handleCommand(hint: any) {
     }
   }
 
-  // Process each change one at a time. Every uploadFile/renameRemote/removeRemote builds its own
-  // transfer Scheduler, so a Promise.all over N changes opened N transfers at once and ignored
-  // `concurrency` — a git commit with hundreds of files could trip sshd MaxSessions/MaxStartups,
-  // exhaust file descriptors, or get the IP banned on shared hosting. Serial keeps the blast
-  // radius bounded; the per-change try/catch still logs a failure and moves on to the next.
+  // Process each change one at a time. The service shares one bounded transfer scheduler, so per-file
+  // transfer concurrency is already capped there — but a Promise.all here would still fan out N
+  // handler calls at once, each opening a connection and walking its change, letting this one command
+  // saturate the shared cap. Serial keeps that bounded: a git commit with hundreds of files won't trip
+  // sshd MaxSessions/MaxStartups, exhaust file descriptors, or get the IP banned on shared hosting.
+  // The per-change try/catch still logs a failure and moves on to the next.
   for (const change of creates.concat(uploads)) {
     try {
       await uploadFile(change.uri);

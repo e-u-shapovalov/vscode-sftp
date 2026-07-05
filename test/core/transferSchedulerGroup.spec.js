@@ -191,4 +191,36 @@ describe('TransferSchedulerGroup', () => {
     expect(dones[0][0]).toBeInstanceOf(Error);
     expect(dones[0][0].message).toBe('boom');
   });
+
+  test('a task that finishes before run() is sealed completes only once run() is called', async () => {
+    const group = new TransferSchedulerGroup(noop, noop);
+    const batch = group.createBatch(4);
+    const fast = makeTask({ ms: 1 });
+    batch.add(fast);
+
+    // Let the task settle BEFORE run() seals the batch: _added === _done transiently, but the batch
+    // must NOT be treated as complete yet (that early-resolve was the invariant reviewers flagged).
+    await delay(20);
+    expect(fast.finished).toBe(true);
+    expect(group.isBusy).toBe(true);
+
+    // Sealing now must resolve immediately (added === done) rather than hang.
+    await batch.run();
+    expect(group.isBusy).toBe(false);
+  });
+
+  test('reconciles concurrency to the latest batch — one shared cap, not the sum', async () => {
+    const track = makeTracker();
+    const group = new TransferSchedulerGroup(noop, noop);
+    const a = group.createBatch(1); // gate starts at 1
+    const b = group.createBatch(3); // last-wins → gate reconciles to 3
+
+    for (let i = 0; i < 4; i++) a.add(makeTask({ track, ms: 15 }));
+    for (let i = 0; i < 4; i++) b.add(makeTask({ track, ms: 15 }));
+
+    await Promise.all([a.run(), b.run()]);
+
+    // Exactly the reconciled cap: not stuck at a's 1, and not a's 1 + b's 3 = 4.
+    expect(track.max).toBe(3);
+  });
 });
