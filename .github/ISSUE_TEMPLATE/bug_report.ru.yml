@@ -1,0 +1,98 @@
+name: 🐞 Отчёт об ошибке
+description: Сообщите о проблеме в WireFerry (этот форк), чтобы её починили.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что нашли время сообщить об ошибке в **WireFerry**.
+
+        Этот трекер — только для форка **WireFerry** (`EvgeniiShapovalov.wireferry`), а не для оригинального
+        Natizyskunk/vscode-sftp. Убедитесь, что установлено именно расширение WireFerry.
+
+        Пара точных деталей сразу экономят переписку и ускоряют починку.
+  - type: input
+    id: wireferry-version
+    attributes:
+      label: Версия WireFerry
+      description: "Панель Extensions (Ctrl/Cmd+Shift+X) → найдите WireFerry → версия указана под названием."
+      placeholder: "например, 2.6.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Протокол
+      options:
+        - SFTP
+        - FTP
+        - FTPS
+        - Не знаю
+    validations:
+      required: true
+  - type: input
+    id: vscode-version
+    attributes:
+      label: Версия VS Code
+      description: "Help → About (Windows/Linux) или Code → About Visual Studio Code (macOS)."
+      placeholder: "например, 1.90.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Операционная система
+      description: Локальная машина, на которой запущен VS Code.
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Что произошло?
+      description: Чёткое описание проблемы и что вы ожидали вместо этого.
+      placeholder: "При выгрузке по сохранению ..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      description: Точные шаги, чтобы повторить ту же ошибку.
+      placeholder: |
+        1. ПКМ по файлу → ...
+        2. ...
+        3. Появляется ошибка
+    validations:
+      required: true
+  - type: textarea
+    id: output-log
+    attributes:
+      label: Лог (Output)
+      description: "View → Output, затем выберите **WireFerry** в выпадающем списке справа. Вставьте относящиеся к делу строки. ⚠️ Уберите хосты, логины и любые секреты."
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Конфиг (.vscode/wireferry.json)
+      description: "Ваш конфиг **без учётных данных** (пароль, passphrase, содержимое ключа, хост). В старых проектах файл может называться `.vscode/sftp.json`."
+      render: json
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Перед отправкой
+      options:
+        - label: Я поискал(а) среди существующих issue — это не дубликат.
+          required: true
+        - label: Я использую форк WireFerry (`EvgeniiShapovalov.wireferry`), а не оригинальное расширение.
+          required: true
+        - label: Я убрал(а) пароли, ключи и другие секреты из всего, что вставил(а) выше.
+          required: true

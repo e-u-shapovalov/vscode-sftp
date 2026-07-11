@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 README & FAQ
+    url: https://github.com/e-u-shapovalov/vscode-sftp#readme
+    about: Many questions are already answered in the README and FAQ — please check there first.
+  - name: 🛒 Marketplace (WireFerry)
+    url: https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry
+    about: Install page, ratings and Q&A.

@@ -1,0 +1,98 @@
+name: 🐞 Bug report
+description: Report a problem with WireFerry (this fork) so it can be fixed.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in **WireFerry**.
+
+        This tracker is for the **WireFerry** fork (`EvgeniiShapovalov.wireferry`) — not the original
+        Natizyskunk/vscode-sftp. Please make sure the WireFerry extension is the one installed before filing here.
+
+        A few precise details up front save a round-trip and get your bug fixed faster.
+  - type: input
+    id: wireferry-version
+    attributes:
+      label: WireFerry version
+      description: "Extensions view (Ctrl/Cmd+Shift+X) → search WireFerry → the version is shown under its name."
+      placeholder: "e.g. 2.6.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol
+      options:
+        - SFTP
+        - FTP
+        - FTPS
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: vscode-version
+    attributes:
+      label: VS Code version
+      description: "Help → About (Windows/Linux) or Code → About Visual Studio Code (macOS)."
+      placeholder: "e.g. 1.90.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      description: The local machine where VS Code runs.
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the problem, and what you expected to happen instead.
+      placeholder: "When I upload on save, ..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps so the same bug can be triggered.
+      placeholder: |
+        1. Right-click a file → ...
+        2. ...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: output-log
+    attributes:
+      label: Output log
+      description: "View → Output, then pick **WireFerry** in the dropdown on the right. Paste the relevant lines. ⚠️ Redact hostnames, usernames and any secrets."
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: config
+    attributes:
+      label: Config (.vscode/wireferry.json)
+      description: "Your config with **all credentials removed** (password, passphrase, private-key contents, host). Older projects may use `.vscode/sftp.json`."
+      render: json
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I'm using the WireFerry fork (`EvgeniiShapovalov.wireferry`), not the original extension.
+          required: true
+        - label: I removed passwords, keys and other secrets from everything pasted above.
+          required: true
