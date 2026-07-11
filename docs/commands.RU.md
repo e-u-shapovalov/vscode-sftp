@@ -13,7 +13,7 @@
 | `WireFerry: Config` | Запустить мастер, если конфига нет, или открыть текущий конфиг |
 | `WireFerry: Set Profile` | Выбрать активный профиль для команд без явного контекста профиля |
 | `WireFerry: Open SSH in Terminal` | Открыть SSH-терминал для текущего SFTP-подключения |
-| `WireFerry: Check for Updates` | Проверить последний GitHub Release и предложить обновление |
+| `WireFerry: Check for Updates` | Попросить VS Code проверить обновления расширений в Marketplace и открыть страницу WireFerry |
 | `WireFerry: Open Extension Page` | Открыть страницу расширения в VS Code |
 | `WireFerry: Cancel All Transfers` | Остановить текущие выгрузки и скачивания |
 

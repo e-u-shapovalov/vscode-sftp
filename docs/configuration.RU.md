@@ -335,14 +335,14 @@ WireFerry хранит конфигурацию проекта в `.vscode/wiref
 | --- | --- | --- |
 | `wireferry.debug` | `false` | Подробные логи в Output |
 | `wireferry.downloadWhenOpenInRemoteExplorer` | `true` | Скачать удалённый файл перед открытием; `false` открывает read-only preview |
-| `wireferry.checkForUpdates` | требуется согласие | Проверять GitHub Releases при запуске после согласия пользователя |
+| `wireferry.checkForUpdates` | legacy no-op | Сохранена, чтобы старые пользовательские настройки оставались валидными; обновления из Marketplace обрабатывает VS Code |
 | `wireferry.suppressLegacyConfigNotice` | `false` | Скрыть уведомления о legacy-миграции |
 | `wireferry.alertLanguage` | `en` | Язык уведомлений WireFerry: `en` или `ru` |
 | `wireferry.remoteExplorer.showSize` | `false` | Показывать размеры файлов и папок в дереве |
 | `wireferry.remoteExplorer.sortBySize` | `false` | Сортировать дерево по размеру вместо имени |
 | `wireferry.remoteExplorer.profilesAsRoots` | `true` | Показывать профили отдельными корнями Remote Explorer |
 
-Автопроверка при запуске не делает запрос без явного согласия пользователя. Команда **Check for Updates / Проверить обновления** запускает проверку явно.
+WireFerry больше не запускает сетевую проверку обновлений при старте. Команда **Check for Updates / Проверить обновления** просит VS Code обновить сведения об обновлениях из Marketplace и открывает страницу WireFerry.
 
 ## Legacy и расширенные поля
 

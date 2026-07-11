@@ -22,7 +22,6 @@ import { L } from './i18n';
 import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
 import { runLegacyDoctor } from './modules/legacyDoctor';
-import { runUpdateCheck } from './modules/updateCheck';
 import { initSecrets } from './modules/secrets';
 import { REPORT_SCHEME, reportProvider } from './ui/operationReport';
 
@@ -156,9 +155,6 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(REPORT_SCHEME, reportProvider)
   );
-
-  // Opt-in GitHub update check — independent of workspace/config; runs in the background.
-  runUpdateCheck().catch(error => reportError(error, 'updateCheck'));
 
   const workspaceFolders = getWorkspaceFolders();
   if (!workspaceFolders) {

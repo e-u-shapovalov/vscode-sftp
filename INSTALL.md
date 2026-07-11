@@ -2,9 +2,18 @@
 
 [Русская версия](INSTALL.RU.md) · [Main README](README.md) · [FAQ](FAQ.md)
 
-WireFerry is distributed through [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases) as a `.vsix` extension package. It requires desktop Visual Studio Code 1.66 or newer.
+WireFerry is published in the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). It requires desktop Visual Studio Code 1.66 or newer. Manual `.vsix` packages remain available from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases) for offline installs or rollback testing.
 
-## Download the correct file
+## Install from Marketplace
+
+1. Open Visual Studio Code.
+2. Open **Extensions** with `Ctrl+Shift+X`.
+3. Search for `WireFerry`.
+4. Select **Install**.
+
+VS Code handles Marketplace updates automatically when extension auto-update is enabled.
+
+## Download the correct VSIX file
 
 1. Open the [latest WireFerry release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
 2. Locate the **Assets** section. Expand it if GitHub has collapsed the list.
@@ -20,7 +29,7 @@ Do not download:
 
 Those files contain project sources for developers. The `.vsix` file is the ready-to-install extension package. Do not unzip or rename it.
 
-## Install through the VS Code interface
+## Install a VSIX through the VS Code interface
 
 1. Open Visual Studio Code.
 2. Open **Extensions** with `Ctrl+Shift+X`.
@@ -51,7 +60,7 @@ The wizard creates `.vscode/wireferry.json`. If a current or legacy configuratio
 
 ## Update or remove WireFerry
 
-To install a newer GitHub Release, download its `.vsix` and repeat **Install from VSIX...**. VS Code replaces the installed extension with the selected package.
+Marketplace installs update through VS Code. For a manual GitHub Release package, download the newer `.vsix` and repeat **Install from VSIX...**; VS Code replaces the installed extension with the selected package.
 
 To remove WireFerry, open **Extensions**, find **WireFerry — SFTP & FTP Sync**, select the gear menu and choose **Uninstall**.
 

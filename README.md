@@ -6,7 +6,11 @@ WireFerry is a Visual Studio Code extension for uploading, downloading, comparin
 
 ## Download and install
 
-WireFerry is distributed as a ready-to-install `.vsix` package through GitHub Releases.
+WireFerry is published in the Visual Studio Code Marketplace. In VS Code, open **Extensions** (`Ctrl+Shift+X`) and search for `WireFerry`.
+
+**[Open WireFerry in the Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry).**
+
+Manual `.vsix` packages are also available from GitHub Releases for offline installs or rollback testing:
 
 **[Download `wireferry-<version>.vsix` from the latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
 
@@ -80,14 +84,14 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 - Give each profile its own tree root and its own upload-on-save, and delete from every profile's server plus the local copy in one action.
 - Open any server file by its absolute path, even outside the configured `remotePath`.
 - Migrate an old `sftp.*` setup: a startup doctor finds legacy settings and `sftp.json` and offers to convert them.
-- Check GitHub for a newer release from inside VS Code, and connect to legacy SSH servers that only offer old Diffie-Hellman key exchange.
+- Update through VS Code Marketplace, and connect to legacy SSH servers that only offer old Diffie-Hellman key exchange.
 - Copy a Windows path in Git Bash form (`/c/…`).
 
 ![WireFerry Remote Explorer](assets/showcase/remote-explorer-overview-2.5.4.png)
 
 ## Latest release highlights
 
-The latest release makes `concurrency` a real per-connection limit: "Upload Changed Files" and simultaneous transfers no longer open connections beyond the configured cap (which could trip sshd limits or get you banned on shared hosting), because each connection now shares one bounded scheduler. It also stops a profile from wiping sibling `watcher`/`syncOption`/`remoteExplorer` sub-keys, reports deleting an unsupported remote type (socket/device) as a failure instead of "deleted", and expands Windows `~\` home paths for keys and ssh-config.
+The latest release switches updates to the standard VS Code Marketplace flow. WireFerry no longer runs its own background GitHub release check, no longer asks for update-check consent on startup, and no longer downloads `.vsix` files beside the workspace config. **WireFerry: Check for Updates** now opens the extension page and asks VS Code to refresh Marketplace updates. GitHub Releases remain available for manual, offline or rollback installs.
 
 See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 
@@ -228,7 +232,7 @@ The `code` command is optional; the resulting package can also be installed thro
 
 ### What should I download?
 
-Download `wireferry-<version>.vsix` from **Assets** in the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Do not download a source archive for normal installation.
+Install WireFerry from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). For offline/manual installs, download `wireferry-<version>.vsix` from **Assets** in the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Do not download a source archive for normal installation.
 
 ### Does WireFerry have a standalone FTP client or CLI?
 
@@ -249,7 +253,7 @@ No. WireFerry is an independently maintained fork and is not presented as the or
 ## Support, attribution and license
 
 - Report bugs or request features in [GitHub Issues](https://github.com/e-u-shapovalov/vscode-sftp/issues).
-- Download packages from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
+- Install from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry), or download manual packages from [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
 - Review user-visible changes in the [Changelog](CHANGELOG.md).
 
 WireFerry is maintained by [Evgenii Shapovalov](https://github.com/e-u-shapovalov) and licensed under the [MIT License](LICENSE). Required original copyright and attribution notices are preserved in `LICENSE`.

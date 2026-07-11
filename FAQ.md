@@ -6,11 +6,15 @@
 
 ### What should I download?
 
-Download `wireferry-<version>.vsix` from **Assets** in the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
+Install WireFerry from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). For offline/manual installs, download `wireferry-<version>.vsix` from **Assets** in the [latest GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
 
 > **If you are a regular user, do not use Code → Download ZIP. Download the ready-to-use release package from GitHub Releases instead.**
 
 `Source code (zip)`, `Source code (tar.gz)` and **Code → Download ZIP** are source archives for developers. They are not the installable extension package.
+
+### How do I install from Marketplace?
+
+In desktop VS Code, open **Extensions** (`Ctrl+Shift+X`), search for `WireFerry`, and select **Install**. VS Code handles future Marketplace updates automatically when extension auto-update is enabled.
 
 ### How do I install the VSIX?
 

@@ -335,14 +335,14 @@ These values belong in VS Code settings, not `.vscode/wireferry.json`:
 | --- | --- | --- |
 | `wireferry.debug` | `false` | Enable detailed output logging |
 | `wireferry.downloadWhenOpenInRemoteExplorer` | `true` | Download a clicked remote file before opening it; `false` opens a read-only preview |
-| `wireferry.checkForUpdates` | consent required | Check GitHub Releases on startup after the user agrees |
+| `wireferry.checkForUpdates` | legacy no-op | Kept so older user settings remain valid; Marketplace updates are handled by VS Code |
 | `wireferry.suppressLegacyConfigNotice` | `false` | Hide legacy migration notices |
 | `wireferry.alertLanguage` | `en` | Language of WireFerry prompts: `en` or `ru` |
 | `wireferry.remoteExplorer.showSize` | `false` | Show file/folder sizes in the tree |
 | `wireferry.remoteExplorer.sortBySize` | `false` | Sort the tree by size instead of name |
 | `wireferry.remoteExplorer.profilesAsRoots` | `true` | Show profiles as separate Remote Explorer roots |
 
-The startup update check makes no request until the user explicitly consents. The manual **Check for Updates** command is an explicit check.
+WireFerry no longer runs a startup network update check. The manual **Check for Updates** command asks VS Code to refresh Marketplace extension updates and opens the WireFerry extension page.
 
 ## Legacy and advanced fields
 

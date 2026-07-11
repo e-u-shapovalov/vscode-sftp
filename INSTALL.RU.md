@@ -2,9 +2,18 @@
 
 [English version](INSTALL.md) · [Основной README](README.RU.md) · [FAQ](FAQ.RU.md)
 
-WireFerry распространяется через [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases) в виде пакета расширения `.vsix`. Требуется настольный Visual Studio Code 1.66 или новее.
+WireFerry опубликован в [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). Требуется настольный Visual Studio Code 1.66 или новее. Ручные пакеты `.vsix` остаются доступны в [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases) для offline-установки или проверки отката.
 
-## Скачайте правильный файл
+## Установка из Marketplace
+
+1. Откройте Visual Studio Code.
+2. Откройте **Extensions / Расширения** через `Ctrl+Shift+X`.
+3. Найдите `WireFerry`.
+4. Нажмите **Install / Установить**.
+
+VS Code обновляет расширения из Marketplace автоматически, если включено автообновление расширений.
+
+## Скачайте правильный VSIX-файл
 
 1. Откройте страницу [последнего релиза WireFerry](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
 2. Найдите блок **Assets**. Если GitHub свернул список, раскройте его.
@@ -20,7 +29,7 @@ WireFerry распространяется через [GitHub Releases](https://
 
 Эти файлы содержат исходный код для разработчиков. Готовое к установке расширение — файл `.vsix`. Не распаковывайте и не переименовывайте его.
 
-## Установка через интерфейс VS Code
+## Установка VSIX через интерфейс VS Code
 
 1. Откройте Visual Studio Code.
 2. Откройте **Extensions / Расширения** через `Ctrl+Shift+X`.
@@ -51,7 +60,7 @@ code --install-extension wireferry-<version>.vsix
 
 ## Обновление и удаление
 
-Чтобы установить более новый GitHub Release, скачайте его `.vsix` и снова выполните **Install from VSIX...**. VS Code заменит установленное расширение выбранным пакетом.
+Установка из Marketplace обновляется через VS Code. Для ручного пакета из GitHub Release скачайте более новый `.vsix` и снова выполните **Install from VSIX...**; VS Code заменит установленное расширение выбранным пакетом.
 
 Чтобы удалить WireFerry, откройте **Extensions / Расширения**, найдите **WireFerry — SFTP & FTP Sync**, откройте меню с шестерёнкой и выберите **Uninstall / Удалить**.
 

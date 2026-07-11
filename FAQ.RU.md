@@ -6,11 +6,15 @@
 
 ### Что скачивать?
 
-Скачайте `wireferry-<version>.vsix` из блока **Assets** на странице [последнего GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
+Установите WireFerry из [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). Для offline/ручной установки скачайте `wireferry-<version>.vsix` из блока **Assets** на странице [последнего GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).
 
 > **Если вы обычный пользователь, не нажимайте `Code → Download ZIP`. Скачайте готовый пакет расширения со страницы GitHub Releases.**
 
 `Source code (zip)`, `Source code (tar.gz)` и **Code → Download ZIP** — архивы исходников для разработчиков. Это не устанавливаемый пакет расширения.
+
+### Как установить из Marketplace?
+
+В настольном VS Code откройте **Extensions / Расширения** (`Ctrl+Shift+X`), найдите `WireFerry` и нажмите **Install / Установить**. Дальнейшие обновления из Marketplace VS Code установит автоматически, если включено автообновление расширений.
 
 ### Как установить VSIX?
 

@@ -60,13 +60,3 @@ export function getExtensionSetting(): ExtensionSetting {
     profilesAsRoots: readSetting<boolean>('remoteExplorer.profilesAsRoots', true),
   };
 }
-
-// Whether the user has explicitly set wireferry.<key> (or legacy sftp.<key>) anywhere — as
-// opposed to merely inheriting the package.json default. Drives the update-check first-run
-// consent (Part 8): if checkForUpdates was never set, ask once before touching the network.
-export function isSettingExplicitlySet(key: string): boolean {
-  return (
-    hasUserValue(getUserSetting(EXTENSION_NAME), key) ||
-    hasUserValue(getUserSetting(LEGACY_EXTENSION_NAME), key)
-  );
-}

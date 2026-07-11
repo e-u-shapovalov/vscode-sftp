@@ -6,7 +6,11 @@ WireFerry — расширение Visual Studio Code для загрузки, �
 
 ## Скачать и установить
 
-WireFerry распространяется через GitHub Releases в виде готового к установке пакета `.vsix`.
+WireFerry опубликован в Visual Studio Code Marketplace. В VS Code откройте **Extensions / Расширения** (`Ctrl+Shift+X`) и найдите `WireFerry`.
+
+**[Открыть WireFerry в Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry).**
+
+Ручные пакеты `.vsix` также доступны в GitHub Releases для offline-установки или проверки отката:
 
 **[Скачайте `wireferry-<version>.vsix` из последнего GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest).**
 
@@ -80,14 +84,14 @@ WireFerry — инструмент прямой передачи файлов. �
 - Давать каждому профилю свой корень в дереве и свой upload-on-save, а также удалять с сервера каждого профиля и локальную копию за одно действие.
 - Открывать любой файл на сервере по абсолютному пути, даже вне настроенного `remotePath`.
 - Мигрировать со старого `sftp.*`: доктор при запуске находит legacy-настройки и `sftp.json` и предлагает их преобразовать.
-- Проверять GitHub на новый релиз прямо из VS Code и подключаться к старым SSH-серверам, поддерживающим только устаревший обмен ключами Diffie-Hellman.
+- Обновляться через VS Code Marketplace и подключаться к старым SSH-серверам, поддерживающим только устаревший обмен ключами Diffie-Hellman.
 - Копировать Windows-путь в формате Git Bash (`/c/…`).
 
 ![Remote Explorer в WireFerry](assets/showcase/remote-explorer-overview-2.5.4.png)
 
 ## Главное в последнем релизе
 
-Последний релиз делает `concurrency` реальным лимитом на подключение: «Выгрузить изменённые файлы» и одновременные передачи больше не открывают соединения сверх заданного значения (могло упереться в лимиты sshd или поймать бан на shared-хостинге), потому что у каждого подключения теперь один общий ограниченный планировщик. Ещё он не даёт профилю затирать соседние под-ключи `watcher`/`syncOption`/`remoteExplorer`, честно сообщает удаление неподдерживаемого типа (сокет/устройство) как ошибку вместо «удалено» и разворачивает пути `~\` (Windows) для ключей и ssh-config.
+Последний релиз переводит обновления на штатный механизм VS Code Marketplace. WireFerry больше не запускает собственную фоновую проверку GitHub Releases, не спрашивает согласие на проверку при старте и не скачивает `.vsix` рядом с конфигом workspace. **WireFerry: Check for Updates / Проверить обновления** теперь открывает страницу расширения и просит VS Code обновить сведения об обновлениях из Marketplace. GitHub Releases остаются для ручной, offline-установки или отката.
 
 Подробности текущего и предыдущих выпусков находятся в [CHANGELOG.md](CHANGELOG.md).
 
@@ -228,7 +232,7 @@ code --install-extension wireferry-<version>.vsix
 
 ### Что скачивать?
 
-Скачайте `wireferry-<version>.vsix` из блока **Assets** на странице [последнего GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Для обычной установки архив исходников не нужен.
+Установите WireFerry из [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry). Для offline/ручной установки скачайте `wireferry-<version>.vsix` из блока **Assets** на странице [последнего GitHub Release](https://github.com/e-u-shapovalov/vscode-sftp/releases/latest). Архив исходников для обычной установки не нужен.
 
 ### Есть ли у WireFerry отдельный FTP-клиент или CLI?
 
@@ -249,7 +253,7 @@ code --install-extension wireferry-<version>.vsix
 ## Поддержка, происхождение и лицензия
 
 - Ошибки и предложения: [GitHub Issues](https://github.com/e-u-shapovalov/vscode-sftp/issues).
-- Готовые пакеты: [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
+- Установка: [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=EvgeniiShapovalov.wireferry), ручные пакеты — [GitHub Releases](https://github.com/e-u-shapovalov/vscode-sftp/releases).
 - Пользовательские изменения: [CHANGELOG.md](CHANGELOG.md).
 
 WireFerry поддерживает [Evgenii Shapovalov](https://github.com/e-u-shapovalov). Проект распространяется по [лицензии MIT](LICENSE); обязательные исходные copyright и attribution notices сохранены в `LICENSE`.

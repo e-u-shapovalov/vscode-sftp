@@ -13,7 +13,7 @@ Commands that need a server are available after a valid `.vscode/wireferry.json`
 | `WireFerry: Config` | Run the setup wizard when no config exists, or open the current config |
 | `WireFerry: Set Profile` | Select the active profile for commands without an explicit profile context |
 | `WireFerry: Open SSH in Terminal` | Open an SSH terminal for the current SFTP connection |
-| `WireFerry: Check for Updates` | Query the latest GitHub Release and offer an update when one is available |
+| `WireFerry: Check for Updates` | Ask VS Code to check Marketplace extension updates and open the WireFerry extension page |
 | `WireFerry: Open Extension Page` | Open the extension page in VS Code |
 | `WireFerry: Cancel All Transfers` | Stop current upload and download tasks |
 
