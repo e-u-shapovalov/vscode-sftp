@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="resources/icon.png" alt="WireFerry" width="128" height="128" />
+</p>
+
 # WireFerry — SFTP, FTP and FTPS Sync for Visual Studio Code
 
 WireFerry is a Visual Studio Code extension for uploading, downloading, comparing and synchronizing project files with remote servers over SFTP, FTP or FTPS. It keeps routine website, shared-hosting and VPS file work inside VS Code, with upload on save and a built-in Remote Explorer.
