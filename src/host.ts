@@ -102,6 +102,18 @@ export async function showConfirmMessage(
   return Boolean(result && result.title === confirmLabel);
 }
 
+// Move a local file/folder to the OS trash (recoverable), falling back to a permanent delete when no
+// trash is available (a subst / network drive has no Recycle Bin) — the same choice VS Code's own
+// "Delete Permanently" offers. Throws only when BOTH fail, so callers decide whether that's fatal.
+export async function trashLocalPath(localFsPath: string): Promise<void> {
+  const uri = vscode.Uri.file(localFsPath);
+  try {
+    await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
+  } catch (error) {
+    await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: false });
+  }
+}
+
 export function showOpenDialog(options: vscode.OpenDialogOptions) {
   return vscode.window.showOpenDialog(options);
 }

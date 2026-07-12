@@ -7,6 +7,7 @@
 ## ✨ Что нового · What's New
 
 **Русский — коротко**
+- **2.6.5** — перетаскивание в дереве больше не падает при совпадении имён. Если в целевой папке уже есть файл с таким же именем, WireFerry сравнит оба (размер, права, владелец, MD5) и спросит: **Перезаписать**, **Переименовать**, **Ничего не делать** или **Отмена**. Полностью идентичный по MD5 файл переносится тихо — исходный дубликат просто удаляется. Перезапись папки дополнительно переспрашивает перед рекурсивным удалением.
 - **2.6.4** — WireFerry снова доступен в Visual Studio Marketplace: версия 2.6.4 прошла проверку и опубликована как `EvgeniiShapovalov.wireferry`. Обновления теперь идут через VS Code Marketplace, без отдельного фонового GitHub-чека. WireFerry больше не спрашивает при запуске разрешение на проверку GitHub, не ходит в `api.github.com` и не скачивает `.vsix` рядом с проектом. Команда **WireFerry: Check for Updates** теперь открывает страницу расширения и просит сам VS Code проверить Marketplace-обновления. Настройка `wireferry.checkForUpdates` оставлена как устаревшая no-op для совместимости со старыми настройками, а документация теперь ведёт на Marketplace как основной канал установки; GitHub Releases остаются для ручной/offline-установки.
 - **2.6.3** — параллельность под контролем и точечные фиксы надёжности. «Выгрузить изменённые файлы» и одновременные передачи больше не открывают соединения сверх заданного `concurrency` (могло упереться в лимиты sshd или поймать бан на shared-хостинге) — у каждого подключения теперь один общий ограниченный планировщик. Профиль, задающий одну под-настройку (`watcher`/`syncOption`/`remoteExplorer`), больше не затирает остальные. Удаление файла неподдерживаемого типа (сокет/устройство) честно сообщается как ошибка, а не «удалено». Пути с `~\` (Windows) для ключа и ssh-config разворачиваются. Предупреждение «не удалось выставить время файла» — по каждому серверу, а не раз за сессию.
 - **2.6.2** — надёжность и полнота по итогам код-ревью. Удаление «на сервере и локально»: если локальный файл убрать не удалось (например, read-only), теперь вы увидите явное предупреждение, а не молчаливое «удалено» при файле, оставшемся на диске. После рекурсивного `chmod -R` дерево целиком обновляется — у вложенных файлов больше не висит устаревшая пометка «только чтение». Плюс большая доработка документации: витрина README пополнена реально работающими возможностями (drag & drop, отчёты операций, прогресс/отмена, симлинки, атомарные передачи, доктор миграции, проверка обновлений), а справочники и JSON-схема приведены в соответствие с кодом (secure/secureOptions для FTPS, дефолты `useTempFile`/`syncOption`).
@@ -44,6 +45,7 @@
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
 
 **English — in short**
+- **2.6.5** — drag & drop in the tree no longer fails on a name clash. If the destination folder already has a same-named file, WireFerry compares both (size, permissions, owner, MD5) and asks: **Overwrite**, **Rename**, **Do nothing** or **Cancel**. A byte-identical file (by MD5) moves silently — the source duplicate is just removed. Overwriting a folder asks again before the recursive delete.
 - **2.6.4** — WireFerry is back on the Visual Studio Marketplace: version 2.6.4 passed validation and is published as `EvgeniiShapovalov.wireferry`. Updates now use VS Code Marketplace, with no separate background GitHub check. WireFerry no longer asks for startup GitHub-check consent, calls `api.github.com`, or downloads a `.vsix` next to the project. **WireFerry: Check for Updates** now opens the extension page and asks VS Code to refresh Marketplace updates. `wireferry.checkForUpdates` remains as a deprecated no-op for older user settings, and the docs now point to Marketplace as the primary install channel; GitHub Releases stay available for manual/offline installs.
 - **2.6.3** — concurrency under control plus targeted reliability fixes. "Upload Changed Files" and simultaneous transfers no longer open connections beyond the configured `concurrency` (which could trip sshd limits or get you banned on shared hosting) — each connection now shares one bounded scheduler. A profile that sets one sub-key of `watcher`/`syncOption`/`remoteExplorer` no longer wipes the others. Deleting an unsupported remote file type (socket/device) is reported as a failure, not "deleted". Windows `~\` home paths for the key and ssh-config are expanded. The "couldn't set file time" warning now surfaces per server, not once per session.
 - **2.6.2** — reliability and completeness from a code review. Delete "on server and locally": if the local file can't be removed (e.g. read-only) you now get an explicit warning instead of a silent "deleted" while the file stays on disk. After a recursive `chmod -R` the whole subtree refreshes, so nested files no longer keep a stale "read-only" badge. Plus a large documentation pass: the README now lists shipped features (drag & drop, operation reports, progress/cancel, symlinks, atomic transfers, migration doctor, update check), and the reference docs + JSON schema were aligned with the code (FTPS secure/secureOptions, `useTempFile`/`syncOption` defaults).
@@ -79,6 +81,26 @@
 - **1.0.6** — newly created files show in the tree instantly, no manual Refresh (folders since 1.0.4).
 - **1.0.2** — "Copy Path" command: copy a file/folder's server-side path.
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
+
+---
+
+## 2.6.5 — Drag & drop move resolves name clashes instead of erroring · Перемещение drag & drop разбирает конфликт имён вместо ошибки
+
+**English:**
+
+- **A drag & drop move now handles a name clash instead of failing.** Dropping a file/folder onto a folder that already held a same-named entry used to abort with a raw `Remote target already exists` error dumped to the log. WireFerry now compares both items and asks what to do.
+- **Identical files are de-duplicated silently.** When the destination already holds byte-identical content — verified by server-side MD5 after a size pre-check — the move collapses to removing the source duplicate, with a short notice and no prompt.
+- **Different content opens a clear dialog.** It shows the size, permissions, owner and MD5 of both the existing target and the incoming item, with four choices: **Overwrite**, **Rename**, **Do nothing** (skip this item) and **Cancel** (stop the whole move). Overwriting a folder asks a second time before the recursive delete.
+- **Rename retries safely.** Picking Rename suggests `name (2).ext` and re-checks the new name for its own clash, looping until it's free or you back out.
+- Moves now run one at a time, so the conflict dialogs never overlap.
+
+**Русский:**
+
+- **Перемещение drag & drop теперь разбирает конфликт имён, а не падает.** Раньше, если бросить файл/папку в папку, где уже есть объект с таким именем, операция обрывалась сырой ошибкой `Remote target already exists` в логе. Теперь WireFerry сравнивает оба объекта и спрашивает, что делать.
+- **Идентичные файлы — тихий дедуп.** Если в целевой папке уже лежит побайтово идентичная копия (проверка серверным MD5 после сверки размера), перемещение сводится к удалению исходного дубликата — с коротким уведомлением и без вопросов.
+- **Разное содержимое — понятный диалог.** Показываются размер, права, владелец и MD5 обоих объектов (существующего и перемещаемого) и четыре варианта: **Перезаписать**, **Переименовать**, **Ничего не делать** (пропустить этот объект) и **Отмена** (прервать всё перемещение). Перезапись папки дополнительно переспрашивает перед рекурсивным удалением.
+- **Переименование — с повторной проверкой.** Вариант «Переименовать» предлагает имя `name (2).ext` и заново проверяет его на конфликт, повторяя, пока имя не освободится или вы не откажетесь.
+- Перемещения идут по одному, чтобы диалоги конфликтов не накладывались.
 
 ---
 
