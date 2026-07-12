@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.6.5",
+  "version": "2.6.6",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -445,6 +445,18 @@
         "icon": "$(list-tree)"
       }
     ],
+    "submenus": [
+      {
+        "id": "wireferry.explorerMenu",
+        "label": "WireFerry",
+        "icon": "resources/icon.png"
+      },
+      {
+        "id": "wireferry.tabMenu",
+        "label": "WireFerry",
+        "icon": "resources/icon.png"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {
@@ -650,21 +662,6 @@
       ],
       "explorer/context": [
         {
-          "command": "wireferry.config",
-          "group": "navigation@19",
-          "when": "wireferry.enabled && explorerResourceIsFolder"
-        },
-        {
-          "command": "wireferry.revealInRemoteExplorer",
-          "group": "navigation@20",
-          "when": "wireferry.enabled && !explorerResourceIsRoot"
-        },
-        {
-          "command": "wireferry.diff",
-          "group": "3_compare",
-          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
-        },
-        {
           "command": "wireferry.sync.localToRemote",
           "group": "wireferry.sync@1",
           "when": "wireferry.enabled && explorerResourceIsFolder"
@@ -713,24 +710,46 @@
           "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "wireferry.remoteExplorer.calculateFolderSize",
-          "group": "3_compare",
+          "command": "wireferry.copyPathAsGitBash",
+          "group": "9_cutcopypaste@10",
+          "when": "wireferry.enabled"
+        },
+        {
+          "submenu": "wireferry.explorerMenu",
+          "group": "wireferry.trans@9",
+          "when": "wireferry.enabled"
+        }
+      ],
+      "wireferry.explorerMenu": [
+        {
+          "command": "wireferry.config",
+          "group": "1_view@1",
+          "when": "wireferry.enabled && explorerResourceIsFolder"
+        },
+        {
+          "command": "wireferry.revealInRemoteExplorer",
+          "group": "1_view@2",
           "when": "wireferry.enabled && !explorerResourceIsRoot"
         },
         {
           "command": "wireferry.tree",
-          "group": "3_compare",
+          "group": "2_info@1",
           "when": "wireferry.enabled && explorerResourceIsFolder"
         },
         {
-          "command": "wireferry.delete.remote",
-          "group": "7_modification",
+          "command": "wireferry.remoteExplorer.calculateFolderSize",
+          "group": "2_info@2",
           "when": "wireferry.enabled && !explorerResourceIsRoot"
         },
         {
-          "command": "wireferry.copyPathAsGitBash",
-          "group": "9_cutcopypaste@10",
-          "when": "wireferry.enabled"
+          "command": "wireferry.diff",
+          "group": "2_info@3",
+          "when": "wireferry.enabled && !explorerResourceIsRoot && !explorerResourceIsFolder"
+        },
+        {
+          "command": "wireferry.delete.remote",
+          "group": "3_modification@1",
+          "when": "wireferry.enabled && !explorerResourceIsRoot"
         }
       ],
       "editor/context": [
@@ -741,22 +760,22 @@
         },
         {
           "command": "wireferry.upload.file.to.allProfiles",
-          "group": "wireferry.trans@1",
-          "when": "wireferry.enabled && resourceScheme == file"
-        },
-        {
-          "command": "wireferry.download.file",
           "group": "wireferry.trans@2",
           "when": "wireferry.enabled && resourceScheme == file"
         },
         {
+          "command": "wireferry.download.file",
+          "group": "wireferry.trans@3",
+          "when": "wireferry.enabled && resourceScheme == file"
+        },
+        {
           "command": "wireferry.diff",
-          "group": "3_compare",
+          "group": "wireferry.trans@4",
           "when": "wireferry.enabled && resourceScheme == file"
         },
         {
           "command": "wireferry.remoteExplorer.editInLocal",
-          "group": "2_files",
+          "group": "wireferry.trans@5",
           "when": "wireferry.enabled && resourceScheme == remote"
         }
       ],
@@ -769,18 +788,25 @@
       ],
       "editor/title/context": [
         {
-          "command": "wireferry.revealInExplorer",
+          "submenu": "wireferry.tabMenu",
           "group": "2_files",
+          "when": "wireferry.enabled && (resourceScheme == file || resourceScheme == remote)"
+        }
+      ],
+      "wireferry.tabMenu": [
+        {
+          "command": "wireferry.revealInExplorer",
+          "group": "1_reveal@1",
           "when": "wireferry.enabled && resourceScheme == remote"
         },
         {
           "command": "wireferry.revealInRemoteExplorer",
-          "when": "wireferry.enabled && resourceScheme == file",
-          "group": "2_files"
+          "group": "1_reveal@1",
+          "when": "wireferry.enabled && resourceScheme == file"
         },
         {
           "command": "wireferry.delete.remote",
-          "group": "7_modification",
+          "group": "2_modification@1",
           "when": "wireferry.enabled && resourceScheme == file"
         }
       ],

@@ -7,6 +7,7 @@
 ## ✨ What's New · Что нового
 
 **English — in short**
+- **2.6.6** — the right-click menus are tidied so it's clear which commands are WireFerry's and which are VS Code's. In the local Explorer and the editor-tab menu, the utility commands (Config, Reveal in Remote Explorer, Show Tree, Size & MD5, Diff, Delete server/local/both) are gathered under a single **WireFerry ▸** submenu, while the everyday **Sync / Upload / Download** stay top-level, one click away. "Copy Path (Git Bash)" stays next to the native Copy Path, and in the editor body all WireFerry actions sit together in one block. Menu-only change — nothing renamed or removed, every command still reachable where it was.
 - **2.6.5** — drag & drop in the tree no longer fails on a name clash. If the destination folder already has a same-named file, WireFerry compares both (size, permissions, owner, MD5) and asks: **Overwrite**, **Rename**, **Do nothing** or **Cancel**. A byte-identical file (by MD5) moves silently — the source duplicate is just removed. Overwriting a folder asks again before the recursive delete.
 - **2.6.4** — WireFerry is back on the Visual Studio Marketplace: version 2.6.4 passed validation and is published as `EvgeniiShapovalov.wireferry`. Updates now use VS Code Marketplace, with no separate background GitHub check. WireFerry no longer asks for startup GitHub-check consent, calls `api.github.com`, or downloads a `.vsix` next to the project. **WireFerry: Check for Updates** now opens the extension page and asks VS Code to refresh Marketplace updates. `wireferry.checkForUpdates` remains as a deprecated no-op for older user settings, and the docs now point to Marketplace as the primary install channel; GitHub Releases stay available for manual/offline installs.
 - **2.6.3** — concurrency under control plus targeted reliability fixes. "Upload Changed Files" and simultaneous transfers no longer open connections beyond the configured `concurrency` (which could trip sshd limits or get you banned on shared hosting) — each connection now shares one bounded scheduler. A profile that sets one sub-key of `watcher`/`syncOption`/`remoteExplorer` no longer wipes the others. Deleting an unsupported remote file type (socket/device) is reported as a failure, not "deleted". Windows `~\` home paths for the key and ssh-config are expanded. The "couldn't set file time" warning now surfaces per server, not once per session.
@@ -45,6 +46,7 @@
 - **1.0.0** — works on Node 22+; safe delete with a modal confirmation.
 
 **Русский — коротко**
+- **2.6.6** — контекстные меню причёсаны, чтобы сразу было видно, где команды WireFerry, а где — самого VS Code. В локальном проводнике и в меню вкладки редактора служебные команды (Config, Показать в Remote Explorer, Показать дерево, Размер и MD5, Diff, Удаление сервер/локально/оба) собраны в одно подменю **WireFerry ▸**, а повседневные **Синхронизация / Выгрузка / Скачивание** остались на верхнем уровне, в один клик. «Копировать путь (Git Bash)» остался рядом с нативным Copy Path, а в теле редактора все команды WireFerry идут одним блоком. Изменение только в меню — ничего не переименовано и не удалено, каждая команда доступна там же, где и была.
 - **2.6.5** — перетаскивание в дереве больше не падает при совпадении имён. Если в целевой папке уже есть файл с таким же именем, WireFerry сравнит оба (размер, права, владелец, MD5) и спросит: **Перезаписать**, **Переименовать**, **Ничего не делать** или **Отмена**. Полностью идентичный по MD5 файл переносится тихо — исходный дубликат просто удаляется. Перезапись папки дополнительно переспрашивает перед рекурсивным удалением.
 - **2.6.4** — WireFerry снова доступен в Visual Studio Marketplace: версия 2.6.4 прошла проверку и опубликована как `EvgeniiShapovalov.wireferry`. Обновления теперь идут через VS Code Marketplace, без отдельного фонового GitHub-чека. WireFerry больше не спрашивает при запуске разрешение на проверку GitHub, не ходит в `api.github.com` и не скачивает `.vsix` рядом с проектом. Команда **WireFerry: Check for Updates** теперь открывает страницу расширения и просит сам VS Code проверить Marketplace-обновления. Настройка `wireferry.checkForUpdates` оставлена как устаревшая no-op для совместимости со старыми настройками, а документация теперь ведёт на Marketplace как основной канал установки; GitHub Releases остаются для ручной/offline-установки.
 - **2.6.3** — параллельность под контролем и точечные фиксы надёжности. «Выгрузить изменённые файлы» и одновременные передачи больше не открывают соединения сверх заданного `concurrency` (могло упереться в лимиты sshd или поймать бан на shared-хостинге) — у каждого подключения теперь один общий ограниченный планировщик. Профиль, задающий одну под-настройку (`watcher`/`syncOption`/`remoteExplorer`), больше не затирает остальные. Удаление файла неподдерживаемого типа (сокет/устройство) честно сообщается как ошибка, а не «удалено». Пути с `~\` (Windows) для ключа и ssh-config разворачиваются. Предупреждение «не удалось выставить время файла» — по каждому серверу, а не раз за сессию.
@@ -81,6 +83,28 @@
 - **1.0.6** — созданные файлы сразу видны в дереве без «Обновить» (папки — ещё с 1.0.4).
 - **1.0.2** — команда «Copy Path»: копировать серверный путь файла/папки.
 - **1.0.0** — работает на Node 22+; безопасное удаление с модальным подтверждением.
+
+---
+
+## 2.6.6 — WireFerry commands grouped in the right-click menus · Команды WireFerry сгруппированы в контекстных меню
+
+**English:**
+
+- **The right-click menus are reorganized so WireFerry's commands are easy to tell apart from VS Code's built-ins.** Before, they were interleaved with the native items and hard to spot.
+- **Local Explorer:** the everyday transfer commands — **Sync Local → Remote / Remote → Local / Both**, **Upload** and **Download** — stay at the top level, one click away. The utility commands — **Config**, **Reveal in Remote Explorer**, **Show Tree**, **Size & MD5**, **Diff with Remote** and **Delete (server / local / both)** — now live under a single **WireFerry ▸** submenu.
+- **Editor tab (right-click the tab):** **Reveal in Remote Explorer** and **Delete (server / local / both)** are gathered under the same **WireFerry ▸** submenu instead of being scattered across the native groups.
+- **Editor body (right-click the text):** all WireFerry actions — Upload, Upload to All Profiles, Download, Diff with Remote and Edit in Local — now sit together in one contiguous block.
+- **"Copy Path (Git Bash)" stays in the native copy cluster**, right next to Copy Path / Copy Relative Path, since it's a copy-path variant.
+- Menu-only change: no command was renamed or removed, and every command stays reachable exactly where it applied before (including from the Command Palette).
+
+**Русский:**
+
+- **Контекстные меню перестроены так, чтобы команды WireFerry было легко отличить от встроенных в VS Code.** Раньше они шли вперемешку с нативными пунктами, и найти «свои» было тяжело.
+- **Локальный проводник:** повседневные команды передачи — **Синхронизация Local → Remote / Remote → Local / В обе стороны**, **Выгрузка** и **Скачивание** — остались на верхнем уровне, в один клик. Служебные команды — **Config**, **Показать в Remote Explorer**, **Показать дерево**, **Размер и MD5**, **Diff с сервером** и **Удаление (сервер / локально / оба)** — теперь собраны в одно подменю **WireFerry ▸**.
+- **Вкладка редактора (ПКМ по вкладке):** **Показать в Remote Explorer** и **Удаление (сервер / локально / оба)** собраны в то же подменю **WireFerry ▸**, а не разбросаны по нативным группам.
+- **Тело редактора (ПКМ по тексту):** все команды WireFerry — Выгрузка, Выгрузка во все профили, Скачивание, Diff с сервером и Edit in Local — идут одним смежным блоком.
+- **«Копировать путь (Git Bash)» остался в нативном copy-кластере**, прямо рядом с Copy Path / Copy Relative Path, потому что это вариант копирования пути.
+- Изменение только в меню: ни одна команда не переименована и не удалена, каждая по-прежнему доступна там же, где применялась раньше (в т.ч. из палитры команд).
 
 ---
 

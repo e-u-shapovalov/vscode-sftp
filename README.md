@@ -95,7 +95,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 
 ## Latest release highlights
 
-The latest release switches updates to the standard VS Code Marketplace flow. WireFerry no longer runs its own background GitHub release check, no longer asks for update-check consent on startup, and no longer downloads `.vsix` files beside the workspace config. **WireFerry: Check for Updates** now opens the extension page and asks VS Code to refresh Marketplace updates. GitHub Releases remain available for manual, offline or rollback installs.
+The latest release reorganizes the right-click menus so WireFerry's commands are easy to tell apart from VS Code's built-ins. In the local Explorer and the editor-tab menu, the utility commands (Config, Reveal in Remote Explorer, Show Tree, Size & MD5, Diff with Remote, Delete server/local/both) are gathered under a single **WireFerry ▸** submenu, while the everyday **Sync / Upload / Download** stay at the top level, one click away. "Copy Path (Git Bash)" stays next to the native Copy Path, and in the editor body all WireFerry actions sit together in one block. It's a menu-only change — nothing was renamed or removed, and every command stays reachable where it was.
 
 See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 
