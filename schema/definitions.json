@@ -61,11 +61,11 @@
       },
       "filePerm": {
         "type": "number",
-        "description": "Octal permission applied to uploaded files (e.g. 644). Leave unset to preserve the source file mode."
+        "description": "Octal permission applied to uploaded and newly-created files (e.g. 644). Leave unset to preserve the source file mode / server default."
       },
       "dirPerm": {
         "type": "number",
-        "description": "Octal permission applied to created remote directories (e.g. 755)."
+        "description": "Octal permission applied to uploaded and newly-created directories (e.g. 755)."
       },
       "passive": {
         "type": "boolean",

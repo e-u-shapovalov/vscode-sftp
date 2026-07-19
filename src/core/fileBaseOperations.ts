@@ -3,6 +3,7 @@ import { window } from 'vscode';
 import { Readable } from 'stream';
 import logger from '../logger';
 import { L } from '../i18n';
+import { parseOctalMode } from '../helper/mode';
 
 interface FileOption {
   mode?: number;
@@ -139,7 +140,18 @@ export async function createDir(path: string, fs: FileSystem, option): Promise<v
     }
   }
 
-  return fs.mkdir(path);
+  await fs.mkdir(path);
+
+  // Apply an explicit mode when dirPerm is configured — same rationale as filePerm in createFile:
+  // mkdir over SFTP otherwise leaves the new directory's mode to the server default/umask.
+  const dirMode = parseOctalMode(option ? option.dirPerm : undefined);
+  if (dirMode !== undefined) {
+    try {
+      await fs.chmod(path, dirMode);
+    } catch (error) {
+      logger.warn('failed to chmod new folder (dirPerm):', error);
+    }
+  }
 }
 
 export async function createFile(path: string, fs: FileSystem, option): Promise<void> {
@@ -164,5 +176,18 @@ export async function createFile(path: string, fs: FileSystem, option): Promise<
   const emptyContent = new Readable();
   emptyContent._read = () => {};
   emptyContent.push(null);
-  return fs.put(emptyContent, path);
+  await fs.put(emptyContent, path);
+
+  // Apply an explicit mode when filePerm is configured. A new empty file is otherwise created with the
+  // SFTP default (0o666, only trimmed by the server umask) — the "666" reported in issue #2. chmod
+  // after creation makes the result exact regardless of the server umask; a failure is non-fatal (the
+  // file already exists) and only warned, mirroring the dirPerm handling in the transfer path.
+  const fileMode = parseOctalMode(option ? option.filePerm : undefined);
+  if (fileMode !== undefined) {
+    try {
+      await fs.chmod(path, fileMode);
+    } catch (error) {
+      logger.warn('failed to chmod new file (filePerm):', error);
+    }
+  }
 }

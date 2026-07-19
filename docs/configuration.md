@@ -88,8 +88,8 @@ Verify both paths before uploading or synchronizing a project.
 | `concurrency` | integer, 1–512 | `4` | Parallel transfer limit; FTP is always forced to `1` |
 | `useTempFile` | boolean | `true` | Stage a transfer beside the destination and rename it into place |
 | `openSsh` | boolean | `false` | Use OpenSSH rename behavior for the staged-file replacement |
-| `filePerm` | number | — | Octal mode applied to uploaded files, for example `644` |
-| `dirPerm` | number | — | Octal mode applied to created directories, for example `755` |
+| `filePerm` | number | — | Octal mode applied to uploaded and newly-created files, for example `644` |
+| `dirPerm` | number | — | Octal mode applied to uploaded and newly-created directories, for example `755` |
 | `maxFileSize` | number | disabled | Skip larger files, in MB, during folder/batch transfers |
 | `limitOpenFilesOnRemote` | boolean or number | disabled | Limit remote open-file operations; use only for a confirmed server limit |
 | `remoteTimeOffsetInHours` | number | `0` | Present in config, but currently not applied by the transfer pipeline |

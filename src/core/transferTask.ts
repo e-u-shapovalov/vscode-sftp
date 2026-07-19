@@ -6,6 +6,7 @@ import { FileSystem, FileType } from './fs';
 import { Task } from './scheduler';
 import logger from '../logger';
 import * as transferProgress from '../ui/transferProgress';
+import { parseOctalMode } from '../helper/mode';
 
 // Warn once per target filesystem (≈ per connection/host) that mtimes can't be set — not once per
 // session globally, which left a second server with the same restriction silent after the first warned.
@@ -219,8 +220,10 @@ export default class TransferTask implements Task {
     // Bail out before we acquire any stream if the task was cancelled during enumeration.
     this._abortAndThrowIfCancelled();
 
-    // Resolve the upload mode: an explicit filePerm wins; otherwise we may preserve the target's mode.
-    let mode = filePerm ? parseInt(String(filePerm), 8) : this._TransferOption.mode;
+    // Resolve the upload mode: an explicit, VALID filePerm wins; otherwise we may preserve the target's
+    // mode. parseOctalMode returns undefined for absent/garbage input (so we don't chmod with NaN/000).
+    const parsedFilePerm = parseOctalMode(filePerm);
+    let mode = parsedFilePerm !== undefined ? parsedFilePerm : this._TransferOption.mode;
 
     // Acquire the SOURCE first. get() hands back a lazy stream — a resolved await does NOT prove the
     // source is readable (the real read starts when put() pipes). So we never truncate the live target

@@ -37,19 +37,33 @@ export function canElevate(remoteFs: FileSystem): boolean {
 // Cache key for the root password: the connection's real host:port (so two servers behind the same
 // hostname string never share a password). Falls back to the display host when the client can't report
 // its endpoint.
-function passwordKey(remoteFs: FileSystem, host: string): string {
+// A safe POSIX user name (so it can be placed after `su -` without shell-escaping). Rejects anything
+// with spaces/quotes/metacharacters; the trailing `$` allows Samba-style machine accounts.
+export const SAFE_USER = /^[a-z_][a-z0-9_-]*\$?$/i;
+
+// A remote path safe to hand to a `su -` command: it must be ABSOLUTE. Under `su -` the CWD becomes root's
+// home, so a relative path (from a `remotePath: "./"` config) would resolve against /root and hit — or
+// destroy — the wrong object. Callers that DELETE must additionally reject the root "/" itself.
+export function isAbsoluteRemotePath(p: string | undefined): boolean {
+  return !!p && p[0] === '/';
+}
+
+function passwordKey(remoteFs: FileSystem, host: string, asUser: string): string {
   const client = execClient(remoteFs);
+  let base = host || 'server';
   if (client && typeof client.getEndpoint === 'function') {
     const { host: h, port } = client.getEndpoint();
-    return `${h || host || 'server'}:${port || 22}`;
+    base = `${h || host || 'server'}:${port || 22}`;
   }
-  return host || 'server';
+  // Key by user too: root and a named user have DIFFERENT passwords on the same host.
+  return `${base}#${asUser}`;
 }
 
 async function getRootPassword(
   key: string,
   displayHost: string,
-  reprompt: boolean
+  reprompt: boolean,
+  asUser: string
 ): Promise<string | undefined> {
   if (!reprompt && rootPwCache.has(key)) {
     return rootPwCache.get(key);
@@ -58,17 +72,17 @@ async function getRootPassword(
     password: true,
     ignoreFocusOut: true,
     title: L({
-      en: `Root password for ${displayHost || 'server'} (su)`,
-      ru: `Пароль root для ${displayHost || 'сервер'} (su)`,
+      en: `Password for ${asUser}@${displayHost || 'server'} (su)`,
+      ru: `Пароль ${asUser} на ${displayHost || 'сервер'} (su)`,
     }),
     prompt: reprompt
       ? L({
-          en: 'Wrong password — try again. WireFerry runs the command as root via `su -`.',
-          ru: 'Неверный пароль — попробуйте ещё раз. WireFerry выполняет команду от root через `su -`.',
+          en: `Wrong password — try again. WireFerry runs the command as ${asUser} via \`su\`.`,
+          ru: `Неверный пароль — попробуйте ещё раз. WireFerry выполняет команду от ${asUser} через \`su\`.`,
         })
       : L({
-          en: 'WireFerry will run the command as root via `su -`. The password is kept in memory only for this window.',
-          ru: 'WireFerry выполнит команду от root через `su -`. Пароль хранится в памяти только на время этого окна.',
+          en: `WireFerry will run the command as ${asUser} via \`su\`. The password is kept in memory only for this window.`,
+          ru: `WireFerry выполнит команду от ${asUser} через \`su\`. Пароль хранится в памяти только на время этого окна.`,
         }),
   });
   if (pw === undefined) {
@@ -85,8 +99,20 @@ async function getRootPassword(
 export async function execAsRoot(
   remoteFs: FileSystem,
   host: string,
-  command: string
+  command: string,
+  asUser?: string,
+  rawOutput = false
 ): Promise<{ code: number; output: string }> {
+  // Default / 'root' → su to root; a named user → su to that user (with THAT user's password).
+  const user = asUser && asUser !== 'root' ? asUser : 'root';
+  if (user !== 'root' && !SAFE_USER.test(user)) {
+    throw new Error(
+      L({
+        en: `Refusing to su to an unsafe user name: ${user}`,
+        ru: `Небезопасное имя пользователя для su: ${user}`,
+      })
+    );
+  }
   const client = execClient(remoteFs);
   if (!client || typeof client.execRoot !== 'function') {
     throw new Error(
@@ -97,15 +123,15 @@ export async function execAsRoot(
     );
   }
 
-  const key = passwordKey(remoteFs, host);
+  const key = passwordKey(remoteFs, host, user);
   // At most two password attempts: the cached/first entry, then one re-prompt after an auth failure.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const pw = await getRootPassword(key, host, attempt > 0);
+    const pw = await getRootPassword(key, host, attempt > 0, user);
     if (pw === undefined) {
       throw new ElevationCancelled();
     }
     try {
-      return await client.execRoot(command, pw);
+      return await client.execRoot(command, pw, user === 'root' ? undefined : user, rawOutput);
     } catch (e: any) {
       if (e && e.authFailed) {
         rootPwCache.delete(key);

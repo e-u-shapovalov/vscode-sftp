@@ -608,6 +608,11 @@ function buildConfigText(
     protocol: state.protocol,
     remotePath: state.remotePath,
     uploadOnSave: true,
+    // Give new files/dirs a safe default mode on upload and on create-in-tree: 644 = owner writes,
+    // others read-only (a web server running as another user can still read them); 755 for dirs.
+    // Decimal digits here, interpreted as octal (matches the schema's `number` type).
+    filePerm: 644,
+    dirPerm: 755,
     // Never let a project/folder upload push local-only housekeeping to the server — most importantly
     // .vscode, which holds this very config file (and a plaintext password, if that's the chosen
     // storage). Without an explicit ignore the default is empty and "Upload Project" would send it.

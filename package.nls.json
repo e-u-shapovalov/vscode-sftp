@@ -47,6 +47,7 @@
   "wireferry.remoteExplorer.editInLocal": "Edit in Local",
   "wireferry.viewContent": "View Content",
   "wireferry.remoteExplorer.copyPath": "Copy Path",
+  "wireferry.remoteExplorer.viewAsRoot": "View / list as root…",
   "wireferry.copyPathAsGitBash": "Copy Path (Git Bash)",
   "wireferry.remoteExplorer.calculateFolderSize": "Size & MD5…",
   "wireferry.tree": "Show Tree…",

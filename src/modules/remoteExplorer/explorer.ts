@@ -19,6 +19,8 @@ import {
   COMMAND_REMOTEEXPLORER_HIDE_SIZES,
   COMMAND_REMOTEEXPLORER_MEASURING_SIZES,
   COMMAND_OPEN_EXTENSION_PAGE,
+  COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT,
+  EXTENSION_NAME,
 } from '../../constants';
 import { UResource, upath, FileType, FileSystem } from '../../core';
 import { toRemotePath } from '../../helper';
@@ -29,6 +31,10 @@ import { getFileService } from '../serviceManager';
 import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
 import RemoteDragAndDropController from './dragAndDrop';
 import WriteDecorationProvider from './writeDecorationProvider';
+import { execAsRoot, canElevate, ElevationCancelled, shQuote, SAFE_USER } from '../privilegedExec';
+import { parseFindListing, FIND_PRINTF } from '../../helper/elevatedListing';
+import { makeTmpFile } from '../../helper';
+import * as fse from 'fs-extra';
 
 // Is `target` the same as `rootPath` or nested inside it? Remote paths are POSIX, so we compare with
 // upath (forward slashes) instead of the platform-specific `path`, which would break on Windows.
@@ -103,6 +109,10 @@ export default class RemoteExplorer {
     // Server root context menu: open WireFerry's own extension page locally (details / features).
     registerCommand(context, COMMAND_OPEN_EXTENSION_PAGE, () =>
       executeCommand('extension.open', 'EvgeniiShapovalov.wireferry')
+    );
+    // Right-click a no-access (yellow) node → re-list a directory or read a file as its owner / root via su.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT, (item: ExplorerItem) =>
+      this.viewAsRoot(item)
     );
   }
 
@@ -499,7 +509,7 @@ export default class RemoteExplorer {
       if (!current.isDirectory) {
         return undefined; // a path component points at a file — can't descend further
       }
-      const children = await this._treeDataProvider.getChildren(current);
+      const children = await this._treeDataProvider.getChildrenComplete(current);
       const next = children.find(child => upath.basename(child.resource.fsPath) === segment);
       if (!next) {
         return undefined;
@@ -572,5 +582,190 @@ export default class RemoteExplorer {
       this.refresh(remoteFileItem);
     }
 
+  }
+
+  // Right-click "View as root": re-list a no-access directory, or read a no-access file, via `su` as the
+  // owner or root. Uses the elevation engine (privilegedExec) that already prompts for + caches the password.
+  async viewAsRoot(item: ExplorerItem): Promise<void> {
+    // Invoked only from the tree context menu; guard against a Command Palette call with no item.
+    if (!item || !item.resource) {
+      return;
+    }
+    const remotePath = item.resource.fsPath;
+    // Root commands run under `su -`, whose CWD is root's home — a RELATIVE remote path (from a
+    // `remotePath: "./"` config) would resolve against /root, not the login user's home, and a leading-dash
+    // name could even be read by `find` as an action. Require an absolute path.
+    if (!remotePath || remotePath[0] !== '/') {
+      showWarningMessage(
+        L({
+          en: 'WireFerry: "View as root" needs an absolute server path. Set an absolute "remotePath" in the config.',
+          ru: 'WireFerry: «Показать от root» требует абсолютного пути на сервере. Задайте абсолютный "remotePath" в конфиге.',
+        })
+      );
+      return;
+    }
+    const owner = (item as { owner?: string }).owner;
+    const root = this._treeDataProvider.findRoot(item.resource.uri);
+    if (!root) {
+      showErrorMessage(
+        L({ en: `WireFerry: can't find the remote for this item.`, ru: `WireFerry: не найден сервер для этого элемента.` })
+      );
+      return;
+    }
+    const { fileService, config } = root.explorerContext;
+    const host = config.host || '';
+    let remotefs: FileSystem;
+    try {
+      remotefs = await fileService.getRemoteFileSystem(config);
+    } catch (e) {
+      const detail = e && (e as Error).message ? (e as Error).message : String(e);
+      showErrorMessage(L({ en: `WireFerry: can't connect — ${detail}`, ru: `WireFerry: не удалось подключиться — ${detail}` }));
+      return;
+    }
+    if (!canElevate(remotefs)) {
+      showWarningMessage(
+        L({
+          en: 'Running as root needs an SSH connection with a shell (not available on FTP).',
+          ru: 'Выполнение от root требует SSH-подключения с оболочкой (недоступно на FTP).',
+        })
+      );
+      return;
+    }
+    const asUser = await this._pickElevationUser(owner);
+    if (asUser === undefined) {
+      return; // cancelled
+    }
+    try {
+      if (item.isDirectory) {
+        await this._listDirAsRoot(item, remotefs, host, asUser);
+      } else {
+        await this._openFileAsRoot(item.resource.fsPath, remotefs, host, asUser);
+      }
+    } catch (e) {
+      if (e instanceof ElevationCancelled) {
+        return; // user backed out of the password prompt
+      }
+      const detail = e && (e as Error).message ? (e as Error).message : String(e);
+      showErrorMessage(
+        L({ en: `WireFerry: couldn't run as ${asUser} — ${detail}`, ru: `WireFerry: не удалось выполнить от ${asUser} — ${detail}` })
+      );
+    }
+  }
+
+  // Choose which user to su to: the item's owner (least privilege) or root. Straight to root when the owner
+  // is unknown or is root itself.
+  private async _pickElevationUser(owner?: string): Promise<string | undefined> {
+    if (!owner || owner === 'root' || !SAFE_USER.test(owner)) {
+      return 'root';
+    }
+    const asOwner = L({ en: `As the owner (${owner})`, ru: `От владельца (${owner})` });
+    const asRoot = L({ en: 'As root', ru: 'От root' });
+    const pick = await vscode.window.showQuickPick([asOwner, asRoot], {
+      placeHolder: L({ en: 'Run as which user?', ru: 'От какого пользователя выполнить?' }),
+    });
+    if (pick === undefined) {
+      return undefined; // cancelled
+    }
+    return pick === asOwner ? owner : 'root';
+  }
+
+  // List a directory the login user can't read (via `su … find -printf`) and hand the parsed children to the
+  // tree so they render in place of the yellow "no access" row.
+  private async _listDirAsRoot(
+    item: ExplorerItem,
+    remotefs: FileSystem,
+    host: string,
+    asUser: string
+  ): Promise<void> {
+    const dir = item.resource.fsPath;
+    // NO pipe — so `$?` is find's OWN exit, not a `| base64`'s (a piped base64 would mask a find failure
+    // as a false "empty folder"). rawOutput=true — so the su sanitizer can't strip the password out of a
+    // name/field. The NUL-delimited output is parsed as-is.
+    const cmd = `find ${shQuote(dir)} -mindepth 1 -maxdepth 1 -printf ${shQuote(FIND_PRINTF)}`;
+    // Capture the generation BEFORE the (slow) su fetch: if the user hits Refresh while it runs, the tree
+    // bumps its generation and setElevatedListing drops this now-stale snapshot instead of resurrecting it.
+    const gen = this._treeDataProvider.listGeneration;
+    const { code, output } = await execAsRoot(remotefs, host, cmd, asUser, true);
+    if (code !== 0) {
+      showErrorMessage(
+        L({
+          en: `WireFerry: listing "${dir}" as ${asUser} failed (exit ${code}).`,
+          ru: `WireFerry: листинг «${dir}» от ${asUser} не удался (код ${code}).`,
+        })
+      );
+      return;
+    }
+    const entries = parseFindListing(output, dir, (d, n) => upath.join(d, n));
+    this._treeDataProvider.setElevatedListing(item, entries, gen);
+    await this.reveal(item, { expand: true });
+  }
+
+  // Read a file the login user can't read (via `su … head -c <cap>`) into a throwaway temp file opened for
+  // viewing. Capped like the preview (10 MB) so a huge file can't blow up memory; the temp copy is removed
+  // when its editor closes.
+  private async _openFileAsRoot(
+    remotePath: string,
+    remotefs: FileSystem,
+    host: string,
+    asUser: string
+  ): Promise<void> {
+    const CAP = 10 * 1024 * 1024;
+    // NO pipe — so `$?` is head's OWN exit (a `| base64` would hide a read failure as a false empty file).
+    // rawOutput=true — so the sanitizer can't strip the password out of the content. Text is the case, like
+    // the in-editor preview; a binary file may look garbled (documented, same as preview).
+    const cmd = `head -c ${CAP} -- ${shQuote(remotePath)}`;
+    const { code, output } = await execAsRoot(remotefs, host, cmd, asUser, true);
+    if (code !== 0) {
+      showErrorMessage(
+        L({
+          en: `WireFerry: reading "${remotePath}" as ${asUser} failed (exit ${code}).`,
+          ru: `WireFerry: чтение «${remotePath}» от ${asUser} не удалось (код ${code}).`,
+        })
+      );
+      return;
+    }
+    let tmpPath: string;
+    try {
+      tmpPath = await makeTmpFile({ prefix: `${EXTENSION_NAME}-root-`, postfix: upath.extname(remotePath) });
+      await fse.writeFile(tmpPath, output);
+      // Read-only copy: make it non-writable so an accidental edit + save can't be silently lost (this
+      // throwaway is NOT written back to the server). Best-effort; VS Code then shows the file read-only.
+      await fse.chmod(tmpPath, 0o444).catch(() => undefined);
+    } catch (e) {
+      showErrorMessage(
+        L({
+          en: `WireFerry: couldn't open "${remotePath}" — ${(e && (e as Error).message) || e}`,
+          ru: `WireFerry: не удалось открыть «${remotePath}» — ${(e && (e as Error).message) || e}`,
+        })
+      );
+      return;
+    }
+    // Restore write before removing: the copy is 0444, and while fs-extra clears the Windows read-only bit
+    // itself, chmod-first makes the delete robust across platforms and avoids leaving a root-owned temp behind.
+    const cleanup = () =>
+      fse
+        .chmod(tmpPath, 0o600)
+        .catch(() => undefined)
+        .then(() => fse.remove(tmpPath).catch(() => undefined));
+    const sub = vscode.workspace.onDidCloseTextDocument(doc => {
+      if (doc.uri.scheme === 'file' && doc.uri.fsPath === tmpPath) {
+        sub.dispose();
+        cleanup();
+      }
+    });
+    try {
+      await vscode.window.showTextDocument(vscode.Uri.file(tmpPath), { preview: true });
+    } catch (e) {
+      // The editor never opened → the close listener would never fire: dispose it and delete the temp now,
+      // so neither the listener nor the root-owned copy leaks.
+      sub.dispose();
+      await cleanup();
+      showErrorMessage(
+        L({
+          en: `WireFerry: couldn't open "${remotePath}" — ${(e && (e as Error).message) || e}`,
+          ru: `WireFerry: не удалось открыть «${remotePath}» — ${(e && (e as Error).message) || e}`,
+        })
+      );
+    }
   }
 }

@@ -12,7 +12,7 @@ export const createRemoteFile = createFileHandler<FileHandleOption & { skipDir?:
   async handle() {
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const { remoteFsPath } = this.target;
-    await fileOperations.createFile(remoteFsPath, remoteFs, {});
+    await fileOperations.createFile(remoteFsPath, remoteFs, { filePerm: this.config.filePerm });
   },
   async afterHandle() {
     // Re-list the parent and reveal the new file so it appears in the tree without a manual refresh.
@@ -25,7 +25,7 @@ export const createRemoteFolder = createFileHandler<FileHandleOption & { skipDir
   async handle() {
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const { remoteFsPath } = this.target;
-    await fileOperations.createDir(remoteFsPath, remoteFs, {});
+    await fileOperations.createDir(remoteFsPath, remoteFs, { dirPerm: this.config.dirPerm });
   },
   async afterHandle() {
     await app.remoteExplorer.showCreated(this.target.remoteUri, true);

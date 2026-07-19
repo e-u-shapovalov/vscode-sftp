@@ -3,7 +3,7 @@ import { TransferTask, fileOperations } from '../core';
 import { TransferDirection } from '../core/transferTask';
 import logger from '../logger';
 import { L } from '../i18n';
-import { canElevate, execAsRoot, ElevationCancelled, shQuote } from './privilegedExec';
+import { canElevate, execAsRoot, ElevationCancelled, shQuote, isAbsoluteRemotePath } from './privilegedExec';
 
 // Only one recovery dialog at a time. A batch upload (a whole folder of root-owned files) can throw
 // many permission errors back-to-back; we open one dialog and quietly log the rest of that wave so
@@ -187,6 +187,17 @@ async function applyViaRoot(
   remotePath: string,
   host: string | undefined
 ): Promise<void> {
+  // Under `su -` a relative target resolves against /root — `cat > relative` would write to /root, not the
+  // intended file. Only auto-apply to an absolute path (the "Copy command" option stays available anyway).
+  if (!isAbsoluteRemotePath(remotePath)) {
+    window.showErrorMessage(
+      L({
+        en: `WireFerry: can't apply as root to a non-absolute path ("${remotePath}"). Set an absolute "remotePath".`,
+        ru: `WireFerry: нельзя применить от root по относительному пути («${remotePath}»). Задайте абсолютный "remotePath".`,
+      })
+    );
+    return;
+  }
   try {
     const { code } = await execAsRoot(task.targetFs, host || '', applyCmd);
     if (code === 0) {

@@ -5,7 +5,7 @@ import { chmodRemote, handleCtxFromUri } from '../fileHandlers';
 import { reportError } from '../helper';
 import { ExplorerItem } from '../modules/remoteExplorer';
 import { checkCommand } from './abstract/createCommand';
-import { canElevate, execAsRoot, ElevationCancelled, shQuote } from '../modules/privilegedExec';
+import { canElevate, execAsRoot, ElevationCancelled, shQuote, isAbsoluteRemotePath } from '../modules/privilegedExec';
 import { L } from '../i18n';
 import app from '../app';
 
@@ -179,6 +179,16 @@ export default checkCommand({
           return;
         }
         const host = (ctx.config as any).host || '';
+        // Under `su -` a relative path resolves against /root — a recursive chmod would hit the wrong tree.
+        if (!isAbsoluteRemotePath(remotePath)) {
+          window.showWarningMessage(
+            L({
+              en: `WireFerry: can't chmod as root on a non-absolute path ("${remotePath}"). Set an absolute "remotePath".`,
+              ru: `WireFerry: нельзя chmod от root по относительному пути («${remotePath}»). Задайте абсолютный "remotePath".`,
+            })
+          );
+          return;
+        }
         const cmd = `chmod ${recursive ? '-R ' : ''}-- ${toOctalFull(mode)} ${shQuote(remotePath)}`;
         const { code, output } = await execAsRoot(remoteFs, host, cmd);
         if (code !== 0) {

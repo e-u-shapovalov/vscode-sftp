@@ -13,6 +13,7 @@ import { FileHandleOption } from '../option';
 import { flatten } from '../../utils';
 import logger from '../../logger';
 import { getOpenTextDocuments } from '../../host';
+import { parseOctalMode } from '../../helper/mode';
 import { L } from '../../i18n';
 
 // Per-operation skip counter, keyed by the root srcFsPath of the top-level transfer/sync call.
@@ -116,11 +117,12 @@ async function transferFolder(
   // Need this to make sure file can correct transfer
   await targetFs.ensureDir(targetFsPath);
 
-  // If dirPerm is configured, we chmod the remote directory after creation.
-  if (config.transferOption.dirPerm) {
+  // If a valid dirPerm is configured, we chmod the remote directory after creation.
+  const folderDirMode = parseOctalMode(config.transferOption.dirPerm);
+  if (folderDirMode !== undefined) {
     logger.info('chmod remote directory as configured by dirPerm, dirPerm is: ', config.transferOption.dirPerm);
     try {
-      await targetFs.chmod(targetFsPath, parseInt(String(config.transferOption.dirPerm), 8));
+      await targetFs.chmod(targetFsPath, folderDirMode);
     } catch (error) {
       logger.warn('failed to chmod remote directory (dirPerm):', error);
     }
@@ -216,11 +218,12 @@ async function transferWithType(
       if (config.ensureDirExist) {
         const { targetFs, targetFsPath } = config;
         await targetFs.ensureDir(targetFs.pathResolver.dirname(targetFsPath));
-        // If dirPerm is configured, we chmod the remote directory after creation.
-        if (config.transferOption.dirPerm) {
+        // If a valid dirPerm is configured, we chmod the remote directory after creation.
+        const ensureDirMode = parseOctalMode(config.transferOption.dirPerm);
+        if (ensureDirMode !== undefined) {
           logger.info('Running chmod on remote directory with perm: ', config.transferOption.dirPerm);
           try {
-            await targetFs.chmod(targetFs.pathResolver.dirname(targetFsPath), parseInt(String(config.transferOption.dirPerm), 8));
+            await targetFs.chmod(targetFs.pathResolver.dirname(targetFsPath), ensureDirMode);
           } catch (error) {
             logger.warn('failed to chmod remote directory (dirPerm):', error);
           }

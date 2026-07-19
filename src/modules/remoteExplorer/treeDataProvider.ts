@@ -21,9 +21,89 @@ import { getExtensionSetting } from '../ext';
 import { L } from '../../i18n';
 import logger from '../../logger';
 import { duSizes } from './folderSize';
+import { toLocalPath } from '../../helper';
 import { canUserWrite, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
 
 type Id = number;
+
+// Combined local↔remote status of a tree entry. Drives the badge/colour in the decoration provider and
+// the click behaviour. A `const` object (NOT a `const enum`) so the transpile-only test build can read
+// the members across modules.
+export const NodeStatus = {
+  Synced: 'synced', // exists on both sides, no difference detected
+  Modified: 'modified', // exists on both sides, size/mtime differ → badge M
+  LocalOnly: 'localOnly', // only on disk, not on the server → badge L
+  RemoteOnly: 'remoteOnly', // only on the server (an ordinary server file, no badge)
+  Conflict: 'conflict', // type clash (file vs dir) → badge !
+  Unknown: 'unknown', // the server listing failed (transient) — don't claim local-only → badge ?
+  Denied: 'denied', // no permission to read/list — actionable via su (View as root) → yellow
+} as const;
+export type NodeStatusValue = typeof NodeStatus[keyof typeof NodeStatus];
+
+// Whether a remote entry and its local twin differ. Same heuristic sync uses (transfer.ts isFileModified):
+// byte size differs, or the modified time differs at second granularity. mtime is only a proxy, so equal
+// size + equal second is reported as "no difference detected", not "provably identical".
+function localRemoteDiffers(remote: FileEntry, local: FileEntry): boolean {
+  return (
+    remote.size !== local.size ||
+    Math.floor(remote.mtime / 1000) !== Math.floor(local.mtime / 1000)
+  );
+}
+
+// Combined status of a remote entry given its local twin (undefined = no local counterpart).
+function computeStatus(remote: FileEntry, local?: FileEntry): NodeStatusValue {
+  if (!local) {
+    return NodeStatus.RemoteOnly;
+  }
+  // A directory on one side and a non-directory on the other is a genuine type conflict; two directories
+  // are Synced (their contents are compared lazily as children expand).
+  if (remote.type === FileType.Directory || local.type === FileType.Directory) {
+    return remote.type === local.type ? NodeStatus.Synced : NodeStatus.Conflict;
+  }
+  // Both are non-directories. Differing KINDS (a regular file vs a symlink, or an unknown special file)
+  // genuinely differ — don't call them Synced just because size/mtime happen to match.
+  if (remote.type !== local.type) {
+    return NodeStatus.Modified;
+  }
+  return localRemoteDiffers(remote, local) ? NodeStatus.Modified : NodeStatus.Synced;
+}
+
+// A directory listing failed because the path isn't there (a local-only directory has no server path, or the
+// entry vanished) — as opposed to a permission/transient error. Mirrors the SFTP/FTP "absent" codes/text.
+function isNotFoundListing(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  const code = (err as any).code;
+  const msg = ((err as any).message || '').toString().toLowerCase();
+  return (
+    code === 2 ||
+    code === 'ENOENT' ||
+    msg.includes('no such file') ||
+    msg.includes('file not exist') ||
+    msg.includes('not found')
+  );
+}
+
+// A directory listing (or read) was rejected for lack of permission — as opposed to "not found" or a
+// transient error. This is actionable: the user can retry the listing/read as the owner or root via `su`.
+function isPermissionDeniedListing(err: any): boolean {
+  if (!err) {
+    return false;
+  }
+  const code = (err as any).code;
+  const msg = ((err as any).message || '').toString().toLowerCase();
+  // SFTP codes only (3 = SSH_FX_PERMISSION_DENIED). FTP 550/553 are deliberately excluded: 550 is
+  // ambiguous ("not taken" — could be not-found), and "View as root" needs an SSH shell anyway, so a
+  // yellow "right-click View as root" hint on an FTP node would just mislead.
+  return (
+    code === 3 ||
+    code === 'EACCES' ||
+    code === 'EPERM' ||
+    msg.includes('permission denied') ||
+    msg.includes('no access')
+  );
+}
 
 const previewDocumentPathPrefix = '/~ ';
 
@@ -77,6 +157,17 @@ interface ExplorerChild {
   // Real folder size from a server-side `du`, populated only while sort-by-size is active (files use
   // `size` from the listing; a directory's listing size is the inode size, not its contents).
   folderBytes?: number;
+  // Combined local↔remote status (see NodeStatus), computed during getChildren's merge. Undefined on roots.
+  status?: NodeStatusValue;
+  // The on-disk path of the local twin when one exists (a mapped local counterpart). Drives "click opens
+  // the local file" and marks the node as present locally. Undefined = no local twin.
+  localPath?: string;
+  // The local twin's byte size (files only) — used for the "remote ↔ local" size hint and the local-only
+  // size. Undefined when there is no local file twin.
+  localSize?: number;
+  // True for exactly one listing after pinKnownType seeded/corrected the type of a just-created node, so
+  // the next merge trusts the pin over a possibly-stale server listing, then reverts to listing authority.
+  typePinned?: boolean;
 }
 
 export interface ExplorerRoot extends ExplorerChild {
@@ -221,6 +312,21 @@ export default class RemoteTreeData
   private _resolvingLinks = new Set<string>();
   // Parent uri.query keys whose write-permission hints a background `id`+compute pass is handling.
   private _hintingWrite = new Set<string>();
+  // Cached server listing per parent uri.query, so the instant local-first snapshot can be replaced by the
+  // full server-merged listing once the server responds. Cleared by refresh(). No entry = not fetched yet.
+  private _remoteListing: Map<string, FileEntry[]> = new Map();
+  // In-flight server listings keyed by parent uri.query — a SHARED promise so the instant (background) and
+  // complete (navigation) paths never issue two readdirs for the same directory.
+  private _remoteInflight: Map<string, Promise<FileEntry[]>> = new Map();
+  // Bumped by refresh(); a listing that started before the bump won't publish its (now stale) result.
+  private _listGeneration = 0;
+  // Parent uri.query keys whose listing FAILED (permission/other). We do NOT auto-re-fetch these on every
+  // re-render — otherwise a no-access folder loops: fail → fire → getChildren → fail … Cleared by refresh()
+  // and by a successful "View as root" (setElevatedListing).
+  private _listingFailed = new Set<string>();
+  // Keys whose listing came from an elevated (su) "View as root". A slow ORIGINAL login-user listing that
+  // was already in flight must not overwrite it in the cache; cleared by refresh().
+  private _elevatedKeys = new Set<string>();
 
   private _onDidChangeFolder: vscode.EventEmitter<ExplorerItem | undefined> = new vscode.EventEmitter<
     ExplorerItem | undefined
@@ -240,6 +346,31 @@ export default class RemoteTreeData
     return this._map.get(uri.query);
   }
 
+  // The current listing generation — an elevated (su) fetch captures this BEFORE it starts, so a refresh
+  // landing mid-fetch can void the now-stale result at publish time (see setElevatedListing).
+  get listGeneration(): number {
+    return this._listGeneration;
+  }
+
+  // Publish a directory's children obtained via an elevated (su) listing: seed the cache for this dir so
+  // getChildren merges them in, clear its Denied/Unknown status, and re-render. Superseded by the next
+  // refresh(), which drops the cache and re-checks access as the login user.
+  setElevatedListing(item: ExplorerItem, entries: FileEntry[], gen: number): void {
+    // The caller captures the generation before its (slow) su fetch; if a refresh has since bumped it, this
+    // elevated snapshot is stale — drop it rather than publish it over the freshly re-checked state. `gen` is
+    // REQUIRED (not optional) so a future caller can't silently bypass this guard by omitting it.
+    if (gen !== this._listGeneration) {
+      return;
+    }
+    const key = item.resource.uri.query;
+    this._remoteListing.set(key, entries);
+    this._listingFailed.delete(key); // access obtained (via su) — no longer a failed listing
+    this._elevatedKeys.add(key); // don't let a slow in-flight login-user listing overwrite this
+    (item as ExplorerChild).status = undefined;
+    this._onDidChangeDecorations.fire([item.resource.uri]);
+    this._onDidChangeFolder.fire(item);
+  }
+
   async refresh(item?: ExplorerItem): Promise<any> {
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
     // drop both cached results so they recompute on demand.
@@ -250,7 +381,20 @@ export default class RemoteTreeData
       // recompute against the fresh listing.
       node.writable = undefined;
       node.accessNote = undefined;
+      // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
+      if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
+        node.status = undefined;
+      }
     });
+    // Drop cached server listings so a refresh re-reads BOTH sides — the local disk and the server. Bump the
+    // generation and drop in-flight fetches + failed-listing markers too, so a slow pre-refresh listing can't
+    // publish its stale result into the freshly-cleared cache, a fresh expand actually re-fetches instead of
+    // being de-duped against the old in-flight entry, and a previously no-access folder is retried.
+    this._remoteListing.clear();
+    this._remoteInflight.clear();
+    this._listingFailed.clear();
+    this._elevatedKeys.clear();
+    this._listGeneration += 1;
     // refresh root
     if (!item) {
       // clear cache
@@ -267,7 +411,7 @@ export default class RemoteTreeData
       this._onDidChangeFolder.fire(item);
 
       // refresh top level files as well
-      const children = await this.getChildren(item);
+      const children = await this.getChildrenComplete(item);
       children
         .filter(i => !i.isDirectory)
         .forEach(i => this._onDidChangeFile.fire(makePreivewUrl(i.resource.uri)));
@@ -310,7 +454,13 @@ export default class RemoteTreeData
       }
     } else {
       customLabel = upath.basename(item.resource.fsPath);
-      if (item.isSymbolicLink) {
+      if ((item as ExplorerChild).status === NodeStatus.Denied) {
+        // No permission to list/read — point the user at the elevation action.
+        description = L({
+          en: 'no access — right-click “View as root”',
+          ru: 'нет доступа — ПКМ «Показать от root»',
+        });
+      } else if (item.isSymbolicLink) {
         // A symlink shows where it points (resolved in the background), not its own byte size. The
         // dimmed "→ target" is the at-a-glance cue that this entry is a link, not a plain file.
         description = item.linkTarget
@@ -320,9 +470,17 @@ export default class RemoteTreeData
         // Dim size in the description, controlled SOLELY by the "show sizes" toggle (independent of
         // sort): files use the size from the listing; folders use the `du` size measured for this
         // listing. No per-item requests here.
-        if (!item.isDirectory && typeof item.size === 'number') {
-          description = formatBytes(item.size);
-        } else if (item.isDirectory && typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
+        const c = item as ExplorerChild;
+        if (!item.isDirectory) {
+          if (c.status === NodeStatus.Modified && typeof c.size === 'number' && typeof c.localSize === 'number') {
+            // A differing file shows both sides so the direction of the change is visible at a glance.
+            description = `${formatBytes(c.size)} ↔ ${formatBytes(c.localSize)}`;
+          } else if (typeof item.size === 'number') {
+            description = formatBytes(item.size);
+          } else if (typeof c.localSize === 'number') {
+            description = formatBytes(c.localSize); // local-only file (nothing on the server)
+          }
+        } else if (typeof item.folderBytes === 'number' && item.folderBytes >= 0) {
           description = formatBytes(item.folderBytes);
         }
       }
@@ -348,10 +506,23 @@ export default class RemoteTreeData
         : 'file',
       command: item.isDirectory
         ? undefined
+        : (item as ExplorerChild).localPath && (item as ExplorerChild).status !== NodeStatus.Conflict
+        ? {
+            // The file exists on disk — open the LOCAL copy directly (instant, no download, nothing
+            // overwritten). Covers local-only, modified and in-sync files. Checked BEFORE the symlink
+            // branch so a LOCAL-ONLY symlink opens its on-disk file instead of trying to readlink a server
+            // path that doesn't exist. Use Diff / Download from the menu to compare or pull the server copy.
+            command: 'vscode.open',
+            arguments: [
+              vscode.Uri.file((item as ExplorerChild).localPath as string),
+              { preview: true },
+            ],
+            title: 'Open Local File',
+          }
         : isSymlink
         ? {
-            // A symlink can't be opened/downloaded like a file (recreating an absolute link is refused);
-            // explain it and offer to open the real target instead — regardless of the open/preview mode.
+            // A remote-only symlink can't be opened/downloaded like a file (recreating an absolute link is
+            // refused); explain it and offer to open the real target instead.
             command: COMMAND_REMOTEEXPLORER_OPEN_SYMLINK,
             arguments: [item],
             title: 'Open Symlink Target',
@@ -370,14 +541,84 @@ export default class RemoteTreeData
     if (!item) {
       return this._getRoots();
     }
+    // VS Code-facing: local-first — paint the local side instantly and pull the server listing in the
+    // background. Navigation/reveal use getChildrenComplete so they always get the full server-merged list.
+    return this._children(item, false);
+  }
 
+  // The complete, server-merged children of a node — always waits for the server listing. Used by
+  // navigation/reveal (_resolveByPath, getParent, refresh), which must see server-only entries too, not the
+  // instant local-only snapshot getChildren returns before the server responds.
+  async getChildrenComplete(item?: ExplorerItem): Promise<ExplorerItem[]> {
+    if (!item) {
+      return this._getRoots();
+    }
+    return this._children(item, true);
+  }
+
+  private async _children(item: ExplorerItem, waitRemote: boolean): Promise<ExplorerItem[]> {
     const root = this.findRoot(item.resource.uri);
     if (!root) {
       throw new Error(`Can't find config for remote resource ${item.resource.uri}.`);
     }
     const config = root.explorerContext.config;
-    const remotefs = await root.explorerContext.fileService.getRemoteFileSystem(config);
-    const fileEntries = await remotefs.list(item.resource.fsPath);
+    const fileService = root.explorerContext.fileService;
+    const localFs = fileService.getLocalFileSystem();
+    const parentRemotePath = item.resource.fsPath;
+    // The local directory mirroring this remote folder — a pure string map, no I/O. Its listing may be
+    // absent (a remote-only path has no local twin); treat ENOENT as "no local twin" rather than an error.
+    const localDir = toLocalPath(parentRemotePath, config.remotePath, fileService.baseDir);
+    const localEntries = await localFs.list(localDir).catch(e => {
+      // ENOENT = no local twin directory (normal for a remote-only path). Log anything else (EACCES /
+      // EMFILE / I/O) so a real local-FS problem is visible instead of being silently read as "no local
+      // files" — which would drop the localPath and let a click download over an existing local copy.
+      if (e && e.code !== 'ENOENT') {
+        logger.warn(`remoteExplorer: local listing failed for ${localDir}: ${(e && e.message) || e}`);
+      }
+      return [] as FileEntry[];
+    });
+
+    const key = item.resource.uri.query;
+    let fileEntries = this._remoteListing.get(key);
+    if (fileEntries === undefined) {
+      if (!waitRemote) {
+        // Instant path: show the local side now, fetch the server listing in the background; when it lands
+        // the cache is filled and the parent re-rendered, so getChildren runs again and merges.
+        this._kickRemoteListing(fileService, config, parentRemotePath, key, item);
+        return this._buildProvisional(item, localEntries);
+      }
+      // Complete path (navigation/reveal): wait for the server listing (shared with any in-flight kick).
+      try {
+        fileEntries = await this._fetchRemoteListing(fileService, config, parentRemotePath, key);
+      } catch (e) {
+        // If a "View as root" published an elevated listing for this key while this (shared) login fetch was
+        // in flight and it then REJECTED, don't stamp Denied or throw over the valid elevated cache — adopt it.
+        // (The success path is handled by the guard just below; this is the rejection path.)
+        const elevated = this._elevatedKeys.has(key) ? this._remoteListing.get(key) : undefined;
+        if (elevated !== undefined) {
+          fileEntries = elevated;
+        } else {
+          // Mark a no-access directory even on the navigation path, so a reveal into it still gets the yellow
+          // "right-click View as root" hint (SFTP) instead of throwing with no cue. FTP can't elevate → "?".
+          if (isPermissionDeniedListing(e)) {
+            (item as ExplorerChild).status =
+              config.protocol === 'sftp' ? NodeStatus.Denied : NodeStatus.Unknown;
+            this._listingFailed.add(key);
+            this._onDidChangeDecorations.fire([item.resource.uri]);
+          }
+          throw e;
+        }
+      }
+      // A "View as root" may have published an elevated listing for this key WHILE we awaited the (shared,
+      // possibly pre-elevation) login fetch above — that fetch resolves with LOGIN-user entries and would
+      // render OVER the elevated view. Prefer the elevated cache when it now owns the key.
+      if (this._elevatedKeys.has(key)) {
+        fileEntries = this._remoteListing.get(key) ?? fileEntries;
+      }
+    }
+    // The connection is up (the listing came from it), so this resolves the memoized client cheaply; it is
+    // reused by the background passes (symlink targets, write hints, folder sizes) below.
+    const remotefs = await fileService.getRemoteFileSystem(config);
 
     const filesExcludeList: string[] =
       config.remoteExplorer && config.remoteExplorer.filesExclude
@@ -392,13 +633,28 @@ export default class RemoteTreeData
 
     const filtered = fileEntries.filter(filterFile);
 
-    // Folder sizes (ONE server-side `du` for the whole listing, no client recursion) are needed to SORT
-    // folders by size and/or to DISPLAY their size — compute them when either toggle is on. Files never
-    // need `du` (their byte size is already in the listing). SFTP+exec only; on FTP / minimal servers
-    // duSizes returns an empty map (folders keep name order and show no size).
+    // Index the local listing by name so each remote entry finds its on-disk twin in O(1). Twins that get
+    // consumed are deleted from the map, so whatever remains is "local-only" (on disk, not on the server).
+    // On a case-insensitive local FS (Windows / macOS) match names case-insensitively, so a server
+    // `README.md` and an on-disk `readme.md` are ONE file — not a duplicated remote-only + local-only pair
+    // (which would also make a click download/upload the wrong twin).
+    const caseInsensitive = process.platform === 'win32' || process.platform === 'darwin';
+    const nameKey = (n: string) => (caseInsensitive ? n.toLowerCase() : n);
+    const localByName = new Map<string, FileEntry>();
+    for (const localEntry of localEntries) {
+      localByName.set(nameKey(localEntry.name), localEntry);
+    }
+
+    // Build one node per remote entry, tagging its combined local↔remote status (see computeStatus).
     const items: ExplorerItem[] = filtered.map(file => {
       const isDirectory = file.type === FileType.Directory;
       const isSymbolicLink = file.type === FileType.SymbolicLink;
+      const localTwin = localByName.get(nameKey(file.name));
+      localByName.delete(nameKey(file.name));
+      const status = computeStatus(file, localTwin);
+      const localPath = localTwin ? localTwin.fspath : undefined;
+      const localSize =
+        localTwin && localTwin.type === FileType.File ? localTwin.size : undefined;
       const newResource = UResource.updateResource(item.resource, {
         remotePath: file.fspath,
       });
@@ -419,13 +675,22 @@ export default class RemoteTreeData
         mapItem.group = file.group;
         mapItem.uid = file.uid;
         mapItem.gid = file.gid;
+        // The listing is authoritative for the type — correct a node whose type was provisional
+        // (local-derived) or flipped server-side, EXCEPT right after we created it (pinKnownType), when a
+        // racy server may still report the old type; honour the pin for exactly one listing.
+        if (mapItem.typePinned) {
+          mapItem.typePinned = false;
+        } else {
+          mapItem.isDirectory = isDirectory;
+        }
         mapItem.isSymbolicLink = isSymbolicLink;
+        mapItem.status = status;
+        mapItem.localPath = localPath;
+        mapItem.localSize = localSize;
         return mapItem;
       }
-      const newItem = {
-        resource: UResource.updateResource(item.resource, {
-          remotePath: file.fspath,
-        }),
+      const newItem: ExplorerChild = {
+        resource: newResource,
         isDirectory,
         isSymbolicLink,
         size: file.size,
@@ -435,17 +700,80 @@ export default class RemoteTreeData
         group: file.group,
         uid: file.uid,
         gid: file.gid,
+        status,
+        localPath,
+        localSize,
       };
       this._map.set(newItem.resource.uri.query, newItem);
       return newItem;
     });
+
+    // Whatever local entries are left have no server counterpart: add them as local-only nodes (badge L)
+    // so the tree shows what exists on disk but isn't on the server yet. Their resource is a synthetic
+    // remote URI at the same relative path, so decoration/mapping/routing all work uniformly; the click
+    // handler opens the local file (there is nothing to download).
+    localByName.forEach(localEntry => {
+      const remoteTwinPath = upath.join(parentRemotePath, localEntry.name);
+      // Apply the SAME ignore filter to local-only entries — otherwise local .git / node_modules /
+      // .DS_Store (never on the server) leak into the SERVER tree as local-only clutter.
+      if (ignore.ignores(upath.relative(config.remotePath, remoteTwinPath))) {
+        return;
+      }
+      const isDirectory = localEntry.type === FileType.Directory;
+      const isSymbolicLink = localEntry.type === FileType.SymbolicLink;
+      const newResource = UResource.updateResource(item.resource, {
+        remotePath: remoteTwinPath,
+      });
+      const localSize = localEntry.type === FileType.File ? localEntry.size : undefined;
+      const existing = this._map.get(newResource.uri.query);
+      if (existing) {
+        existing.isDirectory = isDirectory;
+        existing.isSymbolicLink = isSymbolicLink;
+        existing.status = NodeStatus.LocalOnly;
+        existing.localPath = localEntry.fspath;
+        existing.localSize = localSize;
+        // Nothing on the server anymore — clear server-derived metadata so the tooltip/decoration don't
+        // show the stale mode/owner/mtime of a file that was deleted server-side.
+        existing.size = undefined;
+        existing.mode = undefined;
+        existing.mtime = undefined;
+        existing.owner = undefined;
+        existing.group = undefined;
+        existing.uid = undefined;
+        existing.gid = undefined;
+        existing.writable = undefined;
+        existing.accessNote = undefined;
+        existing.linkTarget = undefined;
+        existing.folderBytes = undefined;
+        items.push(existing);
+        return;
+      }
+      const localNode: ExplorerChild = {
+        resource: newResource,
+        isDirectory,
+        isSymbolicLink,
+        status: NodeStatus.LocalOnly,
+        localPath: localEntry.fspath,
+        localSize,
+      };
+      this._map.set(localNode.resource.uri.query, localNode);
+      items.push(localNode);
+    });
+
+    // Repaint the L/M/!/RO decorations for this listing — a node's status may have changed since the last
+    // expand (uploaded, edited, deleted locally). Targeted, like the write-hint repaint.
+    this._onDidChangeDecorations.fire(items.map(i => i.resource.uri));
 
     // Resolve each symlink's target in the background with ONE readlink apiece (cheap, unlike `du`), so
     // the tree paints immediately and the dimmed "→ target" fills in a moment later. Only links without
     // a cached target are read; refresh() clears the cache. De-duped per parent so concurrent expands
     // of the same folder don't pile up readlinks.
     const unresolvedLinks = items.filter(
-      i => (i as ExplorerChild).isSymbolicLink && (i as ExplorerChild).linkTarget === undefined
+      i =>
+        (i as ExplorerChild).isSymbolicLink &&
+        (i as ExplorerChild).linkTarget === undefined &&
+        // A local-only symlink has no server path to readlink — skip it (else a doomed readlink runs).
+        (i as ExplorerChild).status !== NodeStatus.LocalOnly
     );
     if (unresolvedLinks.length > 0) {
       this._resolveSymlinkTargets(remotefs, unresolvedLinks, item).catch(() => undefined);
@@ -480,10 +808,171 @@ export default class RemoteTreeData
     dirs.sort(
       (a, b) => folderBytesOf(b) - folderBytesOf(a) || a.resource.fsPath.localeCompare(b.resource.fsPath)
     );
+    // Sort files by their effective size — the server size when present, else the local-only file's size
+    // (which is what the row actually shows), so a large local-only file isn't parked at the bottom.
+    const fileBytesOf = (i: ExplorerItem) => {
+      const c = i as ExplorerChild;
+      return typeof c.size === 'number' ? c.size : typeof c.localSize === 'number' ? c.localSize : 0;
+    };
     files.sort(
-      (a, b) => (b.size || 0) - (a.size || 0) || a.resource.fsPath.localeCompare(b.resource.fsPath)
+      (a, b) => fileBytesOf(b) - fileBytesOf(a) || a.resource.fsPath.localeCompare(b.resource.fsPath)
     );
     return dirs.concat(files);
+  }
+
+  // Instant local-only snapshot: the on-disk children painted with NO status badge (the server side isn't
+  // known yet, so nothing is mislabelled) and each file already opens locally on click. Reuses cached nodes
+  // so identity stays stable when the full server-merged listing replaces this a moment later.
+  private _buildProvisional(item: ExplorerItem, localEntries: FileEntry[]): ExplorerItem[] {
+    const items: ExplorerItem[] = [];
+    localEntries.forEach(localEntry => {
+      const isDirectory = localEntry.type === FileType.Directory;
+      const isSymbolicLink = localEntry.type === FileType.SymbolicLink;
+      const remoteTwinPath = upath.join(item.resource.fsPath, localEntry.name);
+      const newResource = UResource.updateResource(item.resource, { remotePath: remoteTwinPath });
+      const localSize = localEntry.type === FileType.File ? localEntry.size : undefined;
+      const existing = this._map.get(newResource.uri.query);
+      if (existing) {
+        existing.isDirectory = isDirectory;
+        existing.isSymbolicLink = isSymbolicLink;
+        existing.localPath = localEntry.fspath;
+        existing.localSize = localSize;
+        existing.status = undefined; // server state not known yet — clear any stale badge from a prior merge
+        items.push(existing);
+        return;
+      }
+      const node: ExplorerChild = {
+        resource: newResource,
+        isDirectory,
+        isSymbolicLink,
+        localPath: localEntry.fspath,
+        localSize,
+      };
+      this._map.set(node.resource.uri.query, node);
+      items.push(node);
+    });
+    // Repaint (clear) any stale badge while we wait for the fresh server listing.
+    this._onDidChangeDecorations.fire(items.map(i => i.resource.uri));
+    return items.sort(dirFirstSort);
+  }
+
+  // Fetch a directory's server listing exactly once, SHARING the in-flight promise across the instant
+  // (background) and complete (navigation) paths so the same directory is never listed twice concurrently.
+  // A "not found" becomes an EMPTY server side (a local-only directory has no server path) so navigation into
+  // it doesn't crash; other errors propagate to the caller. A generation guard prevents a slow pre-refresh
+  // listing from publishing its stale result into a cache refresh() has since cleared.
+  private _fetchRemoteListing(
+    fileService: FileService,
+    config: ServiceConfig,
+    remotePath: string,
+    key: string
+  ): Promise<FileEntry[]> {
+    const cached = this._remoteListing.get(key);
+    if (cached !== undefined) {
+      return Promise.resolve(cached);
+    }
+    const inflight = this._remoteInflight.get(key);
+    if (inflight) {
+      return inflight;
+    }
+    const gen = this._listGeneration;
+    const p = (async () => {
+      const remotefs = await fileService.getRemoteFileSystem(config);
+      let entries: FileEntry[];
+      try {
+        entries = await remotefs.list(remotePath);
+      } catch (e) {
+        if (isNotFoundListing(e)) {
+          entries = []; // local-only directory (or vanished) — show its local children, don't crash
+        } else {
+          throw e; // permission denied / I/O — the caller decides how to surface it
+        }
+      }
+      if (gen === this._listGeneration && !this._elevatedKeys.has(key)) {
+        this._remoteListing.set(key, entries);
+      }
+      return entries;
+    })();
+    this._remoteInflight.set(key, p);
+    const clear = () => {
+      if (this._remoteInflight.get(key) === p) {
+        this._remoteInflight.delete(key);
+      }
+    };
+    p.then(clear, clear);
+    return p;
+  }
+
+  // Kick a background fetch for the instant (local-first) path: show a status-bar spinner and, when the
+  // listing lands, re-render the parent so getChildren merges the server side in. On failure don't leave the
+  // folder silently empty — mark it Unknown ("?") and re-render so the user sees the server side isn't shown.
+  private _kickRemoteListing(
+    fileService: FileService,
+    config: ServiceConfig,
+    remotePath: string,
+    key: string,
+    item: ExplorerItem
+  ): void {
+    if (this._remoteListing.has(key) || this._listingFailed.has(key)) {
+      return; // already resolved, or a prior fetch failed — don't loop re-fetching a no-access folder
+    }
+    const alreadyInFlight = this._remoteInflight.has(key);
+    const p = this._fetchRemoteListing(fileService, config, remotePath, key);
+    if (alreadyInFlight) {
+      return; // another expand already owns the spinner + the re-render
+    }
+    // Capture the generation so a listing that finishes AFTER a refresh can't clobber the fresh state.
+    const gen = this._listGeneration;
+    vscode.window
+      .withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: L({
+            en: 'WireFerry: loading the server listing…',
+            ru: 'WireFerry: загружаю список с сервера…',
+          }),
+        },
+        () => p
+      )
+      .then(
+        () => {
+          if (gen !== this._listGeneration) {
+            return; // a refresh superseded this listing — ignore its completion
+          }
+          if (this._elevatedKeys.has(key)) {
+            return; // an elevated "View as root" listing already owns this key — leave its state alone
+          }
+          // Success — clear the failed marker and any prior "no access"/"unknown" badge (the folder became
+          // listable again, e.g. after permissions changed or a transient error cleared).
+          this._listingFailed.delete(key);
+          const c = item as ExplorerChild;
+          if (c.status === NodeStatus.Denied || c.status === NodeStatus.Unknown) {
+            c.status = undefined;
+            this._onDidChangeDecorations.fire([item.resource.uri]);
+          }
+          this._onDidChangeFolder.fire(item);
+        },
+        e => {
+          if (gen !== this._listGeneration) {
+            return; // stale failure — don't stamp Denied over a newer, successful state
+          }
+          if (this._elevatedKeys.has(key)) {
+            return; // an elevated "View as root" listing already succeeded here — don't stamp Denied over it
+          }
+          // Record the failure so re-renders don't loop re-fetching, and surface it instead of a silent
+          // empty folder. Mark Denied (yellow, "right-click View as root") ONLY when elevation is possible
+          // (SFTP with a shell); on FTP a permission error can't be escalated, so use Unknown ("?") to
+          // avoid a dead-end hint.
+          this._listingFailed.add(key);
+          const denied = isPermissionDeniedListing(e) && config.protocol === 'sftp';
+          (item as ExplorerChild).status = denied ? NodeStatus.Denied : NodeStatus.Unknown;
+          this._onDidChangeDecorations.fire([item.resource.uri]);
+          this._onDidChangeFolder.fire(item);
+          logger.warn(
+            `remoteExplorer: server listing failed for ${remotePath}: ${(e && (e as Error).message) || e}`
+          );
+        }
+      );
   }
 
   // Compute the current user's write access for each file in the listing and store it on the node (for
@@ -697,9 +1186,10 @@ export default class RemoteTreeData
     const existing = this._map.get(resource.uri.query);
     if (existing) {
       existing.isDirectory = isDirectory;
+      existing.typePinned = true; // trust this type over the next (possibly stale) server listing
       return existing;
     }
-    const node: ExplorerChild = { resource, isDirectory };
+    const node: ExplorerChild = { resource, isDirectory, typePinned: true };
     this._map.set(resource.uri.query, node);
     return node;
   }
@@ -728,7 +1218,9 @@ export default class RemoteTreeData
         isDirectory: true,
       };
       this._map.set(newResource.uri.query, newMapItem);
-      await this.getChildren(newMapItem);
+      // Populate the new parent's children. Tolerate a listing failure (e.g. a local-only or no-access
+      // directory) — getParent must still return the node so reveal/refresh don't throw.
+      await this.getChildrenComplete(newMapItem).catch(() => undefined);
       return newMapItem;
     }
   }

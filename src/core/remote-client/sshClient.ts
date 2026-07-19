@@ -8,7 +8,13 @@ import localFs from '../localFs';
 import logger from '../../logger';
 import CustomError from '../customError';
 import { parseId, UserIdentity } from '../../helper/identity';
-import { parseSentinelCode, sanitizeSuOutput } from '../../helper/suOutput';
+import {
+  isAuthPasswordPrompt,
+  parseSentinelCode,
+  sanitizeSuOutput,
+  stripBeforeBegin,
+  stripTrailingSentinel,
+} from '../../helper/suOutput';
 
 const DEFAULT_MAX_OPEN_FD_NUM = 222;
 
@@ -558,22 +564,60 @@ export default class SSHClient extends RemoteClient {
   // NOT su's own exit code). A wrong root password rejects with an Error carrying `.authFailed = true`
   // so the caller can re-prompt. `output` is sanitized (password + auth phase + marker stripped) before
   // it ever leaves this method, so a caller that surfaces it can't leak the password.
-  execRoot(command: string, password: string): Promise<{ code: number; output: string }> {
+  execRoot(
+    command: string,
+    password: string,
+    asUser?: string,
+    rawOutput = false
+  ): Promise<{ code: number; output: string }> {
     const sentinel = '__WF_RC_';
-    // Append an exit-code marker so we read the INNER command's status, not su's. `$?` is the inner
-    // command's code in the `-s /bin/sh` shell. The marker itself has no shell metacharacters.
-    const payload = `${command}; echo "${sentinel}$?__"`;
+    // Random per call, so login-shell noise (MOTD/profile) or the command's own data can't contain the exact
+    // marker and fool stripBeforeBegin's first-match. Echoed BEFORE the command → everything before it is
+    // discarded. The exit-code marker AFTER the command carries the command's OWN status ($? = the inner
+    // command's code; deliberately NO pipe, so nothing hides the producer's failure).
+    const beginMarker = `__WF_BEGIN_${Math.random().toString(36).slice(2) || '0'}__`;
+    // Reset PATH so find/head/rm/chmod/chown/cat resolve to the REAL system binaries even under
+    // `su - <owner>`, whose login profile could prepend a malicious directory (PATH-hijack) when that owner
+    // has a writable home. All the tools we run live in these standard dirs.
+    const payload = `PATH=/usr/bin:/bin:/usr/sbin:/sbin; echo '${beginMarker}'; ${command}; echo "${sentinel}$?__"`;
     // Single-quote the whole payload for `su … -c '...'`, escaping embedded quotes the POSIX way.
     const quoted = `'${payload.replace(/'/g, `'\\''`)}'`;
-    // `env LC_ALL=C` works from both sh and csh login shells (unlike a bare `VAR=val` prefix).
-    const suCommand = `env LC_ALL=C su - -s /bin/sh -c ${quoted}`;
+    // Target user: default (undefined / 'root') = `su -` (root). A named user runs `su - <user>` with
+    // THAT user's password. The caller (privilegedExec) validates the user token to a safe
+    // [a-z_][a-z0-9_-]* shape, so it can't inject shell — it is never placed inside the quoted payload.
+    const target = asUser && asUser !== 'root' ? ` ${asUser}` : '';
+    // `/usr/bin/env` by ABSOLUTE path (not PATH-resolved): otherwise the login user could shadow `env` in
+    // their own PATH with a fake that prints "Password:" and captures the root password we send to it (the
+    // inner payload's PATH reset is too late — it runs INSIDE su). env then sets a clean PATH before resolving
+    // `su`, so `su` can't be shadowed either. Still a single command (no shell `VAR=val` assignment), so it
+    // works from both sh and csh login shells.
+    const suCommand = `/usr/bin/env PATH=/usr/bin:/bin:/usr/sbin:/sbin LC_ALL=C su -${target} -s /bin/sh -c ${quoted}`;
+    // Threat-model boundary: this runs THROUGH the login user's own SSH shell/environment, so that environment
+    // is inherently trusted. A login account whose environment an attacker controls (LD_PRELOAD, a DEBUG trap,
+    // a shadowed login shell) can intercept the root password by means NO client-side command construction can
+    // prevent — escalating to root through such an account is unsafe by nature. The absolute `/usr/bin/env`
+    // above only closes the narrower PATH name-shadow of `env`/`su`; it is not a defence against a hostile
+    // login environment, which is out of scope (the user owns the account they are escalating from).
     // One wall-clock cap for the whole exec. It covers both waiting for the prompt AND running the
     // command, so a passwordless `su` (which never prompts) still gets the full budget for a slow
     // `chmod/chown -R`. A wrong password does NOT depend on this: su exits and 'close' fires promptly.
     const SU_TIMEOUT_MS = 600000;
 
-    // Strip the password/marker/prompt before any buffer is returned or logged — nothing secret leaks.
+    // For errors/logs: strip password + marker (defence in depth). For the SUCCESS result we also drop the
+    // login-shell noise before the begin marker and — when the caller reads the output as DATA (rawOutput,
+    // e.g. a file's bytes or a listing) — we DON'T strip the password from it, because the command's stdout
+    // must survive intact (the auth phase is discarded separately, so the password can't be in it anyway;
+    // stripping it would silently corrupt any file/name that merely contains the password as a substring).
     const sanitize = (raw: string): string => sanitizeSuOutput(raw, password, sentinel);
+    const resolveOutput = (raw: string): string => {
+      const afterBegin = stripBeforeBegin(raw, beginMarker);
+      // rawOutput = the caller reads this as DATA (a file's bytes / a listing) → return it VERBATIM, dropping
+      // ONLY the trailing marker. Normalise the PTY's \n→\r\n translation back to \n so a text file matches
+      // the server byte-for-byte (a binary file may still look garbled — documented, same as preview).
+      return rawOutput
+        ? stripTrailingSentinel(afterBegin, sentinel).replace(/\r\n/g, '\n')
+        : sanitizeSuOutput(afterBegin, password, sentinel);
+    };
 
     return new Promise((resolve, reject) => {
       this._client.exec(suCommand, { pty: true }, (err: Error | undefined, stream: any) => {
@@ -581,6 +625,10 @@ export default class SSHClient extends RemoteClient {
           return reject(err);
         }
         let output = '';
+        // Raw stdout as BYTES. Decoding each chunk on its own (`output += chunk.toString()`) corrupts a
+        // multibyte UTF-8 char split across a chunk boundary — fine for the ASCII prompt/sentinel matching we
+        // do on `output`, but NOT for a file's bytes returned to the caller, which we decode once from these.
+        let rawChunks: Buffer[] = [];
         let passwordSent = false;
         let settled = false;
         let timer: NodeJS.Timeout | undefined;
@@ -608,23 +656,27 @@ export default class SSHClient extends RemoteClient {
         }, SU_TIMEOUT_MS);
 
         const onChunk = (chunk: any) => {
-          output += chunk.toString();
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          rawChunks.push(buf);
+          output += buf.toString();
           if (passwordSent) {
             return;
           }
-          // Match su's prompt at the END of a line at the END of the buffer: `su` prints "Password: "
-          // (no trailing newline) and waits. Anchoring to a line start rejects a banner/MOTD line like
-          // "change your password:"; stripping \r tolerates PTYs that terminate with CR.
-          if (/(^|\n)[^\S\r\n]*password:[^\S\r\n]*$/i.test(output.replace(/\r/g, ''))) {
+          // Send the password ONLY during the auth phase — before the payload's begin marker appears. After it,
+          // su has already run the command, so a "password:" in the command's OWN output (a config line, a
+          // listing) is DATA, not su's prompt; matching it there would push the password into the running
+          // command, truncate the captured data, and can leak it under a passwordless su (see the predicate).
+          if (isAuthPasswordPrompt(output, beginMarker)) {
             passwordSent = true;
             try {
               stream.write(`${password}\n`);
             } catch {
               // stream already closed — the close handler will settle
             }
-            // Discard everything up to and including the auth phase: the command hasn't run yet, so no
-            // command output is lost, but the prompt (and any echoed password) is dropped.
+            // Discard everything up to and including the auth phase from BOTH buffers: the command hasn't run
+            // yet, so no command output is lost, but the prompt (and any echoed password) is dropped.
             output = '';
+            rawChunks = [];
           }
         };
         stream.on('data', onChunk);
@@ -634,9 +686,11 @@ export default class SSHClient extends RemoteClient {
         stream
           .on('close', (code: number) => {
             finish(() => {
-              const code2 = parseSentinelCode(output, sentinel);
+              // Decode the accumulated bytes ONCE — correct across chunk boundaries (see rawChunks).
+              const decoded = Buffer.concat(rawChunks).toString('utf8');
+              const code2 = parseSentinelCode(decoded, sentinel);
               if (code2 !== null) {
-                resolve({ code: code2, output: sanitize(output) });
+                resolve({ code: code2, output: resolveOutput(decoded) });
                 return;
               }
               // No sentinel => the payload never ran. Only classify as an auth rejection (so the caller
@@ -644,14 +698,14 @@ export default class SSHClient extends RemoteClient {
               // "su: command not found" must fall through to the generic error, not loop on the password.
               if (
                 passwordSent &&
-                /authentication failure|incorrect password|permission denied|sorry, try again/i.test(output)
+                /authentication failure|incorrect password|permission denied|sorry, try again/i.test(decoded)
               ) {
                 const e: any = new Error('su authentication failed');
                 e.authFailed = true;
                 reject(e);
                 return;
               }
-              reject(new Error(`su failed (exit ${code}): ${sanitize(output).slice(-200)}`));
+              reject(new Error(`su failed (exit ${code}): ${sanitize(decoded).slice(-200)}`));
             });
           })
           .on('error', (e: Error) => finish(() => reject(e)));

@@ -47,6 +47,7 @@
   "wireferry.remoteExplorer.editInLocal": "Редактировать локально",
   "wireferry.viewContent": "Просмотреть содержимое",
   "wireferry.remoteExplorer.copyPath": "Копировать путь",
+  "wireferry.remoteExplorer.viewAsRoot": "Показать / открыть от root…",
   "wireferry.copyPathAsGitBash": "Копировать путь (Git Bash)",
   "wireferry.remoteExplorer.calculateFolderSize": "Размер и MD5…",
   "wireferry.tree": "Показать дерево…",

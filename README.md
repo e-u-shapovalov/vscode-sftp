@@ -95,7 +95,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 
 ## Latest release highlights
 
-The latest release reorganizes the right-click menus so WireFerry's commands are easy to tell apart from VS Code's built-ins. In the local Explorer and the editor-tab menu, the utility commands (Config, Reveal in Remote Explorer, Show Tree, Size & MD5, Diff with Remote, Delete server/local/both) are gathered under a single **WireFerry ▸** submenu, while the everyday **Sync / Upload / Download** stay at the top level, one click away. "Copy Path (Git Bash)" stays next to the native Copy Path, and in the editor body all WireFerry actions sit together in one block. It's a menu-only change — nothing was renamed or removed, and every command stays reachable where it was.
+The latest release turns the server tree into a unified local + server view: each entry shows both sides at once with a status — **L** (only on your disk, not uploaded), **M** (differs from the server), **yellow** (no permission to read/list), plus sizes on both sides. Local files appear instantly while the server side loads in the background, and a click opens your local copy when you have one. New files and folders you create in the tree now honour **`filePerm` / `dirPerm`** (not just uploads), and a fresh config seeds `644`/`755`. You can also browse **root-owned paths you can't read** — a folder like `/root` shows yellow; right-click **View / list as root**, enter the owner's or root's password, and WireFerry lists it (or opens an unreadable file) via `su`, keeping the password in memory only.
 
 See the [Changelog](CHANGELOG.md) for release-specific details and previous versions.
 

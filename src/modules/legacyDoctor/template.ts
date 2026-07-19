@@ -16,7 +16,9 @@ const TEMPLATE_EN = `{
     "protocol": "sftp",             // "sftp" | "ftp" | "local".
     "remotePath": "/var/www/",      // Absolute base path on the server.
     "context": "./",                // Local folder (relative to the workspace) mapped to remotePath.
-    "uploadOnSave": true            // Upload a file to the server every time you save it.
+    "uploadOnSave": true,           // Upload a file to the server every time you save it.
+    "filePerm": 644,                // Mode for uploaded/created files (octal). 644 = others read-only, safe for web.
+    "dirPerm": 755                  // Mode for created dirs (octal). 755 = others enter/read, only you write.
 
     // ---- Authentication (SFTP) -----------------------------------------------------------
     // "privateKeyPath": "~/.ssh/id_rsa", // Absolute path to your private key.
@@ -105,7 +107,9 @@ const TEMPLATE_RU = `{
     "protocol": "sftp",             // "sftp" | "ftp" | "local".
     "remotePath": "/var/www/",      // Абсолютный базовый путь на сервере.
     "context": "./",                // Локальная папка (относительно проекта), сопоставленная с remotePath.
-    "uploadOnSave": true            // Выгружать файл на сервер при каждом сохранении.
+    "uploadOnSave": true,           // Выгружать файл на сервер при каждом сохранении.
+    "filePerm": 644,                // Права файлов (октал.). 644 = чужие только чтение, безопасно для веб.
+    "dirPerm": 755                  // Права папок (октал.). 755 = чужие входят/читают, пишешь только ты.
 
     // ---- Аутентификация (SFTP) -----------------------------------------------------------
     // "privateKeyPath": "~/.ssh/id_rsa", // Абсолютный путь к приватному ключу.
