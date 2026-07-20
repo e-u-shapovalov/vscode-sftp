@@ -1,6 +1,7 @@
 import { COMMAND_REMOTEEXPLORER_EDITINLOCAL } from '../constants';
 import { downloadFile } from '../fileHandlers';
 import { suppressDownloadOnOpenOnce } from '../modules/fileActivityMonitor';
+import { isReadPermissionDenied, offerDownloadAsRoot } from '../modules/downloadFallback';
 import { openDownloadedFile } from '../helper/smartOpen';
 import { warnOutsideScopeOnce } from '../helper/outOfScope';
 import { uriFromExplorerContextOrEditorContext } from './shared';
@@ -23,7 +24,20 @@ export default checkFileCommand({
       host: ctx.config.host,
     });
 
-    await downloadFile(ctx, { ignore: null });
+    try {
+      await downloadFile(ctx, { ignore: null });
+    } catch (e) {
+      // A root-owned file the login user can't read: offer to fetch it AS ROOT into the local copy so it
+      // still opens for editing (write-back on save uses the existing apply-as-root flow). Anything else
+      // propagates to the normal error toast.
+      if (!isReadPermissionDenied(e)) {
+        throw e;
+      }
+      const fetched = await offerDownloadAsRoot(ctx);
+      if (!fetched) {
+        return; // user declined or it failed — offerDownloadAsRoot already surfaced the reason
+      }
+    }
     // editInLocal already fetched the file intentionally; tell the file-open watcher not to run
     // downloadOnOpen for the open that immediately follows.
     suppressDownloadOnOpenOnce(ctx.target.localUri.fsPath);

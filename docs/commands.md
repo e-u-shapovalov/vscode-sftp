@@ -129,6 +129,8 @@ When a server-side delete would leave no safe copy behind, WireFerry asks you to
 
 Some paths on a Unix server are owned by `root` or another user and are not readable or deletable by your login. WireFerry can act on them through `su`, and only over an **SFTP/SSH** connection — FTP has no shell, so these actions are refused there. Right-click any file or folder in the Remote Explorer to reach them; a folder you cannot list is also flagged **yellow** with a *no access — right-click View as root* hint.
 
+![The Remote Explorer context menu on a root-owned folder — the yellow "no access" row and the WireFerry commands, including "View / list as root…".](../assets/showcase/root-access-context-menu.png)
+
 | Command | Purpose |
 | --- | --- |
 | `View / list as root…` | List a folder you cannot read, or open an unreadable file read-only |

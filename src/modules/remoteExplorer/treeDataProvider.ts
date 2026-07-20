@@ -495,12 +495,18 @@ export default class RemoteTreeData
       // is recognizable at a glance and never mistaken for a plain file.
       iconPath: isSymlink ? new vscode.ThemeIcon('file-symlink-file') : undefined,
       collapsibleState: item.isDirectory ? vscode.TreeItemCollapsibleState.Collapsed : undefined,
-      // Encode the protocol into a root's contextValue (root.sftp / root.ftp / root.local) so menus
-      // can offer SSH-only actions (e.g. Generate SSH Key) on SFTP roots only. Non-root items stay
-      // exactly 'file' / 'folder' — a symlink keeps 'file' so the regular file menus (Copy Path,
-      // Delete, …) still apply; its special handling is the click command below, not the menu.
+      // Encode the protocol into a root's contextValue (root.sftp / root.ftp / root.local) so menus can
+      // offer SSH-only actions (e.g. Generate SSH Key) on SFTP roots only. A LOCAL-ONLY node (on disk, not
+      // on the server) gets 'fileLocalOnly' / 'folderLocalOnly' so the menus can hide server-only actions
+      // (Download, chmod/chown, Rename, View as root) that would just fail with "No such file" on it, while
+      // keeping its real actions (Upload, Delete, Reveal, Copy Path). A symlink keeps its server 'file' /
+      // 'folder' value; its special handling is the click command below, not the menu.
       contextValue: isRoot
         ? `root.${(item as ExplorerRoot).explorerContext.config.protocol || 'sftp'}`
+        : (item as ExplorerChild).status === NodeStatus.LocalOnly
+        ? item.isDirectory
+          ? 'folderLocalOnly'
+          : 'fileLocalOnly'
         : item.isDirectory
         ? 'folder'
         : 'file',
@@ -791,7 +797,16 @@ export default class RemoteTreeData
     const setting = getExtensionSetting();
     const sortBySize = setting.sortBySizeInTree;
     if (sortBySize || setting.showSizeInTree) {
-      const unmeasured = items.filter(i => i.isDirectory && typeof i.folderBytes !== 'number');
+      // Skip LOCAL-ONLY folders: they have no server path, so a server-side `du` on them ALWAYS fails — and
+      // because a local-only node's folderBytes is reset every rebuild (it may transition to/from server-
+      // backed), that failure would re-measure forever, hammering the SSH connection (endless failing `du`
+      // channels) and flickering the tree. They simply have no server size to show.
+      const unmeasured = items.filter(
+        i =>
+          i.isDirectory &&
+          (i as ExplorerChild).status !== NodeStatus.LocalOnly &&
+          typeof i.folderBytes !== 'number'
+      );
       if (unmeasured.length > 0) {
         this._measureFolderSizes(remotefs, unmeasured, item).catch(() => undefined);
       }
@@ -825,6 +840,12 @@ export default class RemoteTreeData
   // so identity stays stable when the full server-merged listing replaces this a moment later.
   private _buildProvisional(item: ExplorerItem, localEntries: FileEntry[]): ExplorerItem[] {
     const items: ExplorerItem[] = [];
+    // If the PARENT is a LOCAL-ONLY folder, its children can't exist on the server either — mark them
+    // LocalOnly right away so the instant render already hides server-only actions (Download, chmod/chown,
+    // …) instead of flashing them until the (empty) server listing lands. For a server-backed folder we
+    // leave status undefined, since a local child there may well have a server twin.
+    const provisionalStatus =
+      (item as ExplorerChild).status === NodeStatus.LocalOnly ? NodeStatus.LocalOnly : undefined;
     localEntries.forEach(localEntry => {
       const isDirectory = localEntry.type === FileType.Directory;
       const isSymbolicLink = localEntry.type === FileType.SymbolicLink;
@@ -837,7 +858,7 @@ export default class RemoteTreeData
         existing.isSymbolicLink = isSymbolicLink;
         existing.localPath = localEntry.fspath;
         existing.localSize = localSize;
-        existing.status = undefined; // server state not known yet — clear any stale badge from a prior merge
+        existing.status = provisionalStatus; // LocalOnly under a local-only parent, else unknown-yet
         items.push(existing);
         return;
       }
@@ -847,6 +868,7 @@ export default class RemoteTreeData
         isSymbolicLink,
         localPath: localEntry.fspath,
         localSize,
+        status: provisionalStatus,
       };
       this._map.set(node.resource.uri.query, node);
       items.push(node);
@@ -1230,6 +1252,13 @@ export default class RemoteTreeData
   }
 
   findRoot(uri: vscode.Uri): ExplorerRoot | null | undefined {
+    // refresh() nulls _rootsMap; if a DEEP node is queried (e.g. VS Code restoring an expanded `/root` after
+    // a delete-triggered refresh) before the root level rebuilds it, we must (re)build it lazily here — else
+    // findRoot would spuriously fail with "Can't find config for remote resource". _getRoots() is the same
+    // builder getChildren uses and is a no-op once built.
+    if (!this._rootsMap) {
+      this._getRoots();
+    }
     if (!this._rootsMap) {
       return null;
     }

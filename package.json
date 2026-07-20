@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.7.0",
+  "version": "2.7.4",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -900,12 +900,12 @@
         {
           "command": "wireferry.revealInExplorer",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
         },
         {
           "command": "wireferry.remoteExplorer.copyPath",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
         },
         {
           "command": "wireferry.remoteExplorer.viewAsRoot",
@@ -920,35 +920,35 @@
         {
           "command": "wireferry.tree",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(folder|root)/"
+          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
         },
         {
           "command": "wireferry.upload.folder",
           "group": "3_trans@1",
           "alt": "wireferry.forceUpload",
-          "when": "wireferry.enabled && viewItem != file"
+          "when": "wireferry.enabled && viewItem =~ /^(folder|root)/"
         },
         {
           "command": "wireferry.upload.file",
           "group": "3_trans@1",
-          "when": "view == remoteExplorer && viewItem != root && viewItem == file"
+          "when": "view == remoteExplorer && viewItem =~ /^file(LocalOnly)?$/"
         },
         {
           "command": "wireferry.upload.folder.to.allProfiles",
           "group": "3_trans@1",
           "alt": "wireferry.forceUpload.to.allProfiles",
-          "when": "wireferry.enabled && viewItem != file"
+          "when": "wireferry.enabled && viewItem =~ /^(folder|root)/"
         },
         {
           "command": "wireferry.upload.file.to.allProfiles",
           "group": "3_trans@1",
-          "when": "view == remoteExplorer && viewItem != root && viewItem == file"
+          "when": "view == remoteExplorer && viewItem =~ /^file(LocalOnly)?$/"
         },
         {
           "command": "wireferry.download.folder",
           "group": "3_trans@2",
           "alt": "wireferry.forceDownload",
-          "when": "wireferry.enabled && viewItem != file"
+          "when": "wireferry.enabled && viewItem =~ /^folder$|^root/"
         },
         {
           "command": "wireferry.download.file",
@@ -963,7 +963,7 @@
         {
           "command": "wireferry.delete.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
         },
         {
           "command": "wireferry.chmod.remote",
@@ -978,12 +978,12 @@
         {
           "command": "wireferry.create.folder",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem != file"
+          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
         },
         {
           "command": "wireferry.create.file",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem != file"
+          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
         },
         {
           "command": "wireferry.download.file",
