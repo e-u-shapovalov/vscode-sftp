@@ -29,7 +29,7 @@ import { L } from '../../i18n';
 import app from '../../app';
 import { REMOTE_SCHEME } from '../../constants';
 import { getFileService } from '../serviceManager';
-import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
+import RemoteTreeDataProvider, { ExplorerItem, ExplorerRoot, TreeNode } from './treeDataProvider';
 import RemoteDragAndDropController from './dragAndDrop';
 import WriteDecorationProvider from './writeDecorationProvider';
 import { execAsRoot, canElevate, ElevationCancelled, shQuote, SAFE_USER } from '../privilegedExec';
@@ -55,7 +55,7 @@ function isUnderRoot(rootPath: string, target: string): boolean {
 }
 
 export default class RemoteExplorer {
-  private _explorerView: vscode.TreeView<ExplorerItem>;
+  private _explorerView: vscode.TreeView<TreeNode>;
   private _treeDataProvider: RemoteTreeDataProvider;
 
   constructor(context: vscode.ExtensionContext) {
@@ -72,7 +72,7 @@ export default class RemoteExplorer {
       vscode.window.registerFileDecorationProvider(writeDecorations)
     );
 
-    this._explorerView = vscode.window.createTreeView('remoteExplorer', {
+    this._explorerView = vscode.window.createTreeView<TreeNode>('remoteExplorer', {
       showCollapseAll: true,
       treeDataProvider: this._treeDataProvider,
       canSelectMany: true,
@@ -596,11 +596,14 @@ export default class RemoteExplorer {
   async showCreated(remoteUri: vscode.Uri, isDirectory: boolean): Promise<void> {
     const resource = UResource.makeResource(remoteUri);
 
-    let parent: ExplorerItem;
+    let parent: ExplorerItem | undefined;
     try {
       parent = await this._treeDataProvider.getParent({ resource, isDirectory });
     } catch (e) {
       // Tree isn't initialized yet (no roots) — nothing to reveal into.
+      return;
+    }
+    if (!parent) {
       return;
     }
 

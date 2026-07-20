@@ -8,7 +8,7 @@ import { reportError } from '../../helper';
 import { localFileMd5 } from '../../helper/fileFacts';
 import { L } from '../../i18n';
 import app from '../../app';
-import RemoteTreeData, { ExplorerItem, ExplorerRoot } from './treeDataProvider';
+import RemoteTreeData, { ExplorerItem, ExplorerRoot, TreeNode, isNoticeItem } from './treeDataProvider';
 import { resolveMoveConflict } from './moveConflict';
 
 // VS Code's built-in tree drag&drop transfers nodes through the mime type
@@ -21,20 +21,28 @@ const MIME = 'application/vnd.code.tree.remoteexplorer';
 // exists — locally, after a single confirmation. Same-folder drops and moving a folder into
 // itself/a descendant are filtered out.
 export default class RemoteDragAndDropController
-  implements vscode.TreeDragAndDropController<ExplorerItem> {
+  implements vscode.TreeDragAndDropController<TreeNode> {
   readonly dropMimeTypes = [MIME];
   readonly dragMimeTypes = [MIME];
 
   constructor(private readonly treeDataProvider: RemoteTreeData) {}
 
-  handleDrag(source: readonly ExplorerItem[], dataTransfer: vscode.DataTransfer): void {
-    dataTransfer.set(MIME, new vscode.DataTransferItem(source));
+  handleDrag(source: readonly TreeNode[], dataTransfer: vscode.DataTransfer): void {
+    // A notice row is not a real file — never let it be dragged.
+    const items = source.filter(s => !isNoticeItem(s)) as ExplorerItem[];
+    if (items.length === 0) {
+      return;
+    }
+    dataTransfer.set(MIME, new vscode.DataTransferItem(items));
   }
 
   async handleDrop(
-    target: ExplorerItem | undefined,
+    target: TreeNode | undefined,
     dataTransfer: vscode.DataTransfer
   ): Promise<void> {
+    if (target && isNoticeItem(target)) {
+      return; // can't drop onto a notice row
+    }
     const transferItem = dataTransfer.get(MIME);
     if (!transferItem) {
       return;

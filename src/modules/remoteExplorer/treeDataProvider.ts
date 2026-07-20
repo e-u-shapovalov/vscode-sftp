@@ -16,6 +16,8 @@ import {
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
   COMMAND_REMOTEEXPLORER_EDITINLOCAL,
   COMMAND_REMOTEEXPLORER_OPEN_SYMLINK,
+  COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT,
+  COMMAND_REMOTEEXPLORER_REFRESH,
 } from '../../constants';
 import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
@@ -171,6 +173,22 @@ export interface ExplorerRoot extends ExplorerChild {
 
 export type ExplorerItem = ExplorerRoot | ExplorerChild;
 
+// A synthetic, non-file row shown INSIDE a directory whose server listing failed, so the locally-known
+// entries can't masquerade as the whole directory. Carries the parent folder it belongs to and whether the
+// remedy is elevation (SFTP permission denied → View as root) or a plain retry (FTP / network error).
+export interface NoticeItem {
+  readonly kind: 'notice';
+  readonly remedy: 'root' | 'retry';
+  readonly parent: ExplorerItem;
+}
+
+// What getChildren/getTreeItem/getParent hand to VS Code: a real tree node or a synthetic notice row.
+export type TreeNode = ExplorerItem | NoticeItem;
+
+export function isNoticeItem(n: TreeNode): n is NoticeItem {
+  return (n as NoticeItem).kind === 'notice';
+}
+
 // A cached Modified (M) leaf file, snapshotted as an upload target for the "Upload Modified" toolbar
 // button. Host/profile come from the tree root the node belongs to (a child never carries them itself).
 export interface ModifiedUploadCandidate {
@@ -316,7 +334,7 @@ function buildTooltip(item: ExplorerItem, isRoot: boolean): string {
 }
 
 export default class RemoteTreeData
-  implements vscode.TreeDataProvider<ExplorerItem>, vscode.TextDocumentContentProvider {
+  implements vscode.TreeDataProvider<TreeNode>, vscode.TextDocumentContentProvider {
   private _roots: ExplorerRoot[] | null;
   private _rootsMap: Map<string, ExplorerRoot> | null;
   // Initialise eagerly: refresh() (after config save / profile switch) and getParent() (tree-selection
@@ -584,7 +602,43 @@ export default class RemoteTreeData
     return { folders, truncated };
   }
 
-  getTreeItem(item: ExplorerItem): vscode.TreeItem {
+  // Render the synthetic "list not complete" row. A real TreeItem.command (not just a context menu) so it
+  // is keyboard-accessible: Enter/click re-lists as root (SFTP permission) or retries (FTP / network).
+  private _noticeTreeItem(item: NoticeItem): vscode.TreeItem {
+    if (item.remedy === 'root') {
+      const ti = new vscode.TreeItem(
+        L({ en: 'List not complete — Show all as root…', ru: 'Список неполный — Показать всё от root…' }),
+        vscode.TreeItemCollapsibleState.None
+      );
+      ti.iconPath = new vscode.ThemeIcon('shield');
+      ti.tooltip = L({
+        en: 'Your login can’t list this folder fully — only locally-known entries are shown. Re-list it as the owner or root.',
+        ru: 'Ваш логин не может прочитать эту папку полностью — показаны только локально известные элементы. Перечитайте от владельца или root.',
+      });
+      ti.command = {
+        command: COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT,
+        title: 'View as root',
+        arguments: [item.parent],
+      };
+      return ti;
+    }
+    const ti = new vscode.TreeItem(
+      L({ en: 'List not complete — Retry', ru: 'Список неполный — Повторить' }),
+      vscode.TreeItemCollapsibleState.None
+    );
+    ti.iconPath = new vscode.ThemeIcon('refresh');
+    ti.tooltip = L({
+      en: 'The server listing failed — only locally-known entries are shown. Retry.',
+      ru: 'Не удалось получить список с сервера — показаны только локально известные элементы. Повторить.',
+    });
+    ti.command = { command: COMMAND_REMOTEEXPLORER_REFRESH, title: 'Refresh', arguments: [] };
+    return ti;
+  }
+
+  getTreeItem(item: TreeNode): vscode.TreeItem {
+    if (isNoticeItem(item)) {
+      return this._noticeTreeItem(item);
+    }
     const isRoot = (item as ExplorerRoot).explorerContext !== undefined;
     const setting = getExtensionSetting();
     let customLabel: string | undefined;
@@ -685,13 +739,25 @@ export default class RemoteTreeData
     };
   }
 
-  async getChildren(item?: ExplorerItem): Promise<ExplorerItem[]> {
+  async getChildren(item?: TreeNode): Promise<TreeNode[]> {
     if (!item) {
       return this._getRoots();
     }
+    if (isNoticeItem(item)) {
+      return []; // a notice row is a leaf
+    }
     // VS Code-facing: local-first — paint the local side instantly and pull the server listing in the
     // background. Navigation/reveal use getChildrenComplete so they always get the full server-merged list.
-    return this._children(item, false);
+    const children = await this._children(item, false);
+    // If this directory's server listing FAILED, the rows above are only the locally-known entries — a lone
+    // shared file must not read as "the whole directory". Prepend an explicit "list not complete" row whose
+    // action re-lists as root (SFTP permission) or retries (FTP / network).
+    if (this._listingFailed.has(item.resource.uri.query)) {
+      const remedy: 'root' | 'retry' =
+        (item as ExplorerChild).status === NodeStatus.Denied ? 'root' : 'retry';
+      return [{ kind: 'notice', remedy, parent: item } as NoticeItem, ...children];
+    }
+    return children;
   }
 
   // The complete, server-merged children of a node — always waits for the server listing. Used by
@@ -1748,7 +1814,10 @@ export default class RemoteTreeData
     return node;
   }
 
-  async getParent(item: ExplorerChild): Promise<ExplorerItem> {
+  async getParent(item: TreeNode): Promise<ExplorerItem | undefined> {
+    if (isNoticeItem(item)) {
+      return item.parent;
+    }
     const resourceUri = item.resource.uri;
     const root = this.findRoot(resourceUri);
     if (!root) {
