@@ -431,14 +431,12 @@ export default class RemoteTreeData
     this._map.forEach(node => {
       node.folderBytes = undefined;
       node.linkTarget = undefined;
-      // Ownership/permissions may have changed server-side — drop the cached write hints so they
-      // recompute against the fresh listing.
-      node.writable = undefined;
-      node.accessNote = undefined;
-      // KEEP contentVerification / contentVerificationKey / hasModifiedDescendant across a refresh: the
-      // confirmed-M state is retained optimistically so a folded branch doesn't lose its badge. A stale
-      // verdict self-invalidates in decideStatus (its key pins both sides' size+mtime), and an expanded
-      // branch's fresh server merge re-confirms or clears it.
+      // KEEP contentVerification / contentVerificationKey / hasModifiedDescendant AND writable / accessNote
+      // across a refresh: the confirmed-M state (and the "read-only for you" hint that "Upload Modified"
+      // uses to route RO files to the root path) is retained optimistically so a folded branch doesn't
+      // lose it. Each self-invalidates on the next merge — decideStatus re-keys on both sides' size+mtime,
+      // and _children drops the write hint when mode/uid/gid changed — so a stale value can't survive a
+      // real change.
       // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
       if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
         node.status = undefined;

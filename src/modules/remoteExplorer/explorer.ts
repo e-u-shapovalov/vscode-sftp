@@ -178,9 +178,9 @@ export default class RemoteExplorer {
           }),
           cancellable: true,
         },
-        (progress, token) => {
+        async (progress, token) => {
           let lastReport = 0;
-          return this._treeDataProvider.recheckSubtree(item, token, folders => {
+          const walked = await this._treeDataProvider.recheckSubtree(item, token, folders => {
             const now = Date.now();
             if (now - lastReport < 150) {
               return;
@@ -190,19 +190,29 @@ export default class RemoteExplorer {
               message: L({ en: `${folders} folders…`, ru: `папок: ${folders}…` }),
             });
           });
+          return { ...walked, cancelled: token.isCancellationRequested };
         }
       );
-      vscode.window.showInformationMessage(
-        result.truncated
-          ? L({
-              en: `Rechecked ${result.folders} folders (stopped at the limit). Changed files show M; content checks may still be finishing in the background.`,
-              ru: `Перечитано ${result.folders} папок (остановлено на лимите). Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
-            })
-          : L({
-              en: `Rechecked ${result.folders} folders. Changed files show M; content checks may still be finishing in the background.`,
-              ru: `Перечитано ${result.folders} папок. Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
-            })
-      );
+      if (result.cancelled) {
+        vscode.window.showInformationMessage(
+          L({
+            en: `Recheck of "${name}" cancelled after ${result.folders} folders.`,
+            ru: `Перечитывание «${name}» отменено после ${result.folders} папок.`,
+          })
+        );
+      } else {
+        vscode.window.showInformationMessage(
+          result.truncated
+            ? L({
+                en: `Rechecked ${result.folders} folders (stopped at the limit). Changed files show M; content checks may still be finishing in the background.`,
+                ru: `Перечитано ${result.folders} папок (остановлено на лимите). Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
+              })
+            : L({
+                en: `Rechecked ${result.folders} folders. Changed files show M; content checks may still be finishing in the background.`,
+                ru: `Перечитано ${result.folders} папок. Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
+              })
+        );
+      }
     } catch (e) {
       showErrorMessage((e && (e as Error).message) || String(e));
     }

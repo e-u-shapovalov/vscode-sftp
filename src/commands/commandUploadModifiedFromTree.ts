@@ -47,18 +47,25 @@ function buildNeedsRootReport(files: ModifiedUploadCandidate[]): string {
 
 // Resolve the per-root filesystem handles for the needs-root batch. Candidates may span profiles, so each
 // is routed through its own tree root (findRoot → getRemoteFileSystem/getLocalFileSystem).
-async function resolveRootItems(cands: ModifiedUploadCandidate[]): Promise<RootUploadItem[]> {
-  const out: RootUploadItem[] = [];
+async function resolveRootItems(
+  cands: ModifiedUploadCandidate[]
+): Promise<{ items: RootUploadItem[]; unresolved: number }> {
+  const items: RootUploadItem[] = [];
+  let unresolved = 0;
   for (const c of cands) {
     const root = app.remoteExplorer.findRoot(c.remoteUri);
     if (!root) {
+      // The config was removed/renamed between collect and resolve — count it so the summary can't
+      // silently under-report an approved file as neither ok nor failed.
+      unresolved += 1;
+      logger.error('resolve root item: no live root for', c.remotePath);
       continue;
     }
     const { fileService, config } = root.explorerContext;
     try {
       const remoteFs = await fileService.getRemoteFileSystem(config);
       const localFs = fileService.getLocalFileSystem();
-      out.push({
+      items.push({
         localPath: c.localPath,
         remotePath: c.remotePath,
         remoteFs,
@@ -66,10 +73,11 @@ async function resolveRootItems(cands: ModifiedUploadCandidate[]): Promise<RootU
         host: config.host || '',
       });
     } catch (e) {
+      unresolved += 1;
       logger.error('resolve root item failed', e);
     }
   }
-  return out;
+  return { items, unresolved };
 }
 
 export default checkCommand({
@@ -134,13 +142,19 @@ export default checkCommand({
           }
         }
         if (rootApproved) {
-          const items = await resolveRootItems(needsRoot);
+          const { items, unresolved } = await resolveRootItems(needsRoot);
           const { ok, fail } = await uploadFilesAsRoot(items);
+          const failed = fail.length + unresolved;
           vscode.window.showInformationMessage(
-            L({
-              en: `Root upload: ${ok.length} ok, ${fail.length} failed.`,
-              ru: `Загрузка от root: успешно ${ok.length}, с ошибкой ${fail.length}.`,
-            })
+            unresolved > 0
+              ? L({
+                  en: `Root upload: ${ok.length} ok, ${failed} failed (${unresolved} could not be matched to a live server).`,
+                  ru: `Загрузка от root: успешно ${ok.length}, с ошибкой ${failed} (${unresolved} не удалось сопоставить с активным сервером).`,
+                })
+              : L({
+                  en: `Root upload: ${ok.length} ok, ${fail.length} failed.`,
+                  ru: `Загрузка от root: успешно ${ok.length}, с ошибкой ${fail.length}.`,
+                })
           );
         }
       });

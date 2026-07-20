@@ -18,6 +18,15 @@ export class ElevationCancelled extends Error {
   }
 }
 
+// Thrown when both su password attempts were rejected. A batch caller treats it like a cancellation —
+// the user can't elevate, so re-prompting for every remaining file would just repeat the failure.
+export class ElevationAuthFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ElevationAuthFailed';
+  }
+}
+
 // POSIX single-quote a string so a path with spaces/quotes survives being pasted into a root shell.
 export function shQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
@@ -141,8 +150,9 @@ export async function execAsRoot(
       throw e;
     }
   }
-  // Both attempts were rejected passwords.
-  throw new Error(
+  // Both attempts were rejected passwords — a dedicated type so a batch caller can abort the rest
+  // instead of re-prompting per file.
+  throw new ElevationAuthFailed(
     L({ en: 'su: authentication failed', ru: 'su: не удалось аутентифицироваться' })
   );
 }
