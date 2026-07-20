@@ -21,6 +21,7 @@ import { scanSettings, scanConfig, Issue, IssueKind } from './scan';
 import { buildSummary, formatIssue, buildReportMarkdown } from './report';
 import { migrateSettingsText } from './autofix';
 import { getConfigTemplate } from './template';
+import { ensureFilePermText } from './ensureFilePerm';
 
 // Per-window-session dedup: the doctor's notifications fire at most once per VS Code window.
 let diagnosed = false;
@@ -35,15 +36,67 @@ const CREATE_DECLINED_KEY = (basePath: string) => `wireferry.createConfigDecline
 //   1. auto-create a template config for a brand-new workspace (Part 6)
 //   2. offer to rename a legacy .vscode/sftp.json -> wireferry.json (Part 4)
 //   3. flag legacy/unsupported keys in settings.json and config files (Part 3)
+//   4. backfill filePerm/dirPerm into a config that predates them (Part 7)
 export async function runLegacyDoctor(context: vscode.ExtensionContext): Promise<void> {
   const folders = getWorkspaceFolders();
   if (folders) {
     for (const folder of folders) {
       await offerCreateConfig(context, folder.uri.fsPath);
       await offerConfigRename(folder.uri.fsPath);
+      await ensureFilePermKeys(context, folder.uri.fsPath);
     }
   }
   await diagnoseLegacyKeys(folders);
+}
+
+// --- Part 7: backfill filePerm/dirPerm into an existing config that predates them -------------
+// A config written before these options existed has no filePerm/dirPerm, so the new-file permission
+// (issue #2) was invisible and un-tuneable. Surface it by writing the defaults straight into the file
+// (the values MATCH the runtime defaults, so nothing changes behaviourally — the option just becomes
+// visible and editable). Done at most once per config per project: the guard is set after the check so
+// removing the key later is respected (we never re-add it). Skipped entirely when the user muted the
+// doctor. Best-effort — any failure is swallowed so it never blocks activation.
+async function ensureFilePermKeys(
+  context: vscode.ExtensionContext,
+  basePath: string
+): Promise<void> {
+  if (getExtensionSetting().suppressLegacyConfigNotice) {
+    return;
+  }
+  const wfPath = path.join(basePath, CONFIG_PATH);
+  const legacyPath = path.join(basePath, LEGACY_CONFIG_PATH);
+  const configPath = fse.existsSync(wfPath)
+    ? wfPath
+    : fse.existsSync(legacyPath)
+    ? legacyPath
+    : undefined;
+  if (!configPath) {
+    return; // no config yet — offerCreateConfig handles fresh workspaces (its template has the keys)
+  }
+  const guardKey = `wireferry.filePermEnsured:${configPath}`;
+  if (context.workspaceState.get(guardKey)) {
+    return; // already checked this config in this project
+  }
+
+  try {
+    const text = await fse.readFile(configPath, 'utf8');
+    const { text: newText, added } = ensureFilePermText(text);
+    if (added.length) {
+      await fse.writeFile(configPath, newText);
+      const name = path.basename(configPath);
+      vscode.window.showInformationMessage(
+        L({
+          en: `WireFerry: added ${added.join(' & ')} to .vscode/${name} so new files/folders get safe permissions (644/755). Change them there anytime.`,
+          ru: `WireFerry: добавил ${added.join(' и ')} в .vscode/${name} — новые файлы/папки получают безопасные права (644/755). Значения можно изменить прямо там.`,
+        })
+      );
+    }
+    // Only mark as done once the write actually succeeded (a failed write throws and skips this),
+    // so a transient error retries next window instead of silently giving up.
+    await context.workspaceState.update(guardKey, true);
+  } catch (e) {
+    reportError(e, 'ensureFilePermKeys');
+  }
 }
 
 // --- Part 6: offer to create a config for a workspace that has none ---------------------------

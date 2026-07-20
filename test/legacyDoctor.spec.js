@@ -2,6 +2,7 @@ const { parse: parseJsonc } = require('jsonc-parser');
 const { scanSettings, scanConfig, offsetToLine } = require('../src/modules/legacyDoctor/scan');
 const { migrateSettingsText } = require('../src/modules/legacyDoctor/autofix');
 const { getConfigTemplate } = require('../src/modules/legacyDoctor/template');
+const { ensureFilePermText } = require('../src/modules/legacyDoctor/ensureFilePerm');
 
 // These modules are pure (jsonc-parser only, no `vscode`), so they need no mock.
 const KNOWN_SETTINGS = [
@@ -118,5 +119,68 @@ describe('offsetToLine', () => {
     expect(offsetToLine('a\nb\nc', 0)).toBe(1);
     expect(offsetToLine('a\nb\nc', 2)).toBe(2);
     expect(offsetToLine('a\nb\nc', 4)).toBe(3);
+  });
+});
+
+describe('legacy doctor — backfill filePerm/dirPerm (Part 7)', () => {
+  test('adds both keys to a config that has neither, as octal numbers', () => {
+    const text = '{\n  "host": "h",\n  "protocol": "sftp"\n}';
+    const { text: out, added } = ensureFilePermText(text);
+    expect(added.sort()).toEqual(['dirPerm', 'filePerm']);
+    const parsed = parseJsonc(out);
+    expect(parsed.filePerm).toBe(644);
+    expect(parsed.dirPerm).toBe(755);
+    // Existing keys survive.
+    expect(parsed.host).toBe('h');
+  });
+
+  test('preserves comments and untouched keys (surgical JSONC edit)', () => {
+    const text = '{\n  // my server\n  "host": "h" // inline\n}';
+    const { text: out } = ensureFilePermText(text);
+    expect(out).toContain('// my server');
+    expect(out).toContain('// inline');
+    expect(parseJsonc(out).host).toBe('h');
+  });
+
+  test('leaves an existing filePerm/dirPerm untouched (no additions)', () => {
+    const text = '{\n  "host": "h",\n  "filePerm": 600,\n  "dirPerm": 700\n}';
+    const { text: out, added } = ensureFilePermText(text);
+    expect(added).toEqual([]);
+    expect(out).toBe(text); // byte-for-byte unchanged
+    const parsed = parseJsonc(out);
+    expect(parsed.filePerm).toBe(600);
+    expect(parsed.dirPerm).toBe(700);
+  });
+
+  test('adds only the missing one when the other is present', () => {
+    const text = '{\n  "host": "h",\n  "filePerm": 640\n}';
+    const { added } = ensureFilePermText(text);
+    expect(added).toEqual(['dirPerm']);
+  });
+
+  test('is idempotent — a second pass adds nothing', () => {
+    const once = ensureFilePermText('{\n  "host": "h"\n}');
+    const twice = ensureFilePermText(once.text);
+    expect(twice.added).toEqual([]);
+    expect(twice.text).toBe(once.text);
+  });
+
+  test('backfills every element of a config array independently', () => {
+    const text = '[\n  { "host": "a" },\n  { "host": "b", "filePerm": 600 }\n]';
+    const { text: out, added } = ensureFilePermText(text);
+    expect(added.sort()).toEqual(['dirPerm', 'filePerm']);
+    const parsed = parseJsonc(out);
+    expect(parsed[0].filePerm).toBe(644);
+    expect(parsed[0].dirPerm).toBe(755);
+    // The element that already had filePerm keeps its value; only its missing dirPerm is added.
+    expect(parsed[1].filePerm).toBe(600);
+    expect(parsed[1].dirPerm).toBe(755);
+  });
+
+  test('skips a local-protocol server (perms are a remote concept)', () => {
+    const text = '{\n  "protocol": "local",\n  "context": "./"\n}';
+    const { text: out, added } = ensureFilePermText(text);
+    expect(added).toEqual([]);
+    expect(out).toBe(text);
   });
 });
