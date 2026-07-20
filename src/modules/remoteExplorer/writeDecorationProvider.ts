@@ -24,7 +24,7 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
       return undefined;
     }
     const item = this.tree.getItemByUri(uri) as
-      | { writable?: boolean; status?: string; hasModifiedDescendant?: boolean }
+      | { writable?: boolean; readable?: boolean; status?: string; hasModifiedDescendant?: boolean }
       | undefined;
     if (!item) {
       return undefined;
@@ -58,6 +58,21 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
             ru: 'Состояние на сервере неизвестно — не удалось получить список с сервера',
           }),
         };
+    }
+    // A file visible by name whose CONTENT the login user can't read (e.g. 0400 root:root). Shown before
+    // the sync-status badges — you can't meaningfully sync what you can't read, and the action is "View as
+    // root". An unreadable DIRECTORY fails to list and becomes Denied above, so this branch is files only.
+    if (item.readable === false) {
+      return {
+        badge: '🔒',
+        color: new vscode.ThemeColor('list.warningForeground'),
+        tooltip: L({
+          en: 'You can’t read this file — right-click “View as root” to open it as the owner or root.',
+          ru: 'Нет прав на чтение файла — ПКМ → «Показать / открыть от root» (от владельца или root).',
+        }),
+      };
+    }
+    switch (item.status) {
       case NodeStatus.Modified:
         return {
           badge: 'M',

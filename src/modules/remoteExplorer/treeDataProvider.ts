@@ -23,7 +23,7 @@ import { L } from '../../i18n';
 import logger from '../../logger';
 import { duSizes } from './folderSize';
 import { toLocalPath } from '../../helper';
-import { canUserWrite, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
+import { canUserWrite, canUserRead, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
 import { localFileMd5, serverFileMd5 } from '../../helper/fileFacts';
 import { suppressAutoUploadForMtime } from '../fileWatcherSuppression';
 import {
@@ -125,6 +125,10 @@ interface ExplorerChild {
   // Computed for files only — a directory's writability (create/delete inside) needs w+x semantics
   // we don't model here. `accessNote` is the human-readable reason shown in the tooltip.
   writable?: boolean;
+  // Advisory READ access for the current user: false = they can't read the content (drives the 🔒 badge
+  // and the "View as root" hint), even though the name is visible in the parent listing. undefined =
+  // unknown (FTP / identity not fetched / root). Computed for files only, alongside `writable`.
+  readable?: boolean;
   accessNote?: string;
   // Real folder size from a server-side `du`, populated only while sort-by-size is active (files use
   // `size` from the listing; a directory's listing size is the inode size, not its contents).
@@ -821,6 +825,7 @@ export default class RemoteTreeData
         // hint so it recomputes against the new mode/uid/gid instead of showing a stale RO badge.
         if (mapItem.mode !== file.mode || mapItem.uid !== file.uid || mapItem.gid !== file.gid) {
           mapItem.writable = undefined;
+          mapItem.readable = undefined;
           mapItem.accessNote = undefined;
         }
         mapItem.size = file.size;
@@ -925,6 +930,7 @@ export default class RemoteTreeData
         existing.uid = undefined;
         existing.gid = undefined;
         existing.writable = undefined;
+        existing.readable = undefined;
         existing.accessNote = undefined;
         existing.linkTarget = undefined;
         existing.folderBytes = undefined;
@@ -1537,7 +1543,7 @@ export default class RemoteTreeData
       return (
         !i.isDirectory &&
         !c.isSymbolicLink &&
-        c.writable === undefined &&
+        (c.writable === undefined || c.readable === undefined) &&
         typeof c.mode === 'number'
       );
     });
@@ -1556,12 +1562,16 @@ export default class RemoteTreeData
       for (const it of need) {
         const c = it as ExplorerChild;
         const writable = canUserWrite(c.mode as number, c.uid, c.gid, id);
-        if (writable === undefined) {
+        const readable = canUserRead(c.mode as number, c.uid, c.gid, id);
+        if (writable === undefined && readable === undefined) {
           continue; // owner/group unknown for this entry — make no claim
         }
         const rel = relationTo(c.uid, c.gid, id) as OwnershipRelation;
         c.writable = writable;
-        c.accessNote = buildAccessNote(rel, writable, c.group);
+        c.readable = readable;
+        if (writable !== undefined) {
+          c.accessNote = buildAccessNote(rel, writable, c.group);
+        }
         changed.push(c.resource.uri);
       }
       if (changed.length > 0) {
@@ -1584,6 +1594,7 @@ export default class RemoteTreeData
     const uri = item.resource.uri;
     const clear = () => {
       c.writable = undefined;
+      c.readable = undefined;
       c.accessNote = undefined;
       this._onDidChangeDecorations.fire([uri]);
     };
@@ -1606,13 +1617,17 @@ export default class RemoteTreeData
       }
       const id: UserIdentity = await client.getIdentity();
       const writable = id.uid === 0 ? undefined : canUserWrite(c.mode as number, c.uid, c.gid, id);
-      if (writable === undefined) {
+      const readable = id.uid === 0 ? undefined : canUserRead(c.mode as number, c.uid, c.gid, id);
+      if (writable === undefined && readable === undefined) {
         clear();
         return;
       }
       const rel = relationTo(c.uid, c.gid, id) as OwnershipRelation;
       c.writable = writable;
-      c.accessNote = buildAccessNote(rel, writable, c.group);
+      c.readable = readable;
+      if (writable !== undefined) {
+        c.accessNote = buildAccessNote(rel, writable, c.group);
+      }
       this._onDidChangeDecorations.fire([uri]);
       this._onDidChangeFolder.fire(item);
     } catch (e) {

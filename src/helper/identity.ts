@@ -95,3 +95,27 @@ export function canUserWrite(
   }
   return (mode & 0o002) !== 0; // tslint:disable-line no-bitwise
 }
+
+// Whether `id` can READ a file's content — mirror of canUserWrite on the read bits (0o400/0o040/0o004),
+// same owner → group → other precedence. Advisory (ignores ACLs / mounts). undefined when the numeric
+// owner/group aren't known (FTP), so no claim is made; root reads everything.
+export function canUserRead(
+  mode: number,
+  uid: number | undefined,
+  gid: number | undefined,
+  id: UserIdentity
+): boolean | undefined {
+  if (id.uid === 0) {
+    return true; // root ignores the permission bits
+  }
+  if (uid === undefined && gid === undefined) {
+    return undefined;
+  }
+  if (uid !== undefined && uid === id.uid) {
+    return (mode & 0o400) !== 0; // tslint:disable-line no-bitwise
+  }
+  if (gid !== undefined && id.gids.has(gid)) {
+    return (mode & 0o040) !== 0; // tslint:disable-line no-bitwise
+  }
+  return (mode & 0o004) !== 0; // tslint:disable-line no-bitwise
+}

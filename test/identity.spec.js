@@ -1,4 +1,4 @@
-const { parseId, relationTo, canUserWrite } = require('../src/helper/identity');
+const { parseId, relationTo, canUserWrite, canUserRead } = require('../src/helper/identity');
 
 // The write-permission hints in the tree hinge on parsing `id` and applying POSIX owner→group→other
 // precedence. Guard both.
@@ -81,5 +81,33 @@ describe('canUserWrite', () => {
     // uid=0 (root-owned, not us), gid unknown → owner/group classes skipped, "other" bit decides
     expect(canUserWrite(0o646, 0, undefined, user)).toBe(true); // other-writable
     expect(canUserWrite(0o644, 0, undefined, user)).toBe(false); // other read-only
+  });
+});
+
+describe('canUserRead', () => {
+  const user = { uid: 1000, gids: new Set([1000, 33]) };
+  const root = { uid: 0, gids: new Set([0]) };
+
+  test('root reads anything', () => {
+    expect(canUserRead(0o000, 0, 0, root)).toBe(true);
+  });
+
+  test('owner uses the owner-read bit, not group/other', () => {
+    expect(canUserRead(0o400, 1000, 0, user)).toBe(true); // owner readable
+    expect(canUserRead(0o044, 1000, 0, user)).toBe(false); // owner has no read even though group/other do
+  });
+
+  test('the root-owned 600 file is unreadable to a non-root user (the 🔒 case)', () => {
+    expect(canUserRead(0o600, 0, 0, user)).toBe(false); // root:root 600 → other has no read
+    expect(canUserRead(0o644, 0, 0, user)).toBe(true); // root:root 644 → other-readable
+  });
+
+  test('group member uses the group-read bit', () => {
+    expect(canUserRead(0o640, 0, 33, user)).toBe(true); // group read
+    expect(canUserRead(0o600, 0, 33, user)).toBe(false); // group no read
+  });
+
+  test('unknown owner/group => undefined (no claim)', () => {
+    expect(canUserRead(0o644, undefined, undefined, user)).toBeUndefined();
   });
 });
