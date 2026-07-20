@@ -121,6 +121,28 @@
         }
       }
     },
+    "colors": [
+      {
+        "id": "wireferry.localOnlyForeground",
+        "description": "Remote Explorer: foreground for a local-only (L) entry — exists on disk but not on the server yet.",
+        "defaults": {
+          "dark": "#3794ff",
+          "light": "#0066bf",
+          "highContrast": "#3794ff",
+          "highContrastLight": "#0066bf"
+        }
+      },
+      {
+        "id": "wireferry.remoteOnlyForeground",
+        "description": "Remote Explorer: foreground for a remote-only (R) entry — exists on the server but has no local copy yet.",
+        "defaults": {
+          "dark": "#20b2aa",
+          "light": "#008b8b",
+          "highContrast": "#20b2aa",
+          "highContrastLight": "#008b8b"
+        }
+      }
+    ],
     "commands": [
       {
         "command": "wireferry.config",
@@ -156,6 +178,11 @@
       {
         "command": "wireferry.upload.file",
         "title": "%wireferry.upload.file%",
+        "category": "WireFerry"
+      },
+      {
+        "command": "wireferry.upload.file.synced",
+        "title": "%wireferry.upload.file.synced%",
         "category": "WireFerry"
       },
       {
@@ -230,6 +257,11 @@
           "dark": "resources/dark/download-file.svg",
           "light": "resources/light/download-file.svg"
         }
+      },
+      {
+        "command": "wireferry.download.file.synced",
+        "title": "%wireferry.download.file.synced%",
+        "category": "WireFerry"
       },
       {
         "command": "wireferry.download.activeFile",
@@ -501,6 +533,14 @@
         },
         {
           "command": "wireferry.remoteExplorer.recheckModified",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.download.file.synced",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.upload.file.synced",
           "when": "false"
         },
         {
@@ -918,27 +958,27 @@
         {
           "command": "wireferry.remoteExplorer.editInLocal",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem == file && !config.wireferry.downloadWhenOpenInRemoteExplorer"
+          "when": "view == remoteExplorer && viewItem =~ /^file(Synced|RemoteOnly)?$/ && !config.wireferry.downloadWhenOpenInRemoteExplorer"
         },
         {
           "command": "wireferry.viewContent",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem == file && config.wireferry.downloadWhenOpenInRemoteExplorer"
+          "when": "view == remoteExplorer && viewItem =~ /^file(Synced|RemoteOnly)?$/ && config.wireferry.downloadWhenOpenInRemoteExplorer"
         },
         {
           "command": "wireferry.revealInExplorer",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|LocalOnly)?$/"
         },
         {
           "command": "wireferry.remoteExplorer.copyPath",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly|LocalOnly)?$/"
         },
         {
           "command": "wireferry.remoteExplorer.viewAsRoot",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly)?$/"
         },
         {
           "command": "wireferry.remoteExplorer.calculateFolderSize",
@@ -948,18 +988,18 @@
         {
           "command": "wireferry.tree",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
+          "when": "view == remoteExplorer && viewItem =~ /^folder(Synced|RemoteOnly)?$|^root/"
         },
         {
           "command": "wireferry.remoteExplorer.recheckModified",
           "group": "2_files",
-          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
+          "when": "view == remoteExplorer && viewItem =~ /^folder(Synced|RemoteOnly)?$|^root/"
         },
         {
           "command": "wireferry.upload.folder",
           "group": "3_trans@1",
           "alt": "wireferry.forceUpload",
-          "when": "wireferry.enabled && viewItem =~ /^(folder|root)/"
+          "when": "wireferry.enabled && viewItem =~ /^folder(Synced|LocalOnly)?$|^root/"
         },
         {
           "command": "wireferry.upload.file",
@@ -967,10 +1007,15 @@
           "when": "view == remoteExplorer && viewItem =~ /^file(LocalOnly)?$/"
         },
         {
+          "command": "wireferry.upload.file.synced",
+          "group": "3_trans@1",
+          "when": "view == remoteExplorer && viewItem == fileSynced"
+        },
+        {
           "command": "wireferry.upload.folder.to.allProfiles",
           "group": "3_trans@1",
           "alt": "wireferry.forceUpload.to.allProfiles",
-          "when": "wireferry.enabled && viewItem =~ /^(folder|root)/"
+          "when": "wireferry.enabled && viewItem =~ /^folder(Synced|LocalOnly)?$|^root/"
         },
         {
           "command": "wireferry.upload.file.to.allProfiles",
@@ -981,52 +1026,57 @@
           "command": "wireferry.download.folder",
           "group": "3_trans@2",
           "alt": "wireferry.forceDownload",
-          "when": "wireferry.enabled && viewItem =~ /^folder$|^root/"
+          "when": "wireferry.enabled && viewItem =~ /^folder(Synced|RemoteOnly)?$|^root/"
         },
         {
           "command": "wireferry.download.file",
           "group": "3_trans@2",
-          "when": "view == remoteExplorer && viewItem != root && viewItem == file"
+          "when": "view == remoteExplorer && viewItem =~ /^file(RemoteOnly)?$/"
+        },
+        {
+          "command": "wireferry.download.file.synced",
+          "group": "3_trans@2",
+          "when": "view == remoteExplorer && viewItem == fileSynced"
         },
         {
           "command": "wireferry.rename",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly)?$/"
         },
         {
           "command": "wireferry.delete.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(LocalOnly)?$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly|LocalOnly)?$/"
         },
         {
           "command": "wireferry.chmod.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly)?$/"
         },
         {
           "command": "wireferry.chown.remote",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)$/"
+          "when": "view == remoteExplorer && viewItem =~ /^(file|folder)(Synced|RemoteOnly)?$/"
         },
         {
           "command": "wireferry.create.folder",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
+          "when": "view == remoteExplorer && viewItem =~ /^folder(Synced|RemoteOnly)?$|^root/"
         },
         {
           "command": "wireferry.create.file",
           "group": "7_modification",
-          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
+          "when": "view == remoteExplorer && viewItem =~ /^folder(Synced|RemoteOnly)?$|^root/"
         },
         {
           "command": "wireferry.download.file",
           "group": "inline",
-          "when": "view == remoteExplorer && viewItem == file"
+          "when": "view == remoteExplorer && viewItem =~ /^file(RemoteOnly)?$/"
         },
         {
           "command": "wireferry.download.folder",
           "group": "inline",
-          "when": "wireferry.enabled && view == remoteExplorer && viewItem == folder"
+          "when": "wireferry.enabled && view == remoteExplorer && viewItem =~ /^folder(RemoteOnly)?$/"
         }
       ],
       "scm/title": [

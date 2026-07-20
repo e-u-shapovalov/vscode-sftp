@@ -1,6 +1,7 @@
 const {
   alignLocalMtimeIfUnchanged,
   ancestorPaths,
+  contextValueFor,
   decideStatus,
   NodeStatus,
 } = require('../src/modules/remoteExplorer/treeStatus');
@@ -126,5 +127,26 @@ describe('local mtime alignment', () => {
     expect(beforeWrite).not.toHaveBeenCalled();
     expect(fs.futimes).not.toHaveBeenCalled();
     expect(fs.close).toHaveBeenCalledWith(7);
+  });
+});
+
+describe('contextValueFor', () => {
+  test('suffixes the two new states + LocalOnly so menus can target them', () => {
+    expect(contextValueFor(NodeStatus.LocalOnly, false)).toBe('fileLocalOnly');
+    expect(contextValueFor(NodeStatus.LocalOnly, true)).toBe('folderLocalOnly');
+    expect(contextValueFor(NodeStatus.RemoteOnly, false)).toBe('fileRemoteOnly');
+    expect(contextValueFor(NodeStatus.RemoteOnly, true)).toBe('folderRemoteOnly');
+    expect(contextValueFor(NodeStatus.Synced, false)).toBe('fileSynced');
+    expect(contextValueFor(NodeStatus.Synced, true)).toBe('folderSynced');
+  });
+
+  test('Modified and the error states keep the bare file/folder value (existing when-clauses still match)', () => {
+    expect(contextValueFor(NodeStatus.Modified, false)).toBe('file');
+    expect(contextValueFor(NodeStatus.Modified, true)).toBe('folder');
+    expect(contextValueFor(NodeStatus.Denied, false)).toBe('file');
+    expect(contextValueFor(NodeStatus.Conflict, false)).toBe('file');
+    expect(contextValueFor(NodeStatus.Unknown, true)).toBe('folder');
+    expect(contextValueFor(undefined, false)).toBe('file');
+    expect(contextValueFor(undefined, true)).toBe('folder');
   });
 });

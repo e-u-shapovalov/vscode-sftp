@@ -70,10 +70,23 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
       case NodeStatus.LocalOnly:
         return {
           badge: 'L',
-          color: new vscode.ThemeColor('list.deemphasizedForeground'),
+          // A contributed blue (not the dim deemphasized grey): "local only — you still need to upload it"
+          // is an actionable signal, so make it stand out rather than fade.
+          color: new vscode.ThemeColor('wireferry.localOnlyForeground'),
           tooltip: L({
             en: 'Local only — exists on disk but not on the server yet',
             ru: 'Только локально — есть на диске, но ещё не на сервере',
+          }),
+        };
+      case NodeStatus.RemoteOnly:
+        // Was not drawn at all before — a server-only file looked identical to a synced one. A contributed
+        // teal (distinct from M's yellow and L's blue) marks "on the server, nothing local yet".
+        return {
+          badge: 'R',
+          color: new vscode.ThemeColor('wireferry.remoteOnlyForeground'),
+          tooltip: L({
+            en: 'Remote only — on the server, no local copy yet',
+            ru: 'Только на сервере — локальной копии ещё нет',
           }),
         };
     }

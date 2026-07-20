@@ -89,6 +89,24 @@ export function decideStatus(
   return { status: NodeStatus.Synced, verificationKey: key };
 }
 
+// The tree node's contextValue for VS Code menu `when` clauses. A status suffix (Synced / RemoteOnly /
+// LocalOnly) lets menus hide or relabel actions per state; Modified and the error states (Denied /
+// Conflict / Unknown / not-yet-known) keep the bare file/folder value, so every existing `viewItem ==
+// file` clause still matches them and only the two new states need new clauses.
+export function contextValueFor(status: NodeStatusValue | undefined, isDirectory: boolean): string {
+  const kind = isDirectory ? 'folder' : 'file';
+  switch (status) {
+    case NodeStatus.LocalOnly:
+      return `${kind}LocalOnly`;
+    case NodeStatus.RemoteOnly:
+      return `${kind}RemoteOnly`;
+    case NodeStatus.Synced:
+      return `${kind}Synced`;
+    default:
+      return kind;
+  }
+}
+
 // All parents of `itemPath`, nearest first and including `rootPath`. Returning paths (rather than tree
 // nodes) keeps this logic pure; the provider maps only the ancestors already present in its cache.
 export function ancestorPaths(itemPath: string, rootPath: string): string[] {

@@ -29,6 +29,7 @@ import { suppressAutoUploadForMtime } from '../fileWatcherSuppression';
 import {
   alignLocalMtimeIfUnchanged,
   ancestorPaths,
+  contextValueFor,
   ContentVerification,
   decideStatus,
   NodeStatus,
@@ -638,13 +639,7 @@ export default class RemoteTreeData
       // 'folder' value; its special handling is the click command below, not the menu.
       contextValue: isRoot
         ? `root.${(item as ExplorerRoot).explorerContext.config.protocol || 'sftp'}`
-        : (item as ExplorerChild).status === NodeStatus.LocalOnly
-        ? item.isDirectory
-          ? 'folderLocalOnly'
-          : 'fileLocalOnly'
-        : item.isDirectory
-        ? 'folder'
-        : 'file',
+        : contextValueFor((item as ExplorerChild).status, item.isDirectory),
       command: item.isDirectory
         ? undefined
         : (item as ExplorerChild).localPath && (item as ExplorerChild).status !== NodeStatus.Conflict
