@@ -459,6 +459,70 @@ export default class RemoteTreeData
     this._onDidChangeFolder.fire(undefined);
   }
 
+  // Explicit "Recheck Modified Files" on a folder: force a fresh, RECURSIVE re-listing of the whole
+  // subtree — even folded parts a normal refresh leaves cached — so the M model is rebuilt from the
+  // current bytes on both sides. Each folder's cached server listing is dropped so getChildrenComplete
+  // re-fetches it; the confirmed-M verdicts are NOT dropped (decideStatus re-validates each against the
+  // fresh size/mtime, re-hashing only what actually changed). The extra server I/O is intentional — a
+  // deliberate user action — and bounded by a folder cap plus the cancellation token.
+  async recheckSubtree(
+    item: ExplorerItem,
+    token: vscode.CancellationToken,
+    onProgress: (folders: number) => void
+  ): Promise<{ folders: number; truncated: boolean }> {
+    const MAX_FOLDERS = 5000;
+    let folders = 0;
+    let truncated = false;
+
+    const walk = async (folder: ExplorerItem): Promise<void> => {
+      if (token.isCancellationRequested) {
+        return;
+      }
+      if (folders >= MAX_FOLDERS) {
+        truncated = true;
+        return;
+      }
+      folders += 1;
+      onProgress(folders);
+
+      // Force a real server re-read of this folder: drop its cached listing, any in-flight/failed marker
+      // and the elevated flag so getChildrenComplete re-fetches from the server. _listedChildren is kept
+      // so the merge still diffs against the previous child set (retiring a deleted/now-synced source);
+      // the confirmed-M verdicts are kept too and re-validated by decideStatus against the fresh metadata.
+      const key = folder.resource.uri.query;
+      this._remoteListing.delete(key);
+      this._remoteInflight.delete(key);
+      this._listingFailed.delete(key);
+      this._elevatedKeys.delete(key);
+
+      let children: ExplorerItem[];
+      try {
+        children = await this.getChildrenComplete(folder);
+      } catch (e) {
+        // An unreadable/vanished folder is skipped, never aborting the whole walk.
+        logger.info(
+          `recheckSubtree: list failed for ${folder.resource.fsPath}: ${(e && (e as Error).message) || e}`
+        );
+        return;
+      }
+
+      for (const child of children) {
+        if (token.isCancellationRequested) {
+          return;
+        }
+        const c = child as ExplorerChild;
+        // Descend only into real server-backed subfolders: a local-only folder has no server side to
+        // re-list, and following a symlinked directory could walk a loop off the subtree.
+        if (child.isDirectory && !c.isSymbolicLink && c.status !== NodeStatus.LocalOnly) {
+          await walk(child);
+        }
+      }
+    };
+
+    await walk(item);
+    return { folders, truncated };
+  }
+
   getTreeItem(item: ExplorerItem): vscode.TreeItem {
     const isRoot = (item as ExplorerRoot).explorerContext !== undefined;
     const setting = getExtensionSetting();

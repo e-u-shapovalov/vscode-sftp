@@ -57,6 +57,7 @@
   "wireferry.remoteExplorer.hideSizes": "Скрыть размеры",
   "wireferry.remoteExplorer.measuringSizes": "Считаю размеры папок…",
   "wireferry.remoteExplorer.refresh": "Обновить",
+  "wireferry.remoteExplorer.recheckModified": "Перечитать изменённые файлы…",
   "wireferry.remoteExplorer.refreshActiveFile": "Обновить активный удалённый файл",
   "wireferry.remoteExplorer.openByPath": "Открыть файл на сервере по пути",
   "wireferry.remoteExplorer.openSymlink": "Открыть цель символической ссылки",

@@ -448,6 +448,12 @@
         "title": "%wireferry.tree%",
         "category": "WireFerry",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "wireferry.remoteExplorer.recheckModified",
+        "title": "%wireferry.remoteExplorer.recheckModified%",
+        "category": "WireFerry",
+        "icon": "$(sync)"
       }
     ],
     "submenus": [
@@ -478,6 +484,10 @@
         },
         {
           "command": "wireferry.tree",
+          "when": "false"
+        },
+        {
+          "command": "wireferry.remoteExplorer.recheckModified",
           "when": "false"
         },
         {
@@ -919,6 +929,11 @@
         },
         {
           "command": "wireferry.tree",
+          "group": "2_files",
+          "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
+        },
+        {
+          "command": "wireferry.remoteExplorer.recheckModified",
           "group": "2_files",
           "when": "view == remoteExplorer && viewItem =~ /^folder$|^root/"
         },

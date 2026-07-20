@@ -20,6 +20,7 @@ import {
   COMMAND_REMOTEEXPLORER_MEASURING_SIZES,
   COMMAND_OPEN_EXTENSION_PAGE,
   COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT,
+  COMMAND_REMOTEEXPLORER_RECHECK_MODIFIED,
   EXTENSION_NAME,
 } from '../../constants';
 import { UResource, upath, FileType, FileSystem } from '../../core';
@@ -114,6 +115,11 @@ export default class RemoteExplorer {
     registerCommand(context, COMMAND_REMOTEEXPLORER_VIEW_AS_ROOT, (item: ExplorerItem) =>
       this.viewAsRoot(item)
     );
+    // Right-click a folder → force a recursive re-listing of the whole subtree (even folded parts the
+    // toolbar refresh leaves cached) so the M badges are rebuilt from the current bytes on both sides.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_RECHECK_MODIFIED, (item: ExplorerItem) =>
+      this.recheckModified(item)
+    );
   }
 
   refresh(item?: ExplorerItem) {
@@ -151,6 +157,55 @@ export default class RemoteExplorer {
   // Recompute + repaint the write-permission hint for one item after our own chmod/chown changed it.
   recomputeWriteHint(item: ExplorerItem): void {
     this._treeDataProvider.recomputeWriteHint(item).catch(() => undefined);
+  }
+
+  // Right-click a folder → "Recheck Modified Files": force a recursive re-listing of the whole subtree,
+  // even folded parts the toolbar refresh leaves cached, so the M badges reflect the current bytes on both
+  // sides. Shows progress (folders walked) and is cancellable; content (MD5) checks for ambiguous files
+  // then finish in the background, repainting each badge as its verdict lands.
+  async recheckModified(item: ExplorerItem): Promise<void> {
+    if (!item || !item.isDirectory) {
+      return;
+    }
+    const name = upath.basename(item.resource.fsPath) || item.resource.fsPath;
+    try {
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: L({
+            en: `WireFerry: rechecking "${name}"…`,
+            ru: `WireFerry: перечитываю «${name}»…`,
+          }),
+          cancellable: true,
+        },
+        (progress, token) => {
+          let lastReport = 0;
+          return this._treeDataProvider.recheckSubtree(item, token, folders => {
+            const now = Date.now();
+            if (now - lastReport < 150) {
+              return;
+            }
+            lastReport = now;
+            progress.report({
+              message: L({ en: `${folders} folders…`, ru: `папок: ${folders}…` }),
+            });
+          });
+        }
+      );
+      vscode.window.showInformationMessage(
+        result.truncated
+          ? L({
+              en: `Rechecked ${result.folders} folders (stopped at the limit). Changed files show M; content checks may still be finishing in the background.`,
+              ru: `Перечитано ${result.folders} папок (остановлено на лимите). Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
+            })
+          : L({
+              en: `Rechecked ${result.folders} folders. Changed files show M; content checks may still be finishing in the background.`,
+              ru: `Перечитано ${result.folders} папок. Изменённые файлы помечены M; проверка содержимого может ещё идти в фоне.`,
+            })
+      );
+    } catch (e) {
+      showErrorMessage((e && (e as Error).message) || String(e));
+    }
   }
 
   // Toolbar toggle: persist the sort preference, then re-list so getChildren re-sorts (and, for size,

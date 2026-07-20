@@ -71,6 +71,7 @@ export const COMMAND_REVEAL_IN_REMOTE_EXPLORER = 'wireferry.revealInRemoteExplor
 
 export const COMMAND_REMOTEEXPLORER_REFRESH = 'wireferry.remoteExplorer.refresh';
 export const COMMAND_REMOTEEXPLORER_REFRESH_ACTIVE_FILE = "wireferry.remoteExplorer.refreshActiveFile"
+export const COMMAND_REMOTEEXPLORER_RECHECK_MODIFIED = 'wireferry.remoteExplorer.recheckModified';
 export const COMMAND_REMOTEEXPLORER_EDITINLOCAL = 'wireferry.remoteExplorer.editInLocal';
 export const COMMAND_REMOTEEXPLORER_VIEW_CONTENT = 'wireferry.viewContent';
 export const COMMAND_REMOTEEXPLORER_COPY_PATH = 'wireferry.remoteExplorer.copyPath';

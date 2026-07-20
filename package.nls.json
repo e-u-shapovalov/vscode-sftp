@@ -57,6 +57,7 @@
   "wireferry.remoteExplorer.hideSizes": "Hide Sizes",
   "wireferry.remoteExplorer.measuringSizes": "Measuring folder sizes…",
   "wireferry.remoteExplorer.refresh": "Refresh",
+  "wireferry.remoteExplorer.recheckModified": "Recheck Modified Files…",
   "wireferry.remoteExplorer.refreshActiveFile": "Refresh Active Remote File",
   "wireferry.remoteExplorer.openByPath": "Open Remote File by Path",
   "wireferry.remoteExplorer.openSymlink": "Open Symlink Target",
