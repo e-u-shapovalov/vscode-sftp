@@ -85,6 +85,21 @@ describe('recursive modified ancestors', () => {
     expect(ancestorPaths('/var/log/a', '/etc')).toEqual([]);
     expect(ancestorPaths('/etc', '/etc')).toEqual([]);
   });
+
+  test('a root with a trailing slash behaves exactly like the no-slash form (the "/var/www/" config case)', () => {
+    const expected = ['/var/www/app.link.kg/mail', '/var/www/app.link.kg', '/var/www'];
+    expect(ancestorPaths('/var/www/app.link.kg/mail/configMail.php', '/var/www/')).toEqual(expected);
+    expect(ancestorPaths('/var/www/app.link.kg/mail/configMail.php', '/var/www')).toEqual(expected);
+  });
+
+  test('the relative default root "./" / "." resolves ancestors instead of collapsing to []', () => {
+    expect(ancestorPaths('app/mail/x.php', './')).toEqual(['app/mail', 'app', '.']);
+    expect(ancestorPaths('app/mail/x.php', '.')).toEqual(['app/mail', 'app', '.']);
+  });
+
+  test('the server root "/" resolves ancestors up to and including "/"', () => {
+    expect(ancestorPaths('/a/b/c', '/')).toEqual(['/a/b', '/a', '/']);
+  });
 });
 
 describe('local mtime alignment', () => {

@@ -110,8 +110,17 @@ export function contextValueFor(status: NodeStatusValue | undefined, isDirectory
 // All parents of `itemPath`, nearest first and including `rootPath`. Returning paths (rather than tree
 // nodes) keeps this logic pure; the provider maps only the ancestors already present in its cache.
 export function ancestorPaths(itemPath: string, rootPath: string): string[] {
-  const item = upath.normalize(itemPath);
-  const root = upath.normalize(rootPath);
+  // Normalise AND strip a trailing slash (except a bare "/") so a remotePath like "/var/www/" — or the
+  // default "./" — compares equal to the walked-up parent. Without this the loop never recognises the
+  // root: `current` reaches "/var/www" but `root` stays "/var/www/", so it walks one level PAST the root,
+  // hits a "../" relative, and threw the whole ancestor list away — leaving every parent folder without
+  // its descendant-M badge.
+  const norm = (p: string): string => {
+    const n = upath.normalize(p);
+    return n.length > 1 ? n.replace(/\/+$/, '') || '/' : n;
+  };
+  const item = norm(itemPath);
+  const root = norm(rootPath);
   const relative = upath.relative(root, item);
   if (relative === '' || relative === '..' || relative.startsWith('../') || upath.isAbsolute(relative)) {
     return [];
@@ -122,15 +131,9 @@ export function ancestorPaths(itemPath: string, rootPath: string): string[] {
   while (current !== root) {
     const parent = upath.dirname(current);
     if (parent === current) {
-      return [];
-    }
-    const parentRelative = upath.relative(root, parent);
-    if (
-      parentRelative === '..' ||
-      parentRelative.startsWith('../') ||
-      upath.isAbsolute(parentRelative)
-    ) {
-      return [];
+      // Reached the filesystem root without matching `root`. The relative check above already proved item
+      // is under root, so this only guards against an infinite loop — return what we collected, never [].
+      break;
     }
     result.push(parent);
     current = parent;
