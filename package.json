@@ -124,22 +124,22 @@
     "colors": [
       {
         "id": "wireferry.localOnlyForeground",
-        "description": "Remote Explorer: foreground for a local-only (L) entry — exists on disk but not on the server yet.",
+        "description": "Remote Explorer: foreground for a local-only (L) entry — you created it locally and it isn't on the server yet (green, like a new/untracked file).",
+        "defaults": {
+          "dark": "#73c991",
+          "light": "#388a34",
+          "highContrast": "#73c991",
+          "highContrastLight": "#388a34"
+        }
+      },
+      {
+        "id": "wireferry.remoteOnlyForeground",
+        "description": "Remote Explorer: foreground for a remote-only (R) entry — it lives on the server with no local copy (blue, \"parked\" on the server).",
         "defaults": {
           "dark": "#3794ff",
           "light": "#0066bf",
           "highContrast": "#3794ff",
           "highContrastLight": "#0066bf"
-        }
-      },
-      {
-        "id": "wireferry.remoteOnlyForeground",
-        "description": "Remote Explorer: foreground for a remote-only (R) entry — exists on the server but has no local copy yet.",
-        "defaults": {
-          "dark": "#20b2aa",
-          "light": "#008b8b",
-          "highContrast": "#20b2aa",
-          "highContrastLight": "#008b8b"
         }
       }
     ],

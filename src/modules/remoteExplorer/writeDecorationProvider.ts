@@ -70,8 +70,8 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
       case NodeStatus.LocalOnly:
         return {
           badge: 'L',
-          // A contributed blue (not the dim deemphasized grey): "local only — you still need to upload it"
-          // is an actionable signal, so make it stand out rather than fade.
+          // A contributed green (like a new/untracked file): you made it locally and it isn't on the server
+          // yet — an actionable "still to upload" signal, not the dim deemphasized grey it used to be.
           color: new vscode.ThemeColor('wireferry.localOnlyForeground'),
           tooltip: L({
             en: 'Local only — exists on disk but not on the server yet',
@@ -80,7 +80,8 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
         };
       case NodeStatus.RemoteOnly:
         // Was not drawn at all before — a server-only file looked identical to a synced one. A contributed
-        // teal (distinct from M's yellow and L's blue) marks "on the server, nothing local yet".
+        // blue ("parked" on the server, distinct from M's yellow and L's green) marks "on the server, no
+        // local copy yet".
         return {
           badge: 'R',
           color: new vscode.ThemeColor('wireferry.remoteOnlyForeground'),
