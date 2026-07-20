@@ -46,9 +46,16 @@ export async function duSizes(
   // `--` ends option parsing: without it a folder whose name starts with `-` (e.g. `-x`, `--help`)
   // is read by du as a flag instead of a path. Single-quoting doesn't help — the shell strips the
   // quotes and du still sees a leading dash. POSIX-portable (GNU and BSD du both honour `--`).
+  //
+  // `2>/dev/null || true`: du returns a NON-ZERO exit when ANY argument is unreadable (a `Denied` or
+  // broken-symlink sibling in the batch), and the exec channel rejects a non-zero command, DISCARDING
+  // the stdout that already carried the healthy siblings' sizes — so one bad path would blank the size
+  // of every folder measured with it. Forcing exit 0 (stderr hidden) lets us keep the good lines; a
+  // truly absent path is simply missing from the Map. The `-sb`→`-sk` fallback still works: it is driven
+  // by "did we parse any size" (result.size), not by the command's exit code.
   const attempts: Array<{ cmd: string; toBytes: (n: number) => number }> = [
-    { cmd: `du -sb -- ${quoted}`, toBytes: n => n },
-    { cmd: `du -sk -- ${quoted}`, toBytes: n => n * 1024 },
+    { cmd: `du -sb -- ${quoted} 2>/dev/null || true`, toBytes: n => n },
+    { cmd: `du -sk -- ${quoted} 2>/dev/null || true`, toBytes: n => n * 1024 },
   ];
   for (const attempt of attempts) {
     try {

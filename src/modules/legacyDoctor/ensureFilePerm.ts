@@ -1,4 +1,4 @@
-import { parse as parseJsonc, modify, applyEdits } from 'jsonc-parser';
+import { parse as parseJsonc, modify, applyEdits, ParseError } from 'jsonc-parser';
 
 // Default modes injected into a config that predates the filePerm/dirPerm options. They MATCH the
 // runtime defaults applied in core/fileBaseOperations (0o644 / 0o755), so writing them in is
@@ -16,7 +16,14 @@ const FORMAT = { formattingOptions: { tabSize: 4, insertSpaces: true } };
 // of server configs; a `protocol: "local"` entry is skipped (perms are a remote concept). Returns the
 // possibly-rewritten text and the distinct set of keys that were added (empty = nothing to do).
 export function ensureFilePermText(text: string): { text: string; added: string[] } {
-  const parsed = parseJsonc(text);
+  // Bail on a config that does not cleanly parse: a surgical modify() over malformed JSONC could land an
+  // edit in the wrong place or further corrupt it. Leave a broken config untouched (the doctor's key
+  // scan surfaces syntax problems separately). allowTrailingComma matches how configs are read elsewhere.
+  const errors: ParseError[] = [];
+  const parsed = parseJsonc(text, errors, { allowTrailingComma: true });
+  if (errors.length > 0) {
+    return { text, added: [] };
+  }
   const added: string[] = [];
   let current = text;
 

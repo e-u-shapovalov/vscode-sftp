@@ -2,10 +2,12 @@ import { window } from 'vscode';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import { L } from '../i18n';
+import { fileOperations } from '../core';
 import { canElevate, execAsRoot, ElevationCancelled, shQuote, isAbsoluteRemotePath } from './privilegedExec';
 
-// Read cap, same as the in-editor preview / "View as root": a root-owned file you edit is a config, not a
-// multi-GB blob, and streaming a huge file back over the su PTY is fragile. A larger file is truncated here.
+// Upper size a root-owned file may have to be fetched for editing. It's a config, not a multi-GB blob;
+// a larger one is refused (not truncated) so the write-back can never overwrite the server with a
+// partial copy.
 const READ_CAP = 10 * 1024 * 1024;
 
 // A download/read rejected for lack of permission — the mirror of permissionFallback's write side. ssh2
@@ -21,10 +23,11 @@ export function isReadPermissionDenied(err: any): boolean {
 }
 
 // A download / "Edit in Local" was refused because the login user can't read the file. Offer to fetch it AS
-// ROOT (`su … head -c`) and write the copy to its normal local path, so it opens for editing; writing it back
-// on save is then handled by the existing "apply as root" fallback (permissionFallback). Root is used (not
-// the owner) because root can read any file and reading is non-destructive. Returns true when the file was
-// fetched as root and now exists locally. Never throws.
+// ROOT — root copies it to a world-readable /tmp staging file, which we pull with an ordinary byte-exact
+// SFTP get and root then removes — and write it to the normal local path so it opens for editing; writing
+// it back on save is then handled by the existing "apply as root" fallback (permissionFallback). Root is
+// used (not the owner) because root can read any file and reading is non-destructive. Returns true when the
+// file was fetched as root and now exists locally. Never throws.
 export async function offerDownloadAsRoot(ctx: any): Promise<boolean> {
   const remotePath: string = ctx.target.remoteFsPath;
   const localPath: string = ctx.target.localFsPath;
@@ -73,8 +76,8 @@ export async function offerDownloadAsRoot(ctx: any): Promise<boolean> {
     {
       modal: true,
       detail: L({
-        en: 'Reads the file via `su` as root into your workspace copy (up to 10 MB). Saving your edits back uses the same "apply as root" flow. The root password is asked only if it is not already cached for this window.',
-        ru: 'Читает файл через `su` от root в локальную копию (до 10 МБ). Сохранение правок назад идёт через тот же «применить от root». Пароль root спросят, только если он ещё не сохранён на это окно.',
+        en: 'Copies the file as root to a temp path, downloads it byte-for-byte into your workspace copy (up to 10 MB — a larger file is refused), then removes the temp. Saving your edits back uses the same "apply as root" flow. The root password is asked only if it is not already cached for this window.',
+        ru: 'Копирует файл от root во временный путь, скачивает его побайтово в локальную копию (до 10 МБ — файл больше отклоняется), затем удаляет временный. Сохранение правок назад идёт через тот же «применить от root». Пароль root спросят, только если он ещё не сохранён на это окно.',
       }),
     },
     asRoot,
@@ -85,21 +88,59 @@ export async function offerDownloadAsRoot(ctx: any): Promise<boolean> {
   }
   try {
     const host = ctx.config.host || '';
-    // NO pipe — `$?` is head's OWN exit; rawOutput=true so the su sanitizer can't strip the password out of
-    // the file content. Root reads any file; reading is non-destructive, so no owner/root choice is needed.
-    const cmd = `head -c ${READ_CAP} -- ${shQuote(remotePath)}`;
-    const { code, output } = await execAsRoot(remotefs, host, cmd, undefined, true);
-    if (code !== 0) {
+    // Refuse a file larger than the read cap BEFORE reading it. `head -c` would return a silently
+    // truncated copy; because that copy is meant for editing and the write-back does `cat local > dest`
+    // as root, saving a truncated copy would overwrite the real server file with the truncation — data
+    // loss. Probe the real BYTE size (not the decoded string length, which differs for multi-byte
+    // content) and only refuse when we KNOW it exceeds the cap; if the probe itself fails we fall back
+    // to the capped read (best effort, unchanged behaviour).
+    const sizeCmd = `stat -c %s -- ${shQuote(remotePath)} 2>/dev/null || wc -c < ${shQuote(remotePath)}`;
+    const sizeProbe = await execAsRoot(remotefs, host, sizeCmd);
+    const bytes = parseInt(String(sizeProbe.output).trim(), 10);
+    if (sizeProbe.code === 0 && Number.isFinite(bytes) && bytes > READ_CAP) {
       window.showErrorMessage(
         L({
-          en: `WireFerry: reading "${remotePath}" as root failed (exit ${code}).`,
-          ru: `WireFerry: чтение «${remotePath}» от root не удалось (код ${code}).`,
+          en: `WireFerry: "${remotePath}" is ${bytes} bytes (over the 10 MB limit) — too large to safely edit as root without truncating it. Copy it another way.`,
+          ru: `WireFerry: «${remotePath}» — ${bytes} байт (больше лимита 10 МБ), слишком велик, чтобы безопасно править от root без усечения. Скопируйте его иначе.`,
         })
       );
       return false;
     }
-    await fse.ensureDir(path.dirname(localPath));
-    await fse.writeFile(localPath, output);
+    // Byte-safe fetch. Reading the content through the `su` PTY as a string (`toString('utf8')` +
+    // CRLF collapse) corrupts any non-UTF-8 / binary byte irreversibly, and that corruption would be
+    // written back to the server on save. Instead root copies the file to a world-readable /tmp staging
+    // file, we pull THAT with an ordinary (byte-exact) SFTP get, then root removes the staging file.
+    const stagingFile = `/tmp/.wf-dl-${process.pid.toString(36)}-${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const stageCmd = `cp -- ${shQuote(remotePath)} ${shQuote(stagingFile)} && chmod 0644 -- ${shQuote(stagingFile)}`;
+    const stage = await execAsRoot(remotefs, host, stageCmd);
+    if (stage.code !== 0) {
+      window.showErrorMessage(
+        L({
+          en: `WireFerry: reading "${remotePath}" as root failed (exit ${stage.code}).`,
+          ru: `WireFerry: чтение «${remotePath}» от root не удалось (код ${stage.code}).`,
+        })
+      );
+      return false;
+    }
+    try {
+      await fse.ensureDir(path.dirname(localPath));
+      const localFs = ctx.fileService.getLocalFileSystem();
+      // Pull the staging into a local sibling temp then rename — byte-exact download AND atomic replace,
+      // so an interrupted transfer can't truncate an existing local copy.
+      const localTmp = `${localPath}.wf-root-${process.pid.toString(36)}-${Date.now().toString(36)}.tmp`;
+      try {
+        await fileOperations.transferFile(stagingFile, localTmp, remotefs, localFs);
+        await fse.rename(localTmp, localPath);
+      } catch (err) {
+        await fse.remove(localTmp).catch(() => undefined);
+        throw err;
+      }
+    } finally {
+      // Remove the root-owned staging file (world-readable but only root can unlink it). Best effort.
+      await execAsRoot(remotefs, host, `rm -f -- ${shQuote(stagingFile)}`).catch(() => undefined);
+    }
     return true;
   } catch (e) {
     if (e instanceof ElevationCancelled) {

@@ -20,11 +20,15 @@ export function suppressAutoUploadForMtime(
   const key = watcherPathKey(fsPath);
   const guard: MtimeGuard = { until: Date.now() + 2000, expectedMtime, applied: false };
   autoUploadMtimeGuards.set(key, guard);
-  setTimeout(() => {
+  const timer: any = setTimeout(() => {
     if (autoUploadMtimeGuards.get(key) === guard) {
       autoUploadMtimeGuards.delete(key);
     }
   }, 2000);
+  // Pure cleanup — don't let the pending 2s timer hold the event loop (or a Jest worker) open.
+  if (timer && typeof timer.unref === 'function') {
+    timer.unref();
+  }
   return {
     applied: () => {
       if (autoUploadMtimeGuards.get(key) === guard) {
@@ -32,6 +36,8 @@ export function suppressAutoUploadForMtime(
       }
     },
     cancel: () => {
+      // Drop the guard AND the timer so a cancelled alignment leaves nothing pending.
+      clearTimeout(timer);
       if (autoUploadMtimeGuards.get(key) === guard) {
         autoUploadMtimeGuards.delete(key);
       }
@@ -61,7 +67,10 @@ export async function isAutoUploadSuppressed(fsPath: string): Promise<boolean> {
     if (autoUploadMtimeGuards.get(key) !== guard) {
       return isAutoUploadSuppressed(fsPath);
     }
-    if (stat.mtime.getTime() === guard.expectedMtime) {
+    // Compare at whole-second precision: futimes writes seconds, and a low-precision filesystem stores
+    // the aligned mtime rounded to the second, so a strict millisecond === would miss the guard's OWN
+    // write and let it trigger a needless re-upload of byte-identical content.
+    if (Math.floor(stat.mtime.getTime() / 1000) === Math.floor(guard.expectedMtime / 1000)) {
       return true;
     }
   } catch (e) {

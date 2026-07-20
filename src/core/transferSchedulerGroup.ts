@@ -10,6 +10,11 @@ export interface CancellableTask extends Task {
 // tasks. Structurally what fileHandlers/transfer expects from createTransferScheduler.
 export interface TransferBatch {
   readonly size: number;
+  // First task error observed in this batch, or null. run() still resolves regardless (batch transfers
+  // report per-file failures via the afterTransfer hook and must not abort on the first one); callers
+  // that DO need to know whether every task succeeded — e.g. an explicit single-file download, or the
+  // upload-as-root staging step that must not `cp` a partial tree — inspect this after run().
+  readonly error: Error | null;
   add(task: CancellableTask): void;
   run(): Promise<void>;
   stop(): void;
@@ -67,7 +72,7 @@ export default class TransferSchedulerGroup {
         const batch = this._batchOfTask.get(task);
         if (batch) {
           this._batchOfTask.delete(task);
-          batch._settle(task);
+          batch._settle(err, task);
         }
       });
       this._gate = gate;
@@ -97,6 +102,8 @@ class TransferBatchImpl implements TransferBatch {
   private _sealed = false;
   private _stopped = false;
   private _resolveRun: (() => void) | null = null;
+  // First error any task in this batch reported (success/cancel leave it null). Exposed via `error`.
+  private _firstError: Error | null = null;
   // This batch's tasks that haven't settled yet — so stop() can cancel exactly its own work.
   private _liveTasks: Set<CancellableTask> = new Set();
 
@@ -104,6 +111,10 @@ class TransferBatchImpl implements TransferBatch {
 
   get size(): number {
     return this._added - this._done;
+  }
+
+  get error(): Error | null {
+    return this._firstError;
   }
 
   add(task: CancellableTask): void {
@@ -140,7 +151,14 @@ class TransferBatchImpl implements TransferBatch {
   }
 
   // Invoked once per task when the gate reports it done (success, failure, or cancellation).
-  _settle(task: Task): void {
+  _settle(err: Error | null, task: Task): void {
+    if (err && !this._firstError) {
+      // Ignore cancellation errors: stop() deliberately cancels this batch's own tasks, so a cancelled
+      // task is not a transfer failure the caller should react to.
+      if (!(task as any).isCancelled || !(task as any).isCancelled()) {
+        this._firstError = err;
+      }
+    }
     this._liveTasks.delete(task as CancellableTask);
     this._done += 1;
     if (this._sealed && this._added === this._done && this._resolveRun) {

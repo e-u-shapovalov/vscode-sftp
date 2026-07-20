@@ -17,6 +17,22 @@ export function isPermissionFallbackActive(): boolean {
   return dialogActive;
 }
 
+// Take/release the SAME single-dialog gate the per-file recovery uses, so the folder-level "upload as
+// root" fallback and this one never stack two modals. acquire returns false when a dialog is already up
+// (the caller should bail); release must run in a finally. A one-sided isPermissionFallbackActive check
+// only stops folder→per-file, not per-file→folder — holding the gate closes both directions.
+export function acquirePermissionDialog(): boolean {
+  if (dialogActive) {
+    return false;
+  }
+  dialogActive = true;
+  return true;
+}
+
+export function releasePermissionDialog(): void {
+  dialogActive = false;
+}
+
 // A remote SFTP write rejected for lack of permission. ssh2 surfaces SSH_FX_PERMISSION_DENIED as the
 // numeric code 3; the EACCES/EPERM aliases are defensive (a future fs layer could map to them). FTP's
 // 550/553 are deliberately excluded — the recovery hands back a shell command, which is meaningless

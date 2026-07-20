@@ -82,7 +82,23 @@ async function ensureFilePermKeys(
     const text = await fse.readFile(configPath, 'utf8');
     const { text: newText, added } = ensureFilePermText(text);
     if (added.length) {
-      await fse.writeFile(configPath, newText);
+      // Write to a temp file in the same dir and rename over the config, preserving its mode. A direct
+      // writeFile that hits ENOSPC / is interrupted mid-write would truncate the user's ONLY config; the
+      // rename is atomic, so the config is either the old text or the new text, never a half-written one.
+      const tmp = `${configPath}.wf-tmp-${process.pid.toString(36)}-${Date.now().toString(36)}`;
+      let mode: number | undefined;
+      try {
+        mode = (await fse.stat(configPath)).mode;
+      } catch {
+        // mode stays undefined — writeFile uses its default.
+      }
+      try {
+        await fse.writeFile(tmp, newText, mode !== undefined ? { mode } : undefined);
+        await fse.rename(tmp, configPath);
+      } catch (err) {
+        await fse.remove(tmp).catch(() => undefined);
+        throw err;
+      }
       const name = path.basename(configPath);
       vscode.window.showInformationMessage(
         L({

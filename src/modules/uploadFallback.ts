@@ -5,7 +5,7 @@ import { fileOperations } from '../core';
 import { transfer, TransferDirection } from '../fileHandlers/transfer/transfer';
 import { refreshRemoteExplorer } from '../fileHandlers/shared';
 import { canElevate, execAsRoot, ElevationCancelled, shQuote, isAbsoluteRemotePath } from './privilegedExec';
-import { isPermissionFallbackActive } from './permissionFallback';
+import { acquirePermissionDialog, releasePermissionDialog } from './permissionFallback';
 
 // A remote SFTP write rejected for lack of permission — the mirror of downloadFallback's read side. ssh2
 // surfaces SSH_FX_PERMISSION_DENIED as numeric code 3; EACCES/EPERM are defensive aliases. FTP (no shell)
@@ -43,12 +43,22 @@ function remoteDirname(p: string): string {
 // Root is used because it can write anywhere; the staged copy is always removed. Returns true when the
 // upload was applied as root. Never throws.
 export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
-  // A per-file recovery dialog (permissionFallback) may already be handling a partly-writable upload —
-  // don't stack a second modal on top of it.
-  if (isPermissionFallbackActive()) {
+  // Hold the single-dialog gate for the whole flow so a per-file recovery dialog (permissionFallback)
+  // can't open alongside this folder-level one — and vice-versa. A one-sided check only stopped
+  // folder→per-file; taking the gate closes both directions. Released in the finally.
+  if (!acquirePermissionDialog()) {
     return false;
   }
+  try {
+    return await runUploadAsRoot(ctx);
+  } finally {
+    releasePermissionDialog();
+  }
+}
 
+// The upload-as-root flow proper. offerUploadAsRoot wraps this while holding the shared permission-dialog
+// gate, so here we focus on validation, staging and the privileged move.
+async function runUploadAsRoot(ctx: any): Promise<boolean> {
   const localPath: string = ctx.target.localFsPath;
   const remotePath: string = ctx.target.remoteFsPath;
   // Under `su -` a relative path resolves against /root, and cp/mkdir on a relative dest would land in
@@ -58,6 +68,18 @@ export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
       L({
         en: `WireFerry: "Upload as root" needs an absolute server path ("${remotePath}").`,
         ru: `WireFerry: «Загрузить от root» требует абсолютного пути на сервере («${remotePath}»).`,
+      })
+    );
+    return false;
+  }
+  // Refuse the filesystem root: remoteBasename("/")/"//" is empty, which would make the staged item the
+  // staging dir itself and `cp -aT … /` a catastrophic merge into `/` as root. delete-as-root refuses
+  // "/" for the same reason; mirror it here (defence-in-depth even though a bare "/" rarely reaches here).
+  if (remoteBasename(remotePath) === '') {
+    window.showErrorMessage(
+      L({
+        en: 'WireFerry: refusing to upload into the filesystem root "/" as root.',
+        ru: 'WireFerry: отказ загружать в корень файловой системы «/» от root.',
       })
     );
     return false;
@@ -109,9 +131,10 @@ export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
     return false;
   }
 
-  // Staging dir under /tmp (world-writable) that the login user CAN write to over SFTP. A random-ish
-  // suffix avoids clashing with a concurrent upload; the whole dir is removed after the root move.
-  const rand = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // Staging dir under /tmp (world-writable) that the login user CAN write to over SFTP. The suffix mixes
+  // the process id, time and randomness so two VS Code windows sharing one server's /tmp can't collide;
+  // the whole dir is removed after the root move.
+  const rand = `${process.pid.toString(36)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const stagingDir = `/tmp/.wf-upload-${rand}`;
   const base = remoteBasename(remotePath);
   const stagedPath = `${stagingDir}/${base}`;
@@ -145,14 +168,24 @@ export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
       t => scheduler.add(t)
     );
     await scheduler.run();
+    // A swallowed staging failure (ENOSPC, dropped connection, unreadable local source) MUST abort here:
+    // the scheduler resolves run() even when a task failed, so without this we would chown/cp a PARTIAL
+    // tree into the destination and report success — a silent, unrecoverable partial upload. Throwing
+    // routes to the catch below, which cleans the (login-owned) staging dir up.
+    if (scheduler.error) {
+      throw scheduler.error;
+    }
 
     // 2) Move it into place as root: normalize ownership to root, ensure the parent exists, copy the
-    //    staged tree over (merging into an existing dest, `-f` overwrites), then always clean the
-    //    staging dir up and surface the copy's real exit code. `--` guards leading-dash names.
+    //    staged tree over. `--remove-destination` unlinks each conflicting dest entry before writing, so
+    //    a destination that is a SYMLINK is replaced rather than followed — otherwise `cp` from root
+    //    would write THROUGH a link (e.g. dest/x -> /etc/sudoers) to a target outside the chosen folder.
+    //    `-T` keeps the merge-into-existing-folder semantics. Then always clean the staging dir up and
+    //    surface the copy's real exit code. `--` guards leading-dash names.
     const applyCmd =
       `chown -R 0:0 -- ${shQuote(stagingDir)} && ` +
       `mkdir -p -- ${shQuote(destParent)} && ` +
-      `cp -afT -- ${shQuote(stagedPath)} ${shQuote(remotePath)}; ` +
+      `cp -aT --remove-destination -- ${shQuote(stagedPath)} ${shQuote(remotePath)}; ` +
       `rc=$?; rm -rf -- ${shQuote(stagingDir)}; exit $rc`;
 
     const { code } = await execAsRoot(remoteFs, host, applyCmd);
@@ -195,7 +228,10 @@ export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
         ru: `WireFerry: не удалось загрузить «${remotePath}» от root — ${(e && (e as Error).message) || e}`,
       })
     );
-    cleanupStaging(remoteFs, stagingDir);
+    // The `su` script may have failed AFTER `chown -R 0:0` (it's the first link in the &&-chain, before
+    // `cp`), leaving the staging dir owned by root:root — a plain SFTP removeDir by the login user then
+    // can't touch it. Try root cleanup with the (cached) password first, falling back to SFTP.
+    cleanupStagingRoot(remoteFs, host, stagingDir);
     return false;
   }
 }
@@ -205,6 +241,17 @@ export async function offerUploadAsRoot(ctx: any): Promise<boolean> {
 function cleanupStaging(remoteFs: any, stagingDir: string): void {
   fileOperations
     .removeDir(stagingDir, remoteFs, {})
+    .catch((err: any) =>
+      logger.warn(`upload fallback: couldn't clean staging dir ${stagingDir}: ${(err && err.message) || err}`)
+    );
+}
+
+// Best-effort removal when the staging dir may already be root-owned: `rm -rf` as root (reusing the
+// cached password), falling back to an SFTP removeDir, and only warning if both fail. Fire-and-forget.
+function cleanupStagingRoot(remoteFs: any, host: string, stagingDir: string): void {
+  execAsRoot(remoteFs, host, `rm -rf -- ${shQuote(stagingDir)}`)
+    .then(() => undefined)
+    .catch(() => fileOperations.removeDir(stagingDir, remoteFs, {}))
     .catch((err: any) =>
       logger.warn(`upload fallback: couldn't clean staging dir ${stagingDir}: ${(err && err.message) || err}`)
     );

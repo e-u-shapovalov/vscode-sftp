@@ -2,7 +2,13 @@ import { refreshRemoteExplorer } from '../shared';
 import createFileHandler, { FileHandlerContext } from '../createFileHandler';
 import { transfer, sync, TransferOption, SyncOption, TransferDirection } from './transfer';
 
-function createTransferHandle(direction: TransferDirection) {
+// surfaceError: after the batch drains, re-throw the first task error instead of swallowing it. The
+// scheduler always resolves run() (batch transfers report per-file failures via the afterTransfer hook
+// and must not abort on the first), so a single-file download would otherwise "succeed" even when its
+// one task hit permission-denied — leaving a stale local copy open and the download-as-root fallback
+// never offered. Only single-item explicit commands opt in; folder/batch transfers keep the resilient
+// report-and-continue behaviour.
+function createTransferHandle(direction: TransferDirection, opts: { surfaceError?: boolean } = {}) {
   return async function handle(this: FileHandlerContext, option) {
     const remoteFs = await this.fileService.getRemoteFileSystem(this.config);
     const localFs = this.fileService.getLocalFileSystem();
@@ -36,11 +42,20 @@ function createTransferHandle(direction: TransferDirection) {
     // todo: abort at here. we should stop collect task
     await transfer(transferConfig, t => scheduler.add(t));
     await scheduler.run();
+    // For an explicit single-file command, a swallowed task error (e.g. SFTP permission-denied on the
+    // file itself, its parent being traversable) must surface so the caller can react — otherwise a
+    // stale local copy is opened as if fresh. Re-throw the first error the batch recorded.
+    if (opts.surfaceError && scheduler.error) {
+      throw scheduler.error;
+    }
   };
 }
 
 const uploadHandle = createTransferHandle(TransferDirection.LOCAL_TO_REMOTE);
 const downloadHandle = createTransferHandle(TransferDirection.REMOTE_TO_LOCAL);
+// downloadFile is a single explicit file, so it surfaces its task error (drives the download-as-root
+// fallback); download/downloadFolder stay resilient (report-and-continue over many files).
+const downloadFileHandle = createTransferHandle(TransferDirection.REMOTE_TO_LOCAL, { surfaceError: true });
 
 export const sync2Remote = createFileHandler<SyncOption>({
   name: 'sync local ➞ remote',
@@ -197,7 +212,7 @@ export const download = createFileHandler<TransferOption>({
 
 export const downloadFile = createFileHandler<TransferOption>({
   name: 'download file',
-  handle: downloadHandle,
+  handle: downloadFileHandle,
   transformOption() {
     const config = this.config;
     return {

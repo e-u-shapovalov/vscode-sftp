@@ -122,7 +122,7 @@ You can also **drag and drop** items inside the Remote Explorer to move or renam
 | `Change Permissions (chmod)` | Change remote Unix mode; folders can be handled recursively |
 | `Change Owner / Group (chown, as root)` | Run `chown` through `su` on a compatible SSH server |
 
-New files and folders you create in the tree take their permissions from `filePerm` / `dirPerm` when those are set (see the [configuration reference](configuration.md#common-fields)).
+New files and folders you create in the tree (New File / New Folder) default to `644` / `755` when `filePerm` / `dirPerm` are not set, or take those values when they are (see the [configuration reference](configuration.md#common-fields)). A file you **upload** keeps its local file's mode unless `filePerm` is set.
 
 ### Deleting safely
 
@@ -139,9 +139,13 @@ Some paths on a Unix server are owned by `root` or another user and are not read
 | Command | Purpose |
 | --- | --- |
 | `View / list as root…` | List a folder you cannot read, or open an unreadable file read-only |
+| `Download as root` | Offered automatically when reading a file is refused; fetches it via `su` (up to 10 MB) into your local copy so it opens for editing |
+| `Upload as root` | Offered automatically when a folder upload is refused for lack of write permission; stages the folder to a temp path, then moves it into place via `su` |
 | `Delete as root` | Offered automatically when a normal delete is refused for lack of permission; runs `rm -rf` as root after a confirmation |
 
 - **View / list as root** first asks whether to act as the file's owner (offered when that is safe) or as `root`, then asks for that account's password. A directory is listed in place of the yellow row; a file opens as a read-only, throwaway copy — text is assumed, so a binary may look garbled — and is discarded when you close it.
+- **Download as root** appears after a permission-denied download or *Edit in Local*. Root copies the file to a temporary path and WireFerry pulls it byte-for-byte into your workspace copy (up to **10 MB** — a larger file is refused, not truncated), then the temp is removed. Saving your edits back uses the same apply-as-root flow, so the 10 MB limit protects the server file from being overwritten with a partial copy.
+- **Upload as root** appears after a folder upload is refused for lack of write permission (uploading a folder into, say, `/root`). WireFerry stages the folder to a temporary path over SFTP, then as `root` copies it into place — owned by root, merging into an existing folder — and removes the staging copy.
 - **Delete as root** appears only after a permission-denied delete. It lists the exact paths, always asks for confirmation even if the password is already cached, and refuses to run on `/`. For an **On both** delete the local copy is still moved to the trash.
 - The privileged `chmod` retry and `Change Owner / Group (chown, as root)` use the same mechanism. The elevated password is held **in memory only**, tied to the connection's real host, port and account; it is never written to disk, to the config or to the log, and it is cleared when the VS Code window reloads.
 
