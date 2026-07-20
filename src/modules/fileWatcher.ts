@@ -7,6 +7,7 @@ import { WatcherService, TransferDirection } from '../core';
 import app from '../app';
 import StatusBarItem from '../ui/statusBarItem';
 import { getRunningTransformTasks } from './serviceManager';
+import { isAutoUploadSuppressed } from './fileWatcherSuppression';
 
 const watchers: {
   [x: string]: vscode.FileSystemWatcher;
@@ -48,8 +49,12 @@ async function doUpload() {
 
 const debouncedUpload = debounce(doUpload, ACTION_INTEVAL, { leading: true, trailing: true });
 
-function uploadHandler(uri: vscode.Uri) {
+async function uploadHandler(uri: vscode.Uri) {
   if (!isValidFile(uri)) {
+    return;
+  }
+
+  if (await isAutoUploadSuppressed(uri.fsPath)) {
     return;
   }
 

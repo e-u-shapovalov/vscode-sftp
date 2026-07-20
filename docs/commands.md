@@ -89,7 +89,7 @@ The Remote Explorer shows **one merged entry per file**, combining your local co
 | Badge | Meaning |
 | --- | --- |
 | `L` | **Local only** — the file is on your disk but not on the server yet |
-| `M` | **Modified** — the local and server copies differ (by size or modification time) |
+| `M` | **Modified** — the local and server copies differ by type, size or confirmed content; parent folders inherit `M` recursively |
 | `!` | **Conflict** — a file on one side, a folder on the other |
 | `?` | **Unknown** — the server listing could not be read (a transient error, or a permission error over FTP) |
 | yellow, no badge | **No access** — a folder you have no permission to list; right-click **View / list as root** |
@@ -97,11 +97,16 @@ The Remote Explorer shows **one merged entry per file**, combining your local co
 
 A file that is in sync, or a server-only file with no badge, needs no marker.
 
+For equal-size regular files, modification time is only a cheap first check. When the times differ,
+WireFerry verifies the content with MD5 in the background before showing `M`. Matching content is not
+marked modified; its local modification time is aligned to the server time so later listings do not hash
+the same file again. If server-side MD5 is unavailable, the modification time remains the fallback.
+
 A single click **opens your local copy directly** when one exists — instantly, without downloading or overwriting anything. For a server-only file the click downloads and opens it, or shows a read-only preview, depending on `wireferry.downloadWhenOpenInRemoteExplorer` (below); a symlink offers to open its target.
 
 With `wireferry.downloadWhenOpenInRemoteExplorer: true`, clicking a server-only file downloads it with progress and then opens it. When the setting is `false`, WireFerry opens a read-only preview instead. Turn on **Show Sizes** to see sizes in the tree; a modified file shows both sides as `server ↔ local`.
 
-Folder size uses a server-side `du` command when available over SFTP and otherwise falls back to walking the remote tree. Server-side MD5 requires suitable shell commands and is unavailable on FTP.
+Folder size uses a server-side `du` command when available over SFTP and otherwise falls back to walking the remote tree. The **Size & MD5** file report includes both modification timestamps. Server-side MD5 requires suitable shell commands and is unavailable on FTP.
 
 `Show Tree…` first asks how to draw the tree (folders only, with files, or with files and sizes) and a maximum depth (empty or `0` means no limit). The tree opens in a text tab and stops at 20000 entries for very large folders. It is available on folders in both the Remote Explorer and the local Explorer.
 

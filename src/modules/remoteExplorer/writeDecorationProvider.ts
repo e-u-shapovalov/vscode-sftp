@@ -1,13 +1,14 @@
 import * as vscode from 'vscode';
 import { REMOTE_SCHEME } from '../../constants';
 import { L } from '../../i18n';
-import RemoteTreeData, { NodeStatus } from './treeDataProvider';
+import RemoteTreeData from './treeDataProvider';
+import { NodeStatus } from './treeStatus';
 
 // Paints the native VS Code file-decoration (badge + colour, the same mechanism git status uses) for the
 // combined local↔remote status of a tree node, plus the "read-only for you" write hint. Both the status
 // and the writability are computed by the tree (getChildren merge / _applyWriteHints); this only turns a
 // node's cached flags into a decoration and repaints on the tree's signal. Priority when several apply:
-// conflict (!) → server-unknown (?) → modified (M) → local-only (L) → read-only (RO).
+// conflict (!) → denied/unknown → direct modified (M) → local-only (L) → descendant M → RO.
 export default class WriteDecorationProvider implements vscode.FileDecorationProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri[]>();
   readonly onDidChangeFileDecorations: vscode.Event<vscode.Uri[]> = this._onDidChange.event;
@@ -23,7 +24,7 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
       return undefined;
     }
     const item = this.tree.getItemByUri(uri) as
-      | { writable?: boolean; status?: string }
+      | { writable?: boolean; status?: string; hasModifiedDescendant?: boolean }
       | undefined;
     if (!item) {
       return undefined;
@@ -75,6 +76,16 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
             ru: 'Только локально — есть на диске, но ещё не на сервере',
           }),
         };
+    }
+    if (item.hasModifiedDescendant) {
+      return {
+        badge: 'M',
+        color: new vscode.ThemeColor('gitDecoration.modifiedResourceForeground'),
+        tooltip: L({
+          en: 'Contains a file that differs between your local copy and the server',
+          ru: 'Внутри есть файл, который различается локально и на сервере',
+        }),
+      };
     }
     if (item.writable === false) {
       return {

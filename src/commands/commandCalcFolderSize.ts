@@ -27,6 +27,26 @@ interface SizeAcc {
   bytes: number;
 }
 
+// Stable, side-by-side-comparable local timestamp with an explicit UTC offset. Milliseconds matter here:
+// the report is also used to explain why the tree requested an MD5 verification before aligning mtimes.
+function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) {
+    return '?';
+  }
+  const pad = (n: number, width = 2) => String(n).padStart(width, '0');
+  const offsetMinutes = -d.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absOffset = Math.abs(offsetMinutes);
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(
+      d.getMilliseconds(),
+      3
+    )} UTC${sign}${pad(Math.floor(absOffset / 60))}:${pad(absOffset % 60)}`
+  );
+}
+
 // Fast path: total the directory server-side with one `du`. Prefer apparent bytes (`-sb`, GNU/Linux)
 // so the count is byte-exact and matches summing file sizes; fall back to KB blocks (`-sk`, POSIX).
 // Returns null when not possible (no exec channel, no `du`, non-zero exit) so the caller can walk.
@@ -270,6 +290,7 @@ export default checkCommand({
             }
 
             let localSize: number | null = null;
+            let localMtime: number | null = null;
             let localMd5: string | null = null;
             let hasLocal = false;
             try {
@@ -277,6 +298,7 @@ export default checkCommand({
               hasLocal = st.isFile();
               if (hasLocal) {
                 localSize = st.size;
+                localMtime = st.mtime.getTime();
               }
             } catch (e) {
               hasLocal = false;
@@ -309,6 +331,9 @@ export default checkCommand({
                   serverSize === null ? L({ en: '(unknown)', ru: '(неизв.)' }) : sizeDetail(serverSize)
                 }`
               );
+              lines.push(
+                `  ${L({ en: 'modified', ru: 'изменён' })}: ${formatTimestamp(serverStat.mtime)}`
+              );
               lines.push(`  ${L({ en: 'md5   ', ru: 'md5   ' })}: ${serverMd5 || naServerMd5}`);
             }
             lines.push('');
@@ -316,6 +341,11 @@ export default checkCommand({
             if (hasLocal) {
               lines.push(`  ${L({ en: 'path  ', ru: 'путь  ' })}: ${localPath}`);
               lines.push(`  ${L({ en: 'size  ', ru: 'размер' })}: ${localSize === null ? '?' : sizeDetail(localSize)}`);
+              lines.push(
+                `  ${L({ en: 'modified', ru: 'изменён' })}: ${
+                  localMtime === null ? '?' : formatTimestamp(localMtime)
+                }`
+              );
               lines.push(`  ${L({ en: 'md5   ', ru: 'md5   ' })}: ${localMd5 || '?'}`);
             } else {
               lines.push(

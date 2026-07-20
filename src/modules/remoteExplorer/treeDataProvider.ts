@@ -10,6 +10,7 @@ import {
   Ignore,
   ServiceConfig,
   FileSystem,
+  Scheduler,
 } from '../../core';
 import {
   COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
@@ -23,50 +24,20 @@ import logger from '../../logger';
 import { duSizes } from './folderSize';
 import { toLocalPath } from '../../helper';
 import { canUserWrite, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
+import { localFileMd5, serverFileMd5 } from '../../helper/fileFacts';
+import { suppressAutoUploadForMtime } from '../fileWatcherSuppression';
+import {
+  alignLocalMtimeIfUnchanged,
+  ancestorPaths,
+  ContentVerification,
+  decideStatus,
+  NodeStatus,
+  NodeStatusValue,
+} from './treeStatus';
+
+export { NodeStatus } from './treeStatus';
 
 type Id = number;
-
-// Combined local↔remote status of a tree entry. Drives the badge/colour in the decoration provider and
-// the click behaviour. A `const` object (NOT a `const enum`) so the transpile-only test build can read
-// the members across modules.
-export const NodeStatus = {
-  Synced: 'synced', // exists on both sides, no difference detected
-  Modified: 'modified', // exists on both sides, size/mtime differ → badge M
-  LocalOnly: 'localOnly', // only on disk, not on the server → badge L
-  RemoteOnly: 'remoteOnly', // only on the server (an ordinary server file, no badge)
-  Conflict: 'conflict', // type clash (file vs dir) → badge !
-  Unknown: 'unknown', // the server listing failed (transient) — don't claim local-only → badge ?
-  Denied: 'denied', // no permission to read/list — actionable via su (View as root) → yellow
-} as const;
-export type NodeStatusValue = typeof NodeStatus[keyof typeof NodeStatus];
-
-// Whether a remote entry and its local twin differ. Same heuristic sync uses (transfer.ts isFileModified):
-// byte size differs, or the modified time differs at second granularity. mtime is only a proxy, so equal
-// size + equal second is reported as "no difference detected", not "provably identical".
-function localRemoteDiffers(remote: FileEntry, local: FileEntry): boolean {
-  return (
-    remote.size !== local.size ||
-    Math.floor(remote.mtime / 1000) !== Math.floor(local.mtime / 1000)
-  );
-}
-
-// Combined status of a remote entry given its local twin (undefined = no local counterpart).
-function computeStatus(remote: FileEntry, local?: FileEntry): NodeStatusValue {
-  if (!local) {
-    return NodeStatus.RemoteOnly;
-  }
-  // A directory on one side and a non-directory on the other is a genuine type conflict; two directories
-  // are Synced (their contents are compared lazily as children expand).
-  if (remote.type === FileType.Directory || local.type === FileType.Directory) {
-    return remote.type === local.type ? NodeStatus.Synced : NodeStatus.Conflict;
-  }
-  // Both are non-directories. Differing KINDS (a regular file vs a symlink, or an unknown special file)
-  // genuinely differ — don't call them Synced just because size/mtime happen to match.
-  if (remote.type !== local.type) {
-    return NodeStatus.Modified;
-  }
-  return localRemoteDiffers(remote, local) ? NodeStatus.Modified : NodeStatus.Synced;
-}
 
 // A directory listing failed because the path isn't there (a local-only directory has no server path, or the
 // entry vanished) — as opposed to a permission/transient error. Mirrors the SFTP/FTP "absent" codes/text.
@@ -159,12 +130,24 @@ interface ExplorerChild {
   folderBytes?: number;
   // Combined local↔remote status (see NodeStatus), computed during getChildren's merge. Undefined on roots.
   status?: NodeStatusValue;
+  // True when a loaded descendant has a confirmed M. Kept separate from `status`: a folder can retain its
+  // own stronger state (!, ?, L, denied) while still propagating ordinary M up the rest of the path.
+  hasModifiedDescendant?: boolean;
   // The on-disk path of the local twin when one exists (a mapped local counterpart). Drives "click opens
   // the local file" and marks the node as present locally. Undefined = no local twin.
   localPath?: string;
   // The local twin's byte size (files only) — used for the "remote ↔ local" size hint and the local-only
   // size. Undefined when there is no local file twin.
   localSize?: number;
+  // Local mtime captured by the same directory listing as localSize. It invalidates a cached MD5 result
+  // when the file changes and is also the precondition for safely aligning a matching file's timestamp.
+  localMtime?: number;
+  // Cached verdict for the exact local/server metadata snapshot encoded in `key`. `unavailable` retains
+  // the legacy mtime fallback without retrying three server hash commands on every repaint.
+  contentVerification?: ContentVerification;
+  // The snapshot currently waiting for MD5 (or represented by contentVerification). Kept explicitly so
+  // a slow queued task can prove that it still belongs to this incarnation of the cached node.
+  contentVerificationKey?: string;
   // True for exactly one listing after pinKnownType seeded/corrected the type of a just-created node, so
   // the next merge trusts the pin over a possibly-stale server listing, then reverts to listing authority.
   typePinned?: boolean;
@@ -182,6 +165,17 @@ export interface ExplorerRoot extends ExplorerChild {
 }
 
 export type ExplorerItem = ExplorerRoot | ExplorerChild;
+
+interface ContentCheckCandidate {
+  item: ExplorerItem;
+  key: string;
+  remotePath: string;
+  remoteSize: number;
+  remoteMtime: number;
+  localPath: string;
+  localSize: number;
+  localMtime: number;
+}
 
 // Identity of a tree root from a remote URI: a config's services share one numeric remoteId, so when
 // a config is split into one root per profile we disambiguate by (remoteId, profile).
@@ -312,6 +306,16 @@ export default class RemoteTreeData
   private _resolvingLinks = new Set<string>();
   // Parent uri.query keys whose write-permission hints a background `id`+compute pass is handling.
   private _hintingWrite = new Set<string>();
+  // Content verification is deliberately bounded across the whole tree: each item uses one server-side
+  // MD5 command and one streamed local hash, and opening many folders must not flood the SSH connection.
+  private _contentScheduler = new Scheduler({ concurrency: 4 });
+  // Item key → generation + verification key for queued/running MD5 work. This de-dupes repaints and
+  // prevents a pre-refresh task from deleting the marker of newer work for the same path.
+  private _checkingContent = new Map<string, string>();
+  // Last complete child set per loaded directory and the subset currently confirmed Modified. Together
+  // they let a re-list remove a deleted/now-synced source before recomputing recursive parent M badges.
+  private _listedChildren = new Map<string, Set<string>>();
+  private _modifiedSources = new Set<string>();
   // Cached server listing per parent uri.query, so the instant local-first snapshot can be replaced by the
   // full server-merged listing once the server responds. Cleared by refresh(). No entry = not fetched yet.
   private _remoteListing: Map<string, FileEntry[]> = new Map();
@@ -381,6 +385,9 @@ export default class RemoteTreeData
       // recompute against the fresh listing.
       node.writable = undefined;
       node.accessNote = undefined;
+      node.contentVerification = undefined;
+      node.contentVerificationKey = undefined;
+      node.hasModifiedDescendant = false;
       // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
       if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
         node.status = undefined;
@@ -394,6 +401,10 @@ export default class RemoteTreeData
     this._remoteInflight.clear();
     this._listingFailed.clear();
     this._elevatedKeys.clear();
+    this._contentScheduler.empty();
+    this._checkingContent.clear();
+    this._listedChildren.clear();
+    this._modifiedSources.clear();
     this._listGeneration += 1;
     // refresh root
     if (!item) {
@@ -651,20 +662,31 @@ export default class RemoteTreeData
       localByName.set(nameKey(localEntry.name), localEntry);
     }
 
-    // Build one node per remote entry, tagging its combined local↔remote status (see computeStatus).
+    // Build one node per remote entry. Size/type/mtime decide the cheap path; equal-size regular files
+    // whose mtimes differ are queued below for content verification instead of being labelled M blindly.
+    const contentCandidates: ContentCheckCandidate[] = [];
     const items: ExplorerItem[] = filtered.map(file => {
       const isDirectory = file.type === FileType.Directory;
       const isSymbolicLink = file.type === FileType.SymbolicLink;
       const localTwin = localByName.get(nameKey(file.name));
       localByName.delete(nameKey(file.name));
-      const status = computeStatus(file, localTwin);
       const localPath = localTwin ? localTwin.fspath : undefined;
       const localSize =
         localTwin && localTwin.type === FileType.File ? localTwin.size : undefined;
+      const localMtime = localTwin ? localTwin.mtime : undefined;
       const newResource = UResource.updateResource(item.resource, {
         remotePath: file.fspath,
       });
       const mapItem = this._map.get(newResource.uri.query);
+      const decision = decideStatus(file, localTwin, mapItem && mapItem.contentVerification);
+      const cachedVerification =
+        decision.verificationKey &&
+        mapItem &&
+        mapItem.contentVerification &&
+        mapItem.contentVerification.key === decision.verificationKey
+          ? mapItem.contentVerification
+          : undefined;
+      let resultItem: ExplorerItem;
       if (mapItem) {
         // Keep the cached node's identity, pinned type, any cached folderBytes and resolved linkTarget;
         // refresh the rest.
@@ -690,28 +712,53 @@ export default class RemoteTreeData
           mapItem.isDirectory = isDirectory;
         }
         mapItem.isSymbolicLink = isSymbolicLink;
-        mapItem.status = status;
+        mapItem.status = decision.status;
         mapItem.localPath = localPath;
         mapItem.localSize = localSize;
-        return mapItem;
+        mapItem.localMtime = localMtime;
+        mapItem.contentVerification = cachedVerification;
+        mapItem.contentVerificationKey = decision.verificationKey;
+        resultItem = mapItem;
+      } else {
+        const newItem: ExplorerChild = {
+          resource: newResource,
+          isDirectory,
+          isSymbolicLink,
+          size: file.size,
+          mode: file.mode,
+          mtime: file.mtime,
+          owner: file.owner,
+          group: file.group,
+          uid: file.uid,
+          gid: file.gid,
+          status: decision.status,
+          localPath,
+          localSize,
+          localMtime,
+          contentVerificationKey: decision.verificationKey,
+        };
+        this._map.set(newItem.resource.uri.query, newItem);
+        resultItem = newItem;
       }
-      const newItem: ExplorerChild = {
-        resource: newResource,
-        isDirectory,
-        isSymbolicLink,
-        size: file.size,
-        mode: file.mode,
-        mtime: file.mtime,
-        owner: file.owner,
-        group: file.group,
-        uid: file.uid,
-        gid: file.gid,
-        status,
-        localPath,
-        localSize,
-      };
-      this._map.set(newItem.resource.uri.query, newItem);
-      return newItem;
+      if (
+        decision.verificationKey &&
+        !cachedVerification &&
+        localPath !== undefined &&
+        localSize !== undefined &&
+        localMtime !== undefined
+      ) {
+        contentCandidates.push({
+          item: resultItem,
+          key: decision.verificationKey,
+          remotePath: file.fspath,
+          remoteSize: file.size,
+          remoteMtime: file.mtime,
+          localPath,
+          localSize,
+          localMtime,
+        });
+      }
+      return resultItem;
     });
 
     // Whatever local entries are left have no server counterpart: add them as local-only nodes (badge L)
@@ -738,6 +785,9 @@ export default class RemoteTreeData
         existing.status = NodeStatus.LocalOnly;
         existing.localPath = localEntry.fspath;
         existing.localSize = localSize;
+        existing.localMtime = localEntry.mtime;
+        existing.contentVerification = undefined;
+        existing.contentVerificationKey = undefined;
         // Nothing on the server anymore — clear server-derived metadata so the tooltip/decoration don't
         // show the stale mode/owner/mtime of a file that was deleted server-side.
         existing.size = undefined;
@@ -761,14 +811,22 @@ export default class RemoteTreeData
         status: NodeStatus.LocalOnly,
         localPath: localEntry.fspath,
         localSize,
+        localMtime: localEntry.mtime,
       };
       this._map.set(localNode.resource.uri.query, localNode);
       items.push(localNode);
     });
 
-    // Repaint the L/M/!/RO decorations for this listing — a node's status may have changed since the last
-    // expand (uploaded, edited, deleted locally). Targeted, like the write-hint repaint.
-    this._onDidChangeDecorations.fire(items.map(i => i.resource.uri));
+    // Repaint direct states and recursively update every cached ancestor of confirmed M sources. Missing
+    // children from the previous complete listing are removed from the source set here as well.
+    const ancestorChanges = this._recordCompleteListing(item, items);
+    this._onDidChangeDecorations.fire(
+      this._uniqueUris(items.map(i => i.resource.uri).concat(ancestorChanges))
+    );
+
+    // MD5 checks are background work: the merged listing paints immediately, while the bounded queue
+    // confirms ambiguous equal-size/mtime-different files and re-renders only the affected path.
+    this._queueContentChecks(remotefs, localFs, contentCandidates, item);
 
     // Resolve each symlink's target in the background with ONE readlink apiece (cheap, unlike `du`), so
     // the tree paints immediately and the dimmed "→ target" fills in a moment later. Only links without
@@ -858,6 +916,9 @@ export default class RemoteTreeData
         existing.isSymbolicLink = isSymbolicLink;
         existing.localPath = localEntry.fspath;
         existing.localSize = localSize;
+        existing.localMtime = localEntry.mtime;
+        existing.contentVerification = undefined;
+        existing.contentVerificationKey = undefined;
         existing.status = provisionalStatus; // LocalOnly under a local-only parent, else unknown-yet
         items.push(existing);
         return;
@@ -868,6 +929,7 @@ export default class RemoteTreeData
         isSymbolicLink,
         localPath: localEntry.fspath,
         localSize,
+        localMtime: localEntry.mtime,
         status: provisionalStatus,
       };
       this._map.set(node.resource.uri.query, node);
@@ -876,6 +938,326 @@ export default class RemoteTreeData
     // Repaint (clear) any stale badge while we wait for the fresh server listing.
     this._onDidChangeDecorations.fire(items.map(i => i.resource.uri));
     return items.sort(dirFirstSort);
+  }
+
+  private _uniqueUris(uris: vscode.Uri[]): vscode.Uri[] {
+    const byKey = new Map<string, vscode.Uri>();
+    uris.forEach(uri => byKey.set(uri.query, uri));
+    return Array.from(byKey.values());
+  }
+
+  private _sameRemoteTree(a: ExplorerItem, b: ExplorerItem): boolean {
+    return (
+      a.resource.remoteId === b.resource.remoteId &&
+      a.resource.profile === b.resource.profile
+    );
+  }
+
+  private _isInsideCachedSubtree(
+    candidate: ExplorerItem,
+    subtree: ExplorerItem,
+    includeSubtree: boolean
+  ): boolean {
+    if (!this._sameRemoteTree(candidate, subtree)) {
+      return false;
+    }
+    if (candidate.resource.fsPath === subtree.resource.fsPath) {
+      return includeSubtree;
+    }
+    return ancestorPaths(candidate.resource.fsPath, subtree.resource.fsPath).length > 0;
+  }
+
+  // `_map` deliberately retains node identities, so removing/retyping a loaded folder must explicitly
+  // retire Modified sources below it. It also invalidates child-list membership so an in-flight hash from
+  // the vanished subtree fails `_contentCandidateIsCurrent` and cannot resurrect a parent badge.
+  private _dropCachedSubtree(subtree: ExplorerItem, includeSubtreeSource: boolean): void {
+    Array.from(this._modifiedSources).forEach(sourceKey => {
+      const source = this._map.get(sourceKey);
+      if (
+        !source ||
+        this._isInsideCachedSubtree(source, subtree, includeSubtreeSource)
+      ) {
+        this._modifiedSources.delete(sourceKey);
+      }
+    });
+    Array.from(this._listedChildren.keys()).forEach(parentKey => {
+      const listedParent = this._map.get(parentKey);
+      if (
+        !listedParent ||
+        this._isInsideCachedSubtree(listedParent, subtree, true)
+      ) {
+        this._listedChildren.delete(parentKey);
+      }
+    });
+  }
+
+  // Replace one directory's known children, update the direct-M source set, then derive every recursive
+  // ancestor badge from scratch. Rebuilding the small set is less error-prone than reference counts when
+  // a child vanishes, changes type, or is re-created under the same URI.
+  private _recordCompleteListing(parent: ExplorerItem, items: ExplorerItem[]): vscode.Uri[] {
+    const parentKey = parent.resource.uri.query;
+    const current = new Set(items.map(i => i.resource.uri.query));
+    const previous = this._listedChildren.get(parentKey);
+    if (previous) {
+      previous.forEach(key => {
+        if (!current.has(key)) {
+          const missing = this._map.get(key);
+          if (missing) {
+            this._dropCachedSubtree(missing, true);
+          } else {
+            this._modifiedSources.delete(key);
+          }
+        }
+      });
+    }
+    items.forEach(child => {
+      const key = child.resource.uri.query;
+      const status = (child as ExplorerChild).status;
+      // A file can never retain loaded children. Nor can a folder that now exists on only one side or has
+      // a type conflict retain old cross-side Modified descendants from an earlier incarnation.
+      if (
+        !child.isDirectory ||
+        status === NodeStatus.LocalOnly ||
+        status === NodeStatus.RemoteOnly ||
+        status === NodeStatus.Conflict
+      ) {
+        this._dropCachedSubtree(child, false);
+      }
+      if (status === NodeStatus.Modified) {
+        this._modifiedSources.add(key);
+      } else {
+        this._modifiedSources.delete(key);
+      }
+    });
+    this._listedChildren.set(parentKey, current);
+    return this._recomputeModifiedAncestors();
+  }
+
+  private _setModifiedSource(item: ExplorerItem, modified: boolean): vscode.Uri[] {
+    const key = item.resource.uri.query;
+    if (modified) {
+      this._modifiedSources.add(key);
+    } else {
+      this._modifiedSources.delete(key);
+    }
+    return this._recomputeModifiedAncestors();
+  }
+
+  private _recomputeModifiedAncestors(): vscode.Uri[] {
+    const ancestorKeys = new Set<string>();
+    this._modifiedSources.forEach(sourceKey => {
+      const source = this._map.get(sourceKey);
+      if (!source) {
+        return;
+      }
+      const root = this.findRoot(source.resource.uri);
+      if (!root) {
+        return;
+      }
+      ancestorPaths(source.resource.fsPath, root.resource.fsPath).forEach(path => {
+        const resource = UResource.updateResource(source.resource, { remotePath: path });
+        if (this._map.has(resource.uri.query)) {
+          ancestorKeys.add(resource.uri.query);
+        }
+      });
+    });
+
+    const changed: vscode.Uri[] = [];
+    this._map.forEach((node, key) => {
+      const next = ancestorKeys.has(key);
+      if (!!node.hasModifiedDescendant !== next) {
+        node.hasModifiedDescendant = next || undefined;
+        changed.push(node.resource.uri);
+      }
+    });
+    return changed;
+  }
+
+  private _queueContentChecks(
+    remoteFs: FileSystem,
+    localFs: FileSystem,
+    candidates: ContentCheckCandidate[],
+    parent: ExplorerItem
+  ): void {
+    const generation = this._listGeneration;
+    candidates.forEach(candidate => {
+      const itemKey = candidate.item.resource.uri.query;
+      const marker = `${generation}\0${candidate.key}`;
+      if (this._checkingContent.get(itemKey) === marker) {
+        return;
+      }
+      this._checkingContent.set(itemKey, marker);
+      this._contentScheduler.add(async () => {
+        try {
+          await this._verifyContentCandidate(
+            remoteFs,
+            localFs,
+            candidate,
+            parent,
+            generation,
+            marker
+          );
+        } catch (e) {
+          logger.warn(
+            `remoteExplorer: content check failed for ${candidate.remotePath}: ${
+              (e && (e as Error).message) || e
+            }`
+          );
+        } finally {
+          if (this._checkingContent.get(itemKey) === marker) {
+            this._checkingContent.delete(itemKey);
+          }
+        }
+      });
+    });
+  }
+
+  private _contentCandidateIsCurrent(
+    candidate: ContentCheckCandidate,
+    parentKey: string,
+    generation: number,
+    marker: string
+  ): boolean {
+    const itemKey = candidate.item.resource.uri.query;
+    const children = this._listedChildren.get(parentKey);
+    return (
+      generation === this._listGeneration &&
+      this._checkingContent.get(itemKey) === marker &&
+      this._map.get(itemKey) === candidate.item &&
+      (candidate.item as ExplorerChild).contentVerificationKey === candidate.key &&
+      !!children &&
+      children.has(itemKey)
+    );
+  }
+
+  private async _verifyContentCandidate(
+    remoteFs: FileSystem,
+    localFs: FileSystem,
+    candidate: ContentCheckCandidate,
+    parent: ExplorerItem,
+    generation: number,
+    marker: string
+  ): Promise<void> {
+    const parentKey = parent.resource.uri.query;
+    if (!this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+      return;
+    }
+
+    // Ask the server first. On FTP/minimal servers this returns null immediately, avoiding a pointless
+    // full local read when no server digest exists to compare it with.
+    const remoteMd5 = await serverFileMd5(remoteFs, candidate.remotePath);
+    if (!this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+      return;
+    }
+    let verdict: ContentVerification['verdict'] = 'unavailable';
+    if (remoteMd5) {
+      const localMd5 = await localFileMd5(candidate.localPath);
+      if (!this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+        return;
+      }
+      if (localMd5) {
+        verdict = remoteMd5 === localMd5 ? 'equal' : 'different';
+      }
+    }
+
+    if (verdict === 'equal') {
+      // Confirm the remote listing snapshot before copying its mtime. If the server file changed during
+      // hashing, discard both the verdict and cached listing and let the ordinary background list retry.
+      try {
+        const currentRemote = await remoteFs.lstat(candidate.remotePath);
+        if (!this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+          return;
+        }
+        if (
+          currentRemote.type !== FileType.File ||
+          currentRemote.size !== candidate.remoteSize ||
+          currentRemote.mtime !== candidate.remoteMtime
+        ) {
+          this._remoteListing.delete(parentKey);
+          this._listingFailed.delete(parentKey);
+          this._onDidChangeFolder.fire(parent);
+          return;
+        }
+      } catch (e) {
+        // The hashes still prove equality for the bytes just read, so keep the correct status; only skip
+        // timestamp alignment when the server snapshot can no longer be validated. Caching the verdict also
+        // avoids an endless hash/re-list loop on a server that permits reading but rejects SFTP lstat.
+        logger.debug(
+          `remoteExplorer: skip local mtime alignment for ${candidate.remotePath}: ${
+            (e && (e as Error).message) || e
+          }`
+        );
+        if (this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+          this._publishContentVerdict(candidate, parent, verdict);
+        }
+        return;
+      }
+
+      let autoUploadGuard: { applied(): void; cancel(): void } | undefined;
+      try {
+        const aligned = await alignLocalMtimeIfUnchanged(
+          localFs,
+          candidate.localPath,
+          candidate.localSize,
+          candidate.localMtime,
+          candidate.remoteMtime,
+          () => {
+            // Arm the watcher guard only after fstat proved the file unchanged and immediately before the
+            // metadata write. This leaves no broad window in which a genuine edit could be suppressed.
+            autoUploadGuard = suppressAutoUploadForMtime(
+              candidate.localPath,
+              candidate.remoteMtime
+            );
+          }
+        );
+        if (!aligned) {
+          // The local file changed after hashing. Do not publish the stale equality verdict; a parent
+          // re-render re-lists local metadata and queues a fresh check when it is still needed.
+          this._onDidChangeFolder.fire(parent);
+          return;
+        }
+        if (autoUploadGuard) {
+          autoUploadGuard.applied();
+        }
+        (candidate.item as ExplorerChild).localMtime = candidate.remoteMtime;
+      } catch (e) {
+        if (autoUploadGuard) {
+          autoUploadGuard.cancel();
+        }
+        // Read-only filesystems may refuse futimes. Equality remains valid and is cached for this exact
+        // snapshot; a later explicit refresh may retry the alignment.
+        logger.debug(
+          `remoteExplorer: couldn't align local mtime for ${candidate.localPath}: ${
+            (e && (e as Error).message) || e
+          }`
+        );
+      }
+    }
+
+    if (!this._contentCandidateIsCurrent(candidate, parentKey, generation, marker)) {
+      return;
+    }
+    this._publishContentVerdict(candidate, parent, verdict);
+  }
+
+  private _publishContentVerdict(
+    candidate: ContentCheckCandidate,
+    parent: ExplorerItem,
+    verdict: ContentVerification['verdict']
+  ): void {
+    const child = candidate.item as ExplorerChild;
+    child.contentVerification = { key: candidate.key, verdict };
+    child.status = verdict === 'equal' ? NodeStatus.Synced : NodeStatus.Modified;
+    const ancestorChanges = this._setModifiedSource(
+      candidate.item,
+      child.status === NodeStatus.Modified
+    );
+    this._onDidChangeDecorations.fire(
+      this._uniqueUris([candidate.item.resource.uri].concat(ancestorChanges))
+    );
+    // Re-read the local listing after a successful timestamp alignment and rebuild the file description
+    // (equal-size M rows show both sides). Cached server entries make this a local-only operation.
+    this._onDidChangeFolder.fire(parent);
   }
 
   // Fetch a directory's server listing exactly once, SHARING the in-flight promise across the instant
