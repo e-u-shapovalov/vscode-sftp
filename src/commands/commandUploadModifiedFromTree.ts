@@ -102,6 +102,26 @@ export default checkCommand({
 
     const { normal, needsRoot } = partitionByWritable(candidates);
 
+    // Confirm the normal group before uploading — M means "differs", not "server is older", so an upload
+    // overwrites the server copy with the local version; a count confirm gives a pre-flight for the whole
+    // set (symmetric to the root preview). Cancel/Esc aborts the entire command.
+    let doNormal = normal.length > 0;
+    if (normal.length > 0) {
+      const uploadYes = L({ en: 'Upload', ru: 'Выгрузить' });
+      const pick = await vscode.window.showWarningMessage(
+        L({
+          en: `Upload ${normal.length} modified file(s) to the server? This overwrites the server copy with your local version.`,
+          ru: `Выгрузить ${normal.length} изменённых файл(ов) на сервер? Серверная копия будет заменена вашей локальной версией.`,
+        }),
+        { modal: true },
+        uploadYes // Cancel/Esc → abort the whole command
+      );
+      if (pick === undefined) {
+        return; // Cancel — do nothing at all
+      }
+      doNormal = pick === uploadYes;
+    }
+
     // Preview + confirm the root group BEFORE any upload, so Cancel aborts everything.
     let rootApproved = false;
     if (needsRoot.length > 0) {
@@ -134,11 +154,13 @@ export default checkCommand({
     const held = acquirePermissionDialog();
     try {
       await operationReport.withReport('upload', async () => {
-        for (const c of normal) {
-          try {
-            await uploadFile(c.remoteUri, { ignore: null }); // remoteUri ⇒ correct profile/config
-          } catch (e) {
-            logger.error('Upload modified (normal) failed', e);
+        if (doNormal) {
+          for (const c of normal) {
+            try {
+              await uploadFile(c.remoteUri, { ignore: null }); // remoteUri ⇒ correct profile/config
+            } catch (e) {
+              logger.error('Upload modified (normal) failed', e);
+            }
           }
         }
         if (rootApproved) {
