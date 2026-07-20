@@ -1,4 +1,4 @@
-import { window } from 'vscode';
+import { window, ProgressLocation } from 'vscode';
 import { FileSystem } from '../core';
 import logger from '../logger';
 import { L } from '../i18n';
@@ -140,7 +140,19 @@ export async function execAsRoot(
       throw new ElevationCancelled();
     }
     try {
-      return await client.execRoot(command, pw, user === 'root' ? undefined : user, rawOutput);
+      // Show a spinner while su authenticates and runs on the server. After the password prompt closes
+      // there is otherwise a dead pause (network round-trip + su), so the user can't tell whether it hung
+      // or is still checking the password — this makes "working…" visible until the server answers.
+      return await window.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: L({
+            en: `WireFerry: running as ${user} on ${host || 'the server'}…`,
+            ru: `WireFerry: выполняю от ${user} на ${host || 'сервере'}…`,
+          }),
+        },
+        () => client.execRoot(command, pw, user === 'root' ? undefined : user, rawOutput)
+      );
     } catch (e: any) {
       if (e && e.authFailed) {
         rootPwCache.delete(key);
