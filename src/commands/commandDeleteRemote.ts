@@ -35,6 +35,13 @@ async function hasIdenticalLocalCopy(uri: vscode.Uri): Promise<boolean> {
       fse.lstat(localFsPath),
       remotefs.lstat(remoteFsPath),
     ]);
+    // A directory is a recoverable backup ONLY when EVERY server file under it has an identical local twin
+    // (recursive size + MD5) — otherwise a server-only file inside would be lost with no warning.
+    if (remoteStat.type === FileType.Directory) {
+      return localStat.isDirectory()
+        ? folderFullyBackedUp(remotefs, remoteFsPath, localFsPath, { count: 0 })
+        : false;
+    }
     // Only a plain file counts as a content backup — lstat (NOT stat) so a local SYMLINK is not mistaken
     // for one (it could point at the very server file being deleted). A size mismatch already proves they
     // differ.
@@ -49,6 +56,62 @@ async function hasIdenticalLocalCopy(uri: vscode.Uri): Promise<boolean> {
   } catch {
     return false; // can't verify → treat as "no backup" (require confirmation)
   }
+}
+
+// Verifying a huge tree by MD5 would freeze the confirm dialog. Past this many files we stop proving it and
+// fall back to the typed gate — a large tree is safer to guard anyway.
+const MAX_BACKUP_VERIFY_FILES = 2000;
+
+// Every server FILE under `remoteDir` has an identical local twin (size + MD5), recursively. A server-only
+// file/dir, a size/MD5 mismatch, a missing/wrong-type local side, a symlink/special entry, or exceeding the
+// file cap all mean "not a full backup" → false → the server delete then asks for the typed confirmation.
+async function folderFullyBackedUp(
+  remotefs: any,
+  remoteDir: string,
+  localDir: string,
+  state: { count: number }
+): Promise<boolean> {
+  let entries: any[];
+  try {
+    entries = await remotefs.list(remoteDir);
+  } catch {
+    return false; // can't list the server dir → can't prove a backup
+  }
+  for (const entry of entries) {
+    if (state.count >= MAX_BACKUP_VERIFY_FILES) {
+      return false; // too large to verify cheaply — fall back to the typed gate
+    }
+    const localChild = nodePath.join(localDir, entry.name);
+    if (entry.type === FileType.Directory) {
+      let ls;
+      try {
+        ls = await fse.lstat(localChild);
+      } catch {
+        return false; // server has a subfolder with no local twin — a server-only tree
+      }
+      if (!ls.isDirectory() || !(await folderFullyBackedUp(remotefs, entry.fspath, localChild, state))) {
+        return false;
+      }
+    } else if (entry.type === FileType.File) {
+      state.count += 1;
+      let ls;
+      try {
+        ls = await fse.lstat(localChild);
+      } catch {
+        return false; // server-only file — nothing local to restore from
+      }
+      if (!ls.isFile() || ls.size !== entry.size) {
+        return false;
+      }
+      const [l, r] = await Promise.all([localFileMd5(localChild), serverFileMd5(remotefs, entry.fspath)]);
+      if (!(l && r && l === r)) {
+        return false; // same name, different content — not a real backup
+      }
+    } else {
+      return false; // symlink / special — can't prove a content backup
+    }
+  }
+  return true;
 }
 
 // A hard, type-to-confirm gate before an IRRECOVERABLE server delete — the kind that has bitten people
