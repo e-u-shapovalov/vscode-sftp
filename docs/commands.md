@@ -77,15 +77,33 @@ Transfers can overwrite existing files. Verify `context`, `remotePath`, the sele
 | `Refresh` | Reload the Remote Explorer tree |
 | `Refresh Active Remote File` | Reload the remote entry for the active file |
 | `Show Sizes` / `Hide Sizes` | Toggle sizes in the tree |
-| `Sort by Size` / `Sort by Name` | Change the tree sort mode |
-| `Size & MD5...` | Report server/local size and, when available, MD5 for a file or folder |
-| `Show Tree...` | Render an ASCII tree of the selected folder into a text tab, with optional file sizes and a depth limit |
+| `Sort by Size (largest first)` / `Sort by Name` | Change the tree sort mode |
+| `View / list as root…` | List a folder you cannot read, or open an unreadable file read-only, through `su` (SFTP/SSH only) — see [Root access](#root-access-view-list-and-delete-as-root) |
+| `Size & MD5…` | Report server/local size and, when available, MD5 for a file or folder |
+| `Show Tree…` | Render an ASCII tree of the selected folder into a text tab, with optional file sizes and a depth limit |
 
-With `wireferry.downloadWhenOpenInRemoteExplorer: true`, clicking a remote file downloads it with progress and then opens it. When the setting is `false`, WireFerry opens a read-only preview instead.
+### Status markers in the tree
+
+The Remote Explorer shows **one merged entry per file**, combining your local copy and the server copy. Local files appear immediately; the server side fills in a moment later (a status-bar item reads *WireFerry: loading the server listing…* while it loads). A badge marks how the two sides compare:
+
+| Badge | Meaning |
+| --- | --- |
+| `L` | **Local only** — the file is on your disk but not on the server yet |
+| `M` | **Modified** — the local and server copies differ (by size or modification time) |
+| `!` | **Conflict** — a file on one side, a folder on the other |
+| `?` | **Unknown** — the server listing could not be read (a transient error, or a permission error over FTP) |
+| yellow, no badge | **No access** — a folder you have no permission to list; right-click **View / list as root** |
+| `RO` | **Read-only** — you have no write permission for this file |
+
+A file that is in sync, or a server-only file with no badge, needs no marker.
+
+A single click **opens your local copy directly** when one exists — instantly, without downloading or overwriting anything. For a server-only file the click downloads and opens it, or shows a read-only preview, depending on `wireferry.downloadWhenOpenInRemoteExplorer` (below); a symlink offers to open its target.
+
+With `wireferry.downloadWhenOpenInRemoteExplorer: true`, clicking a server-only file downloads it with progress and then opens it. When the setting is `false`, WireFerry opens a read-only preview instead. Turn on **Show Sizes** to see sizes in the tree; a modified file shows both sides as `server ↔ local`.
 
 Folder size uses a server-side `du` command when available over SFTP and otherwise falls back to walking the remote tree. Server-side MD5 requires suitable shell commands and is unavailable on FTP.
 
-`Show Tree...` first asks how to draw the tree (folders only, with files, or with files and sizes) and a maximum depth (empty or `0` means no limit). The tree opens in a text tab and stops at 20000 entries for very large folders. It is available on folders in both the Remote Explorer and the local Explorer.
+`Show Tree…` first asks how to draw the tree (folders only, with files, or with files and sizes) and a maximum depth (empty or `0` means no limit). The tree opens in a text tab and stops at 20000 entries for very large folders. It is available on folders in both the Remote Explorer and the local Explorer.
 
 You can also **drag and drop** items inside the Remote Explorer to move or rename them on the server; a matching local copy is updated after a confirmation. Moves stay within a single connection — dragging across different profiles is not performed.
 
@@ -95,25 +113,42 @@ You can also **drag and drop** items inside the Remote Explorer to move or renam
 | --- | --- |
 | `Create File` / `Create Folder` | Create an item below the selected remote directory |
 | `Rename` | Rename or move a selected remote item |
-| `Delete (server / local / both)...` | Choose whether to delete the server copy, local copy or both |
+| `Delete (server / local / both)…` | Choose whether to delete the server copy, local copy or both |
 | `Change Permissions (chmod)` | Change remote Unix mode; folders can be handled recursively |
 | `Change Owner / Group (chown, as root)` | Run `chown` through `su` on a compatible SSH server |
 
-When profiles exist, the delete dialog can also remove the server copy from every profile and move the one local copy to the operating-system trash.
+New files and folders you create in the tree take their permissions from `filePerm` / `dirPerm` when those are set (see the [configuration reference](configuration.md#common-fields)).
 
-WireFerry requests the operating-system trash for a local deletion. If trash is unavailable, for example on some network or substituted drives, the implementation falls back to permanent deletion.
+### Deleting safely
 
-Privileged `chmod` retry and `chown` require SFTP/SSH, a working `su` command and valid root credentials. The root password is held in memory only for the duration of the prompt, tied to the connection's host and port, and is never written to disk or to the log.
+The delete dialog offers **On server**, **On computer**, **On both**, and — when the config defines profiles — **All servers + computer**. A deleted local copy is moved to the operating-system trash, not erased; if the trash is unavailable (for example on some network or substituted drives) WireFerry falls back to permanent deletion and warns you.
+
+When a server-side delete would leave no safe copy behind, WireFerry asks you to type **`yes`** to confirm. That gate is skipped only when every selected item still has an identical local backup, verified by matching **size and MD5**; an **On both** or **All servers + computer** delete always asks. Servers with no server-side MD5 tool (including FTP) can't be verified, so the confirmation always appears there.
+
+### Root access: view, list and delete as root
+
+Some paths on a Unix server are owned by `root` or another user and are not readable or deletable by your login. WireFerry can act on them through `su`, and only over an **SFTP/SSH** connection — FTP has no shell, so these actions are refused there. Right-click any file or folder in the Remote Explorer to reach them; a folder you cannot list is also flagged **yellow** with a *no access — right-click View as root* hint.
+
+| Command | Purpose |
+| --- | --- |
+| `View / list as root…` | List a folder you cannot read, or open an unreadable file read-only |
+| `Delete as root` | Offered automatically when a normal delete is refused for lack of permission; runs `rm -rf` as root after a confirmation |
+
+- **View / list as root** first asks whether to act as the file's owner (offered when that is safe) or as `root`, then asks for that account's password. A directory is listed in place of the yellow row; a file opens as a read-only, throwaway copy — text is assumed, so a binary may look garbled — and is discarded when you close it.
+- **Delete as root** appears only after a permission-denied delete. It lists the exact paths, always asks for confirmation even if the password is already cached, and refuses to run on `/`. For an **On both** delete the local copy is still moved to the trash.
+- The privileged `chmod` retry and `Change Owner / Group (chown, as root)` use the same mechanism. The elevated password is held **in memory only**, tied to the connection's real host, port and account; it is never written to disk, to the config or to the log, and it is cleared when the VS Code window reloads.
 
 ## Credentials
 
 | Command | Purpose |
 | --- | --- |
-| `Generate SSH Key...` | Create an SSH key, deploy the public key and switch after a verified key login |
-| `Save Password to Keychain...` | Store a password through VS Code SecretStorage and update the config |
-| `Delete Saved Password...` | Remove selected passwords or passphrases from SecretStorage |
+| `Generate SSH Key…` | Create an SSH key, deploy the public key and switch after a verified key login |
+| `Save Password to Keychain…` | Store a password through VS Code SecretStorage and update the config |
+| `Delete Saved Password…` | Remove selected passwords or passphrases from SecretStorage |
 
 SSH key generation is SFTP-only. Password storage is available for main configurations and profiles; jump-host credentials are not stored in SecretStorage.
+
+![WireFerry generating and deploying an SSH key from the server context menu](../assets/showcase/generate-ssh-key.png)
 
 ## Operation reports
 

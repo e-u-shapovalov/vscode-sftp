@@ -127,6 +127,10 @@ Confirm that the configured user can write to `remotePath` and the target file o
 
 For SFTP, WireFerry can offer to stage the edited copy at a writable server path. On compatible SSH servers it can apply the staged file through `su`; this requires a working `su` command and valid root credentials. FTP does not support this recovery action.
 
+### A folder is yellow, or I cannot read a root-owned file
+
+The Remote Explorer marks a folder **yellow** when your login has no permission to list it. Right-click the item and choose **View / list as root**, then enter the owner's or root's password: WireFerry lists the folder in place, or opens an unreadable file as a read-only throwaway copy, through `su`. This needs an SFTP/SSH connection — FTP has no shell — and the password is kept in memory only. See [Root access](docs/commands.md#root-access-view-list-and-delete-as-root).
+
 ### The server reports `Error: Failure`
 
 This is a generic SFTP status and does not identify one universal cause. Check:
@@ -196,6 +200,10 @@ Do not enable `uploadOnSave` and `watcher.autoUpload` for the same files unless 
 Yes. `syncOption.delete` can remove destination files that do not exist in the source. The source and destination change with the chosen sync direction.
 
 Before enabling deletion, verify `context`, `remotePath`, the active profile and ignore rules. Test with non-critical data and keep a backup.
+
+### Why does WireFerry ask me to type `yes` before deleting?
+
+A server-side delete that would leave no safe copy behind asks you to type `yes` first. WireFerry skips that prompt only when the selected item still has an identical local backup, verified by matching size and MD5. Deleting on both sides, or across all profiles, always asks. Servers with no server-side MD5 tool — including FTP — can't be verified, so the prompt always appears there. See [Deleting safely](docs/commands.md#deleting-safely).
 
 ### Why does FTP use only one transfer at a time?
 

@@ -96,6 +96,8 @@ Verify both paths before uploading or synchronizing a project.
 
 `maxFileSize` does not block an explicitly selected single-file transfer. A value of `0` or an omitted field disables the size filter.
 
+`filePerm` and `dirPerm` take a plain octal mode such as `644` or `755` and apply both to uploaded files and to items you create in the tree; a value that is not 1–4 octal digits is ignored, leaving the server default. The setup wizard seeds `644` / `755` in a new configuration.
+
 With `useTempFile: false` WireFerry writes directly over the destination, truncating it before the new data arrives; an interrupted transfer then loses the original. Keep the default `true` unless you have a specific reason to disable it.
 
 ## Authentication
@@ -108,7 +110,9 @@ With `useTempFile: false` WireFerry writes directly over the destination, trunca
 - `"prompt"` — ask on every connection without saving;
 - a literal string — use the plaintext value from the config.
 
-Do not commit plaintext credentials.
+Do not commit plaintext credentials. The setup wizard lets you pick between an SSH key, the OS keychain (`secretStorage`) and plaintext when it creates the configuration:
+
+![The WireFerry setup wizard choosing how to store the password: SSH key, OS keychain or plaintext](../assets/showcase/setup-wizard-password-storage.png)
 
 ### SFTP keys
 
