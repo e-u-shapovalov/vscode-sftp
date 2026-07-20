@@ -11,6 +11,12 @@ import { canElevate, execAsRoot, ElevationCancelled, shQuote, isAbsoluteRemotePa
 // holds across the concurrent afterTransfer callbacks the scheduler fires.
 let dialogActive = false;
 
+// Read-only view of the guard above, so the folder-level "upload as root" fallback can bail out when a
+// per-file recovery dialog is already on screen (a partly-writable folder upload can hit both paths).
+export function isPermissionFallbackActive(): boolean {
+  return dialogActive;
+}
+
 // A remote SFTP write rejected for lack of permission. ssh2 surfaces SSH_FX_PERMISSION_DENIED as the
 // numeric code 3; the EACCES/EPERM aliases are defensive (a future fs layer could map to them). FTP's
 // 550/553 are deliberately excluded — the recovery hands back a shell command, which is meaningless
