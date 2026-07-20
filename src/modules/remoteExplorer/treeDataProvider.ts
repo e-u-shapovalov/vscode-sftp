@@ -166,6 +166,24 @@ export interface ExplorerRoot extends ExplorerChild {
 
 export type ExplorerItem = ExplorerRoot | ExplorerChild;
 
+// A cached Modified (M) leaf file, snapshotted as an upload target for the "Upload Modified" toolbar
+// button. Host/profile come from the tree root the node belongs to (a child never carries them itself).
+export interface ModifiedUploadCandidate {
+  /** Absolute local path to upload FROM (always present — an M file requires a local twin). */
+  localPath: string;
+  /** Absolute remote POSIX path (the upload target). */
+  remotePath: string;
+  /** Remote tree URI — carries remoteId + profile so uploadFile resolves the right root/config. */
+  remoteUri: vscode.Uri;
+  /** false ⇒ RO ⇒ needs root; undefined ⇒ unknown (FTP / no identity) ⇒ normal upload. */
+  writable?: boolean;
+  mode?: number;
+  owner?: string;
+  group?: string;
+  host?: string;
+  profile?: string;
+}
+
 interface ContentCheckCandidate {
   item: ExplorerItem;
   key: string;
@@ -348,6 +366,38 @@ export default class RemoteTreeData
   // Look up the cached tree node for a remote uri (used by the write-permission decoration provider).
   getItemByUri(uri: vscode.Uri): ExplorerItem | undefined {
     return this._map.get(uri.query);
+  }
+
+  // Snapshot the CURRENTLY CACHED Modified (M) leaf files as upload candidates. Only nodes in
+  // already-expanded folders are present, and a file still pending background MD5 is Synced (not yet M),
+  // so this is deliberately a view of what the user can SEE — never a disk walk. `pendingMd5` lets the
+  // caller warn when the M-set may still grow.
+  collectModifiedUploadCandidates(): { candidates: ModifiedUploadCandidate[]; pendingMd5: number } {
+    const candidates: ModifiedUploadCandidate[] = [];
+    this._modifiedSources.forEach(key => {
+      const item = this._map.get(key);
+      if (!item || item.isDirectory) {
+        return;
+      }
+      const c = item as ExplorerChild;
+      // Safety: only real M leaves with a local twin (a folder is a propagation marker, never a target).
+      if (c.status !== NodeStatus.Modified || !c.localPath) {
+        return;
+      }
+      const root = this.findRoot(item.resource.uri);
+      candidates.push({
+        localPath: c.localPath,
+        remotePath: item.resource.fsPath,
+        remoteUri: item.resource.uri,
+        writable: c.writable,
+        mode: c.mode,
+        owner: c.owner,
+        group: c.group,
+        host: root ? root.explorerContext.config.host : undefined,
+        profile: root ? root.explorerContext.profile : undefined,
+      });
+    });
+    return { candidates, pendingMd5: this._checkingContent.size };
   }
 
   // The current listing generation — an elevated (su) fetch captures this BEFORE it starts, so a refresh

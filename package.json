@@ -416,6 +416,15 @@
         "icon": "$(loading~spin)"
       },
       {
+        "command": "wireferry.upload.modifiedFromTree",
+        "title": "%wireferry.upload.modifiedFromTree%",
+        "category": "WireFerry",
+        "icon": {
+          "light": "resources/light/upload.svg",
+          "dark": "resources/dark/upload.svg"
+        }
+      },
+      {
         "command": "wireferry.remoteExplorer.refresh",
         "title": "%wireferry.remoteExplorer.refresh%",
         "icon": {
@@ -473,6 +482,10 @@
         {
           "command": "wireferry.copyPathAsGitBash",
           "when": "false"
+        },
+        {
+          "command": "wireferry.upload.modifiedFromTree",
+          "when": "wireferry.enabled && wireferry.hasConfig"
         },
         {
           "command": "wireferry.remoteExplorer.viewAsRoot",
@@ -839,6 +852,11 @@
           "command": "wireferry.remoteExplorer.refresh",
           "when": "view == remoteExplorer && wireferry.hasConfig",
           "group": "navigation@2"
+        },
+        {
+          "command": "wireferry.upload.modifiedFromTree",
+          "when": "view == remoteExplorer && wireferry.hasConfig",
+          "group": "navigation@3"
         },
         {
           "command": "wireferry.remoteExplorer.sortTreeBySize",

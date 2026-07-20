@@ -616,6 +616,11 @@ export default class RemoteExplorer {
     return this._treeDataProvider.findRoot(remoteUri);
   }
 
+  // Snapshot the tree's cached Modified (M) leaf files for the "Upload Modified" toolbar button.
+  collectModifiedUploadCandidates() {
+    return this._treeDataProvider.collectModifiedUploadCandidates();
+  }
+
   private _refreshActiveRemoteFile() {
     const focusedEditor = vscode.window.activeTextEditor;
     if (focusedEditor) {

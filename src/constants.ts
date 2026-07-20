@@ -39,6 +39,7 @@ export const COMMAND_UPLOAD_ACTIVEFILE = 'wireferry.upload.activeFile';
 export const COMMAND_UPLOAD_FOLDER = 'wireferry.upload.folder';
 export const COMMAND_UPLOAD_ACTIVEFOLDER = 'wireferry.upload.activeFolder';
 export const COMMAND_UPLOAD_PROJECT = 'wireferry.upload.project';
+export const COMMAND_UPLOAD_MODIFIED_FROM_TREE = 'wireferry.upload.modifiedFromTree';
 
 export const COMMAND_FORCE_UPLOAD_TO_ALL_PROFILES = 'wireferry.forceUpload.to.allProfiles';
 export const COMMAND_UPLOAD_TO_ALL_PROFILES = 'wireferry.upload.to.allProfiles';
