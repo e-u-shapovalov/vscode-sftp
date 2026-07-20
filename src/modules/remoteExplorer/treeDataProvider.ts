@@ -385,9 +385,10 @@ export default class RemoteTreeData
       // recompute against the fresh listing.
       node.writable = undefined;
       node.accessNote = undefined;
-      node.contentVerification = undefined;
-      node.contentVerificationKey = undefined;
-      node.hasModifiedDescendant = false;
+      // KEEP contentVerification / contentVerificationKey / hasModifiedDescendant across a refresh: the
+      // confirmed-M state is retained optimistically so a folded branch doesn't lose its badge. A stale
+      // verdict self-invalidates in decideStatus (its key pins both sides' size+mtime), and an expanded
+      // branch's fresh server merge re-confirms or clears it.
       // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
       if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
         node.status = undefined;
@@ -403,18 +404,29 @@ export default class RemoteTreeData
     this._elevatedKeys.clear();
     this._contentScheduler.empty();
     this._checkingContent.clear();
-    this._listedChildren.clear();
-    this._modifiedSources.clear();
+    // KEEP _listedChildren and _modifiedSources: the retained child sets let the next merge diff against
+    // what was there before (removing a deleted/now-synced source), and the retained M sources keep folded
+    // ancestors yellow until that merge re-derives them. Clearing them here was the root cause of M badges
+    // vanishing tree-wide on any refresh.
     this._listGeneration += 1;
     // refresh root
     if (!item) {
-      // clear cache
+      // Rebuild the root level (the config/profile set may have changed) but DO NOT wipe _map — keeping
+      // node identity and the retained M state means a folded branch survives a full refresh. _getRoots()
+      // replaces the root NODES with fresh ones, so re-derive ancestor badges from the retained
+      // _modifiedSources to restore each still-cached (incl. folded) parent's yellow immediately; an
+      // expanded branch's background merge then re-confirms or clears it against the fresh listing.
       this._roots = null;
       this._rootsMap = null;
+      this._getRoots();
+      const ancestorChanges = this._recomputeModifiedAncestors();
 
       // fire(undefined) tells VS Code to refresh the whole tree (EventEmitter.fire
       // requires an argument since @types/vscode bumped past 1.40).
       this._onDidChangeFolder.fire(undefined);
+      if (ancestorChanges.length > 0) {
+        this._onDidChangeDecorations.fire(ancestorChanges);
+      }
       return;
     }
 
@@ -917,9 +929,17 @@ export default class RemoteTreeData
         existing.localPath = localEntry.fspath;
         existing.localSize = localSize;
         existing.localMtime = localEntry.mtime;
-        existing.contentVerification = undefined;
-        existing.contentVerificationKey = undefined;
-        existing.status = provisionalStatus; // LocalOnly under a local-only parent, else unknown-yet
+        if (provisionalStatus !== undefined) {
+          // Under a LocalOnly parent the child can't be on the server — force LocalOnly and drop any stale
+          // verdict, as before.
+          existing.status = provisionalStatus;
+          existing.contentVerification = undefined;
+          existing.contentVerificationKey = undefined;
+        }
+        // Otherwise KEEP the last known status/verdict during this instant local-first paint: blanking it
+        // here is what made a badge flicker off on every expand/refresh. The background server merge (a
+        // moment later) re-confirms it via decideStatus, whose key pins both sides so a stale verdict can't
+        // mispaint a file that actually changed.
         items.push(existing);
         return;
       }
@@ -1727,7 +1747,10 @@ export default class RemoteTreeData
 
     this._roots = [];
     this._rootsMap = new Map();
-    this._map = new Map();
+    // Deliberately NOT clearing _map here: refresh() relies on the retained nodes (identity + confirmed-M
+    // state) so a full refresh doesn't blank every badge. _addRoot re-seeds the root nodes by key below;
+    // child nodes are re-used by the next merge. (Nodes under a removed config are harmless orphans that
+    // are never rendered — no path leads to them from the rebuilt roots.)
     const profilesAsRoots = getExtensionSetting().profilesAsRoots;
     getAllFileService().forEach(fileService => {
       const profiles = fileService.getAvailableProfiles();
