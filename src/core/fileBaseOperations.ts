@@ -142,15 +142,14 @@ export async function createDir(path: string, fs: FileSystem, option): Promise<v
 
   await fs.mkdir(path);
 
-  // Apply an explicit mode when dirPerm is configured — same rationale as filePerm in createFile:
-  // mkdir over SFTP otherwise leaves the new directory's mode to the server default/umask.
-  const dirMode = parseOctalMode(option ? option.dirPerm : undefined);
-  if (dirMode !== undefined) {
-    try {
-      await fs.chmod(path, dirMode);
-    } catch (error) {
-      logger.warn('failed to chmod new folder (dirPerm):', error);
-    }
+  // Default to 755 when dirPerm isn't configured: mkdir over SFTP otherwise leaves the new directory at the
+  // server default/umask (which can be world-writable). 755 = others enter/read, only you write. An explicit
+  // dirPerm (including a permissive one) still wins.
+  const dirMode = parseOctalMode(option ? option.dirPerm : undefined) ?? 0o755;
+  try {
+    await fs.chmod(path, dirMode);
+  } catch (error) {
+    logger.warn('failed to chmod new folder (dirPerm):', error);
   }
 }
 
@@ -178,16 +177,14 @@ export async function createFile(path: string, fs: FileSystem, option): Promise<
   emptyContent.push(null);
   await fs.put(emptyContent, path);
 
-  // Apply an explicit mode when filePerm is configured. A new empty file is otherwise created with the
-  // SFTP default (0o666, only trimmed by the server umask) — the "666" reported in issue #2. chmod
-  // after creation makes the result exact regardless of the server umask; a failure is non-fatal (the
-  // file already exists) and only warned, mirroring the dirPerm handling in the transfer path.
-  const fileMode = parseOctalMode(option ? option.filePerm : undefined);
-  if (fileMode !== undefined) {
-    try {
-      await fs.chmod(path, fileMode);
-    } catch (error) {
-      logger.warn('failed to chmod new file (filePerm):', error);
-    }
+  // Default to 644 when filePerm isn't configured: a new empty file is otherwise left at the SFTP default
+  // (0o666 — world-writable, the "666" reported in issue #2). 644 = owner-writable, others read-only (safe
+  // for web). chmod after creation makes the result exact regardless of the server umask; an explicit
+  // filePerm (including a permissive one) still wins. A failure is non-fatal and only warned.
+  const fileMode = parseOctalMode(option ? option.filePerm : undefined) ?? 0o644;
+  try {
+    await fs.chmod(path, fileMode);
+  } catch (error) {
+    logger.warn('failed to chmod new file (filePerm):', error);
   }
 }
