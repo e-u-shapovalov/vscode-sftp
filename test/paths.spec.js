@@ -16,6 +16,9 @@ describe('isRemoteSubpathOf', () => {
     expect(isRemoteSubpathOf('./', '../escape')).toBe(false);
     expect(isRemoteSubpathOf('./', '..')).toBe(false);
     expect(isRemoteSubpathOf('.', '../../etc/passwd')).toBe(false);
+    // an absolute child can't live under a relative root (forged / elevated URI must not read as inside)
+    expect(isRemoteSubpathOf('.', '/etc/passwd')).toBe(false);
+    expect(isRemoteSubpathOf('./', '/var/www/x')).toBe(false);
   });
 
   test('absolute root contains children and rejects outsiders + sibling-prefix', () => {

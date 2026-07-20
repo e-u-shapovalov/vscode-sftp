@@ -101,8 +101,8 @@ export default class RemoteDragAndDropController
       if (srcRemote === '/' || srcRemote === destRemoteDir) {
         return false;
       }
-      if (upath.dirname(srcRemote) === destRemoteDir) {
-        return false; // already in this folder
+      if (asPrefix(upath.dirname(srcRemote)) === asPrefix(destRemoteDir)) {
+        return false; // already in this folder (canonical compare tolerates a trailing-slash / relative root)
       }
       const srcPrefix = asPrefix(srcRemote);
       const destPrefix = asPrefix(destRemoteDir);
@@ -186,6 +186,13 @@ export default class RemoteDragAndDropController
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const destPath = upath.join(destRemoteDir, targetName);
+        // Defence in depth: never let a move collapse onto its own source. A trailing-slash / relative
+        // root could make destPath equal srcRemote, and the dedup branch (md5 of a file against itself
+        // always matches) would then delete the only copy. Treat it as a no-op.
+        if (upath.normalize(destPath) === upath.normalize(srcRemote)) {
+          outcome = 'skip';
+          break;
+        }
         let destStat: any;
         try {
           destStat = await remoteFs.lstat(destPath);

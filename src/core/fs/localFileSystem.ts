@@ -177,12 +177,25 @@ export default class LocalFileSystem extends FileSystem {
 
         const fileStatus = files.map(file => {
           const fspath = this.pathResolver.join(dir, file);
-          return this.lstat(fspath).then(stat =>
-            this.toFileEntry(fspath, stat)
+          return this.lstat(fspath).then(
+            stat => this.toFileEntry(fspath, stat),
+            err => {
+              // A child that vanished between readdir and lstat (ENOENT) is simply gone — skip just that
+              // entry rather than rejecting the whole listing, which would blank every sibling's local side
+              // (the tree would then mark them all RemoteOnly and drop their Modified state).
+              if (err && (err.code === 'ENOENT' || err.code === 2)) {
+                return null;
+              }
+              throw err;
+            }
           );
         });
 
-        resolve(Promise.all(fileStatus));
+        resolve(
+          Promise.all(fileStatus).then(
+            entries => entries.filter((e): e is FileEntry => e !== null)
+          )
+        );
       });
     });
   }

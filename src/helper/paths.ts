@@ -68,7 +68,10 @@ export function isRemoteSubpathOf(possiableParentPath: string, pathname: string)
   // surviving leading '..' is a genuine escape. Without this branch isRemoteSubpathOf('.', 'file') is
   // false and the containment guard throws on EVERY operation when remotePath is relative.
   if (parent === '.') {
-    return child !== '..' && child.indexOf('../') !== 0;
+    // Also reject an absolute child: a relative root can't contain "/etc/passwd", and a forged/elevated
+    // absolute remote URI must not read as "inside scope" (the second, local containment guard is a
+    // backstop, but warnOutsideScope uses this helper directly).
+    return child !== '..' && child.indexOf('../') !== 0 && !upath.isAbsolute(child);
   }
   if (child === parent) {
     return true;

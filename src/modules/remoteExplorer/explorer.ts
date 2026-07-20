@@ -45,6 +45,12 @@ function isUnderRoot(rootPath: string, target: string): boolean {
   if (root === '/') {
     return t.startsWith('/');
   }
+  // A relative root (default "./" → ".") mirrors isRemoteSubpathOf: any target that doesn't climb out
+  // (no leading "..") and isn't absolute is inside it. Without this branch a valid relative path like
+  // "dir/file" reads as "outside the remote root" and Open-by-Path refuses every relative input.
+  if (root === '.') {
+    return t !== '..' && !t.startsWith('../') && !upath.isAbsolute(t);
+  }
   return t === root || t.startsWith(root + '/');
 }
 

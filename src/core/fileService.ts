@@ -494,8 +494,15 @@ function getCompleteConfig(
     );
   }
 
-  // remove the './' part from a relative path
-  mergedConfig.remotePath = upath.normalize(mergedConfig.remotePath);
+  // Canonicalise the remote root. upath.normalize collapses "./foo" → "foo", "//" and "/./", but it does
+  // NOT strip a trailing slash ("/var/www/" stays) nor reduce a bare "./" to ".". Those two forms leave the
+  // root node keyed differently from every derived child/ancestor path (which are always join-canonical),
+  // which broke descendant-M on the root, getParent (phantom nodes), drag-and-drop self-move (data loss)
+  // and Open-by-Path. Strip the trailing slash (except a bare "/") so the root shares the tree's canonical
+  // form — path operations are invariant to it (relative/join give the same result either way).
+  const normalizedRemote = upath.normalize(mergedConfig.remotePath);
+  mergedConfig.remotePath =
+    normalizedRemote.length > 1 ? normalizedRemote.replace(/\/+$/, '') || '/' : normalizedRemote;
   if (mergedConfig.privateKeyPath) {
     mergedConfig.privateKeyPath = resolvePath(
       workspace,
@@ -736,9 +743,15 @@ export default class FileService {
       // baseDir is lowercased on Windows (#589); compare the prefix case-insensitively so a
       // mixed-case local path (e.g. C:\Users\…) is still recognised as local instead of being
       // misrouted to the remote branch — otherwise ignore patterns silently stop matching.
+      // Decide local vs remote by containment WITH a segment boundary. A raw prefix check treats the remote
+      // "/home/u/app-prod/x" as living under the local context "/home/u/app", mis-routes it to the local
+      // branch, and the resulting "../app-prod/x" then stops matching `ignore` — so a mirror sync-delete
+      // removes a file the config promised to keep. Require an exact match or a real separator after it.
+      const withSep = (p: string) => (p.endsWith(path.sep) ? p : p + path.sep);
       const isLocalPath = isWindows
-        ? normalizedPath.toLowerCase().indexOf(localContext.toLowerCase()) === 0
-        : normalizedPath.indexOf(localContext) === 0;
+        ? normalizedPath.toLowerCase() === localContext.toLowerCase() ||
+          normalizedPath.toLowerCase().startsWith(withSep(localContext).toLowerCase())
+        : normalizedPath === localContext || normalizedPath.startsWith(withSep(localContext));
       let relativePath;
       if (isLocalPath) {
         // local path — use upath so the relative path uses forward slashes. The `ignore`

@@ -429,6 +429,7 @@ export default class RemoteTreeData
   async refresh(item?: ExplorerItem): Promise<any> {
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
     // drop both cached results so they recompute on demand.
+    const statusCleared: vscode.Uri[] = [];
     this._map.forEach(node => {
       node.folderBytes = undefined;
       node.linkTarget = undefined;
@@ -441,6 +442,9 @@ export default class RemoteTreeData
       // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
       if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
         node.status = undefined;
+        // Repaint: clearing the flag alone doesn't re-run provideFileDecoration, so a stale "no access"
+        // yellow would otherwise linger on a folded node until it is next expanded.
+        statusCleared.push(node.resource.uri);
       }
     });
     // Drop cached server listings so a refresh re-reads BOTH sides — the local disk and the server. Bump the
@@ -458,6 +462,10 @@ export default class RemoteTreeData
     // ancestors yellow until that merge re-derives them. Clearing them here was the root cause of M badges
     // vanishing tree-wide on any refresh.
     this._listGeneration += 1;
+    // Repaint any node whose stuck Denied/Unknown we just cleared (covers both full and targeted refresh).
+    if (statusCleared.length > 0) {
+      this._onDidChangeDecorations.fire(statusCleared);
+    }
     // refresh root
     if (!item) {
       // Rebuild the root level (the config/profile set may have changed) but DO NOT wipe _map — keeping
