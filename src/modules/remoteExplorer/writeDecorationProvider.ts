@@ -63,12 +63,15 @@ export default class WriteDecorationProvider implements vscode.FileDecorationPro
     // the sync-status badges — you can't meaningfully sync what you can't read, and the action is "View as
     // root". An unreadable DIRECTORY fails to list and becomes Denied above, so this branch is files only.
     if (item.readable === false) {
+      // The 🔒 badge outranks M, so a modified-but-unreadable file would otherwise lose its "differs" cue —
+      // mention it in the tooltip (the M state itself is kept: Upload Modified still finds the file).
+      const alsoModified = item.status === NodeStatus.Modified;
       return {
         badge: '🔒',
         color: new vscode.ThemeColor('list.warningForeground'),
         tooltip: L({
-          en: 'You can’t read this file — right-click “View as root” to open it as the owner or root.',
-          ru: 'Нет прав на чтение файла — ПКМ → «Показать / открыть от root» (от владельца или root).',
+          en: `You can’t read this file${alsoModified ? ' (it also differs from the server)' : ''} — right-click “View as root” to open it as the owner or root.`,
+          ru: `Нет прав на чтение файла${alsoModified ? ' (и он отличается от сервера)' : ''} — ПКМ → «Показать / открыть от root» (от владельца или root).`,
         }),
       };
     }

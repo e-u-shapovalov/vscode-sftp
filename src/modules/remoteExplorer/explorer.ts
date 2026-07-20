@@ -88,7 +88,8 @@ export default class RemoteExplorer {
 
     // The toolbar refresh button always does a full refresh of the whole tree, so newly
     // created/removed files on the server show up regardless of the current selection.
-    registerCommand(context, COMMAND_REMOTEEXPLORER_REFRESH, () => this.refresh());
+    // No item → full toolbar refresh; with an item (e.g. the notice row's "Retry") → re-list just that folder.
+    registerCommand(context, COMMAND_REMOTEEXPLORER_REFRESH, (item?: ExplorerItem) => this.refresh(item));
     registerCommand(context, COMMAND_REMOTEEXPLORER_REFRESH_ACTIVE_FILE, () => this._refreshActiveRemoteFile());
     registerCommand(context, COMMAND_REMOTEEXPLORER_VIEW_CONTENT, (item: ExplorerItem) =>
       this._treeDataProvider.showItem(item)

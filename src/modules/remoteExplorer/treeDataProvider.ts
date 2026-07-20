@@ -23,6 +23,7 @@ import { getAllFileService } from '../serviceManager';
 import { getExtensionSetting } from '../ext';
 import { L } from '../../i18n';
 import logger from '../../logger';
+import app from '../../app';
 import { duSizes } from './folderSize';
 import { toLocalPath } from '../../helper';
 import { canUserWrite, canUserRead, relationTo, OwnershipRelation, UserIdentity } from '../../helper/identity';
@@ -275,6 +276,7 @@ function formatTime(ms: number): string {
 function buildAccessNote(
   rel: OwnershipRelation,
   writable: boolean,
+  readable: boolean | undefined,
   group: string | undefined
 ): string {
   const g = group ? (L({ en: `group '${group}'`, ru: `группе «${group}»` })) : L({ en: 'the group', ru: 'группе' });
@@ -286,6 +288,17 @@ function buildAccessNote(
         ? L({ en: `via ${g}`, ru: `через ${g}` })
         : L({ en: 'world-writable', ru: 'доступно всем' });
     return L({ en: `Your access: read-write (${reason})`, ru: `Ваш доступ: запись (${reason})` });
+  }
+  // Can't even read (drives the 🔒 badge): a "read-only" note here would contradict the lock — e.g. mode
+  // 000, or 600 root:root for another user. Report "no access" so the tooltip and the badge agree.
+  if (readable === false) {
+    const why =
+      rel === 'owner'
+        ? L({ en: 'you own it, but no read/write bits', ru: 'вы владелец, но нет битов чтения/записи' })
+        : rel === 'group'
+        ? L({ en: `in ${g}, but no read/write bits`, ru: `в ${g}, но нет битов чтения/записи` })
+        : L({ en: `not the owner and not in ${g}`, ru: `не владелец и не в ${g}` });
+    return L({ en: `Your access: none — can't read — ${why}`, ru: `Ваш доступ: нет — нельзя читать — ${why}` });
   }
   const reason =
     rel === 'owner'
@@ -631,7 +644,8 @@ export default class RemoteTreeData
       en: 'The server listing failed — only locally-known entries are shown. Retry.',
       ru: 'Не удалось получить список с сервера — показаны только локально известные элементы. Повторить.',
     });
-    ti.command = { command: COMMAND_REMOTEEXPLORER_REFRESH, title: 'Refresh', arguments: [] };
+    // Re-list just THIS folder, not the whole tree (the label says "Retry", not "Refresh everything").
+    ti.command = { command: COMMAND_REMOTEEXPLORER_REFRESH, title: 'Refresh', arguments: [item.parent] };
     return ti;
   }
 
@@ -812,13 +826,17 @@ export default class RemoteTreeData
         if (elevated !== undefined) {
           fileEntries = elevated;
         } else {
-          // Mark a no-access directory even on the navigation path, so a reveal into it still gets the yellow
-          // "right-click View as root" hint (SFTP) instead of throwing with no cue. FTP can't elevate → "?".
-          if (isPermissionDeniedListing(e)) {
-            (item as ExplorerChild).status =
-              config.protocol === 'sftp' ? NodeStatus.Denied : NodeStatus.Unknown;
+          // Surface the failure the same way the background kick does, so the "list not complete" notice (and
+          // the Denied/Unknown badge) shows on the COMPLETE path too — refresh / recheck / navigation / reveal
+          // — not only after a UI expand. A genuine "not found" (a local-only dir with no server path) is left
+          // alone; any other error marks the folder: SFTP permission → Denied (View as root), else Unknown
+          // (Retry). Fire the folder too so getChildren re-runs and prepends the notice row.
+          if (!isNotFoundListing(e)) {
+            const denied = isPermissionDeniedListing(e) && config.protocol === 'sftp';
+            (item as ExplorerChild).status = denied ? NodeStatus.Denied : NodeStatus.Unknown;
             this._listingFailed.add(key);
             this._onDidChangeDecorations.fire([item.resource.uri]);
+            this._onDidChangeFolder.fire(item);
           }
           throw e;
         }
@@ -1636,7 +1654,7 @@ export default class RemoteTreeData
         c.writable = writable;
         c.readable = readable;
         if (writable !== undefined) {
-          c.accessNote = buildAccessNote(rel, writable, c.group);
+          c.accessNote = buildAccessNote(rel, writable, readable, c.group);
         }
         changed.push(c.resource.uri);
       }
@@ -1692,7 +1710,7 @@ export default class RemoteTreeData
       c.writable = writable;
       c.readable = readable;
       if (writable !== undefined) {
-        c.accessNote = buildAccessNote(rel, writable, c.group);
+        c.accessNote = buildAccessNote(rel, writable, readable, c.group);
       }
       this._onDidChangeDecorations.fire([uri]);
       this._onDidChangeFolder.fire(item);
@@ -1965,9 +1983,15 @@ export default class RemoteTreeData
           }
         });
       } else {
-        // Plain config (or profiles-as-roots disabled): a single root for the active/only config.
+        // Plain config (or profiles-as-roots disabled): a single root for the active/only config. Carry the
+        // ACTIVE profile name (when the config defines profiles) into the root identity — otherwise the two
+        // profiles of one service share the same URI key (remoteId + fsPath), and after Set Profile the
+        // retained _map nodes of the PREVIOUS profile would be adopted by the new root: cross-profile M / RO
+        // / 🔒 and, via Upload Modified, a write to the wrong host. A distinct key makes the old nodes
+        // orphan (findRoot returns null for them), so they neither render nor upload.
+        const activeProfile = profiles.length > 0 ? app.state.profile || undefined : undefined;
         try {
-          this._addRoot(fileService, fileService.getConfig(), undefined);
+          this._addRoot(fileService, fileService.getConfig(), activeProfile);
         } catch (e) {
           logger.warn(`remoteExplorer: skip root: ${(e && (e as Error).message) || e}`);
         }
