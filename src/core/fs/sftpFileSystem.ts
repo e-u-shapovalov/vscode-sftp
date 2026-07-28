@@ -306,7 +306,18 @@ export default class SFTPFileSystem extends RemoteFileSystem {
         const parentPath = this.pathResolver.dirname(dir);
         if (parentPath === dir) throw err;
         await this.ensureDir(parentPath);
-        await this.mkdir(dir);
+        // Building the parent chain takes round trips, and anyone else uploading into the same new
+        // folder can finish creating it in that window — so "already exists" here is an ordinary
+        // outcome, not a failure. Same check the default branch makes: it only counts as an error
+        // if what sits there isn't a directory.
+        try {
+          await this.mkdir(dir);
+        } catch (mkdirErr) {
+          const stat = await this.lstat(dir).catch(() => null);
+          if (!stat || stat.type !== FileType.Directory) {
+            throw mkdirErr;
+          }
+        }
         break;
 
       // In the case of any other error, just see if there's a dir
