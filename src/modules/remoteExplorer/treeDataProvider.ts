@@ -548,11 +548,25 @@ export default class RemoteTreeData
     // snapshots and their queued content checks.
     const scope = item ? this._invalidationKeys(item) : undefined;
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
-    // drop both cached results so they recompute on demand.
+    // drop both cached results so they recompute on demand. For a targeted refresh that means the
+    // invalidated subtree PLUS every ancestor up to the root — those really did change size when
+    // something below them changed. Sibling branches keep theirs: with sort-by-size on, wiping the
+    // whole map meant one saved file re-ran a server-side `du` over every folder in the root.
+    const sizeScope = scope && item ? new Set(scope) : undefined;
+    if (sizeScope && item) {
+      const root = this.findRoot(item.resource.uri);
+      if (root) {
+        ancestorPaths(item.resource.fsPath, root.resource.fsPath).forEach(p => {
+          sizeScope.add(UResource.updateResource(item.resource, { remotePath: p }).uri.query);
+        });
+      }
+    }
     const statusCleared: vscode.Uri[] = [];
     this._map.forEach(node => {
-      node.folderBytes = undefined;
-      node.linkTarget = undefined;
+      if (!sizeScope || sizeScope.has(node.resource.uri.query)) {
+        node.folderBytes = undefined;
+        node.linkTarget = undefined;
+      }
       // KEEP contentVerification / contentVerificationKey / hasModifiedDescendant AND writable / accessNote
       // across a refresh: the confirmed-M state (and the "read-only for you" hint that "Upload Modified"
       // uses to route RO files to the root path) is retained optimistically so a folded branch doesn't
