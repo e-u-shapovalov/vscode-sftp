@@ -770,7 +770,8 @@ export default class RemoteTreeData
             title: 'Open Symlink Target',
           }
         : {
-            command: getExtensionSetting().downloadWhenOpenInRemoteExplorer
+            // Already read at the top of getTreeItem — no need to walk the whole configuration twice.
+            command: setting.downloadWhenOpenInRemoteExplorer
               ? COMMAND_REMOTEEXPLORER_EDITINLOCAL
               : COMMAND_REMOTEEXPLORER_VIEW_CONTENT,
             arguments: [item],

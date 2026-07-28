@@ -23,6 +23,7 @@ import { removeRemote, renameRemote } from './fileHandlers';
 import RemoteExplorer from './modules/remoteExplorer';
 import { runLegacyDoctor } from './modules/legacyDoctor';
 import { initSecrets } from './modules/secrets';
+import { initExtensionSettingCache } from './modules/ext';
 import { REPORT_SCHEME, reportProvider } from './ui/operationReport';
 
 async function setupWorkspaceFolder(dir) {
@@ -143,6 +144,9 @@ function registerRenameSync(context: vscode.ExtensionContext) {
 export async function activate(context: vscode.ExtensionContext) {
   // Wire the OS keychain (SecretStorage) before anything reads/writes credentials.
   initSecrets(context);
+  // Turn on the settings snapshot BEFORE the early return for a folderless window below — otherwise
+  // such a window keeps re-reading the configuration on every log call for the whole session.
+  initExtensionSettingCache(context);
 
   try {
     initCommands(context);

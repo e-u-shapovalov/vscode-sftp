@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getUserSetting } from '../host';
+import { invalidateAlertLangCache } from '../i18n';
 import { EXTENSION_NAME } from '../constants';
 
 // The extension was renamed sftp-link -> wireferry after a forced Marketplace takedown. Settings
@@ -58,7 +59,7 @@ function normalizeOperationLog(value: unknown): OperationLogMode {
   return value === 'output' || value === 'off' ? value : 'tab';
 }
 
-export function getExtensionSetting(): ExtensionSetting {
+function readAllSettings(): ExtensionSetting {
   return {
     debug: readSetting<boolean>('debug', false),
     downloadWhenOpenInRemoteExplorer: readSetting<boolean>(
@@ -73,4 +74,45 @@ export function getExtensionSetting(): ExtensionSetting {
     sortBySizeInTree: readSetting<boolean>('remoteExplorer.sortBySize', false),
     profilesAsRoots: readSetting<boolean>('remoteExplorer.profilesAsRoots', true),
   };
+}
+
+// A settings snapshot that lives until the next configuration change. Building it costs two
+// getConfiguration + inspect calls per key (the legacy-prefix fallback), and the tree render path
+// asks for it on every visible row — plus every log call checks `debug` through it.
+//
+// Until initExtensionSettingCache() runs the cache stays OFF and reads go straight through. That is
+// deliberate: the old `debug` bug was a value captured once at module load, which then ignored the
+// setting until a window reload. Here nothing can freeze at import time even if something reads
+// before activation, and once the cache IS on it is thrown away the moment the user edits any
+// wireferry.* or sftp.* key — so debug, operationLog and alertLanguage stay live as documented.
+let cachedSetting: ExtensionSetting | undefined;
+let cacheEnabled = false;
+
+export function getExtensionSetting(): ExtensionSetting {
+  if (!cacheEnabled) {
+    return readAllSettings();
+  }
+  if (!cachedSetting) {
+    cachedSetting = readAllSettings();
+  }
+  return cachedSetting;
+}
+
+export function initExtensionSettingCache(context: vscode.ExtensionContext): void {
+  cacheEnabled = true;
+  cachedSetting = undefined;
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration(EXTENSION_NAME) || e.affectsConfiguration(LEGACY_EXTENSION_NAME)) {
+        cachedSetting = undefined;
+        invalidateAlertLangCache();
+      }
+    }),
+    {
+      dispose: () => {
+        cacheEnabled = false;
+        cachedSetting = undefined;
+      },
+    }
+  );
 }
