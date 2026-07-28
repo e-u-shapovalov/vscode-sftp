@@ -225,36 +225,56 @@ function rootKey(remoteId: Id, profile?: string): string {
   return `${remoteId}|${profile || ''}`;
 }
 
-function dirFirstSort(fileA: ExplorerItem, fileB: ExplorerItem) {
-  if (fileA.isDirectory === fileB.isDirectory) {
-    return fileA.resource.fsPath.localeCompare(fileB.resource.fsPath);
-  }
+// One collator for the module. `localeCompare()` with no arguments is specified as equivalent to
+// `new Intl.Collator().compare()`, so the visible order does not shift by a single entry — we just
+// stop paying for the wrapper on every comparison. Plain `<`/`>` would be faster still, but it sorts
+// by code point: every Cyrillic name would drop below every Latin one.
+const nameCollator = new Intl.Collator();
 
-  return fileA.isDirectory ? -1 : 1;
+// Children of one directory share their whole path up to the last slash, so comparing the basename
+// yields the same order for a fraction of the work. The key is computed once per entry rather than
+// on every comparison — a sort does O(n log n) comparisons but has only n entries.
+function sortSiblings(items: ExplorerItem[]): ExplorerItem[] {
+  const decorated = items.map(item => {
+    const p = item.resource.fsPath;
+    return { item, name: p.slice(p.lastIndexOf('/') + 1) };
+  });
+  decorated.sort((a, b) => {
+    if (a.item.isDirectory === b.item.isDirectory) {
+      return nameCollator.compare(a.name, b.name);
+    }
+    return a.item.isDirectory ? -1 : 1;
+  });
+  return decorated.map(d => d.item);
 }
+
+// Constant tables, hoisted out of the formatters below: both run for every visible row on every
+// repaint, and there is no reason to rebuild the same arrays each time.
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+const MODE_BITS = [0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001];
 
 // Human-readable byte size, e.g. 9525 -> "9.3 KB", 500 -> "500 B". Whole bytes show no decimals;
 // larger units show one decimal under 10 (9.3 MB) and none at/above (24 MB).
 function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let value = bytes;
   let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
+  while (value >= 1024 && i < BYTE_UNITS.length - 1) {
     value /= 1024;
     i += 1;
   }
   const text = i === 0 ? String(value) : value.toFixed(value < 10 ? 1 : 0);
-  return `${text} ${units[i]}`;
+  return `${text} ${BYTE_UNITS[i]}`;
 }
 
 function formatMode(mode: number): string {
   // tslint:disable-next-line:no-bitwise
   const simpleMode = mode & 0o777;
   const octal = simpleMode.toString(8).padStart(3, '0');
-  const symbols = [0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001]
+  let symbols = '';
+  for (let index = 0; index < MODE_BITS.length; index += 1) {
     // tslint:disable-next-line:no-bitwise
-    .map((bit, index) => (simpleMode & bit ? 'rwx'[index % 3] : '-'))
-    .join('');
+    symbols += simpleMode & MODE_BITS[index] ? 'rwx'[index % 3] : '-';
+  }
   return `${octal} (${symbols})`;
 }
 
@@ -370,6 +390,12 @@ export default class RemoteTreeData
   // they let a re-list remove a deleted/now-synced source before recomputing recursive parent M badges.
   private _listedChildren = new Map<string, Set<string>>();
   private _modifiedSources = new Set<string>();
+  // Ancestor keys (uri.query) per Modified source. The list depends only on the source's own path and
+  // its root's remotePath — both pinned in the cache entry — so rebuilding it on every verdict is pure
+  // waste: each ancestor costs a full resource round-trip (querystring encode + Uri.parse + a second
+  // query parse in the constructor), and that dominates the recompute. The `_map.has` filter stays
+  // OUTSIDE the memo on purpose: `_map` only grows, and a parent cached later must still light up.
+  private _ancestorKeyMemo = new Map<string, { rootPath: string; keys: string[] }>();
   // Cached server listing per parent uri.query, so the instant local-first snapshot can be replaced by the
   // full server-merged listing once the server responds. Cleared by refresh(). No entry = not fetched yet.
   private _remoteListing: Map<string, FileEntry[]> = new Map();
@@ -1088,7 +1114,7 @@ export default class RemoteTreeData
     }
 
     if (!sortBySize) {
-      return items.sort(dirFirstSort);
+      return sortSiblings(items);
     }
     // Files and folders sort as SEPARATE groups (folders first, then files), each by size descending —
     // so the biggest folder tops the folders and the biggest file tops the files, never intermixed.
@@ -1096,7 +1122,7 @@ export default class RemoteTreeData
     const files = items.filter(i => !i.isDirectory);
     const folderBytesOf = (i: ExplorerItem) => (typeof i.folderBytes === 'number' ? i.folderBytes : -1);
     dirs.sort(
-      (a, b) => folderBytesOf(b) - folderBytesOf(a) || a.resource.fsPath.localeCompare(b.resource.fsPath)
+      (a, b) => folderBytesOf(b) - folderBytesOf(a) || nameCollator.compare(a.resource.fsPath, b.resource.fsPath)
     );
     // Sort files by their effective size — the server size when present, else the local-only file's size
     // (which is what the row actually shows), so a large local-only file isn't parked at the bottom.
@@ -1105,7 +1131,7 @@ export default class RemoteTreeData
       return typeof c.size === 'number' ? c.size : typeof c.localSize === 'number' ? c.localSize : 0;
     };
     files.sort(
-      (a, b) => fileBytesOf(b) - fileBytesOf(a) || a.resource.fsPath.localeCompare(b.resource.fsPath)
+      (a, b) => fileBytesOf(b) - fileBytesOf(a) || nameCollator.compare(a.resource.fsPath, b.resource.fsPath)
     );
     return dirs.concat(files);
   }
@@ -1162,7 +1188,7 @@ export default class RemoteTreeData
     });
     // Repaint (clear) any stale badge while we wait for the fresh server listing.
     this._onDidChangeDecorations.fire(items.map(i => i.resource.uri));
-    return items.sort(dirFirstSort);
+    return sortSiblings(items);
   }
 
   private _uniqueUris(uris: vscode.Uri[]): vscode.Uri[] {
@@ -1279,10 +1305,21 @@ export default class RemoteTreeData
       if (!root) {
         return;
       }
-      ancestorPaths(source.resource.fsPath, root.resource.fsPath).forEach(path => {
-        const resource = UResource.updateResource(source.resource, { remotePath: path });
-        if (this._map.has(resource.uri.query)) {
-          ancestorKeys.add(resource.uri.query);
+      const rootPath = root.resource.fsPath;
+      let memo = this._ancestorKeyMemo.get(sourceKey);
+      if (!memo || memo.rootPath !== rootPath) {
+        // Rebuilt only when the source is new to us or its root's remotePath changed.
+        memo = {
+          rootPath,
+          keys: ancestorPaths(source.resource.fsPath, rootPath).map(
+            path => UResource.updateResource(source.resource, { remotePath: path }).uri.query
+          ),
+        };
+        this._ancestorKeyMemo.set(sourceKey, memo);
+      }
+      memo.keys.forEach(key => {
+        if (this._map.has(key)) {
+          ancestorKeys.add(key);
         }
       });
     });
@@ -1964,6 +2001,8 @@ export default class RemoteTreeData
 
     this._roots = [];
     this._rootsMap = new Map();
+    // Roots are being rebuilt, so a root's remotePath may differ from what the memo was keyed on.
+    this._ancestorKeyMemo.clear();
     // Deliberately NOT clearing _map here: refresh() relies on the retained nodes (identity + confirmed-M
     // state) so a full refresh doesn't blank every badge. _addRoot re-seeds the root nodes by key below;
     // child nodes are re-used by the next merge. (Nodes under a removed config are harmless orphans that
@@ -2000,8 +2039,8 @@ export default class RemoteTreeData
     this._roots.sort(
       (a, b) =>
         a.explorerContext.config.remoteExplorer.order - b.explorerContext.config.remoteExplorer.order ||
-        (a.explorerContext.fileService.name || '').localeCompare(b.explorerContext.fileService.name || '') ||
-        (a.explorerContext.profile || '').localeCompare(b.explorerContext.profile || '')
+        nameCollator.compare(a.explorerContext.fileService.name || '', b.explorerContext.fileService.name || '') ||
+        nameCollator.compare(a.explorerContext.profile || '', b.explorerContext.profile || '')
     );
     return this._roots;
   }
