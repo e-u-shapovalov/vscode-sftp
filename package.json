@@ -2,7 +2,7 @@
   "name": "wireferry",
   "displayName": "WireFerry — SFTP & FTP Sync",
   "description": "%extension.description%",
-  "version": "2.8.1",
+  "version": "2.8.2",
   "publisher": "EvgeniiShapovalov",
   "author": "EvgeniiShapovalov (https://github.com/e-u-shapovalov)",
   "engines": {
@@ -1191,7 +1191,6 @@
     "yargs-parser": "^20.2.4"
   },
   "dependencies": {
-    "async": "^3.2.6",
     "fs-extra": "^10.1.0",
     "ftp": "^0.3.10",
     "ignore": "^5.3.2",
