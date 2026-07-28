@@ -63,5 +63,47 @@ describe('legacy sftp.* settings fallback', () => {
     expect(setting.profilesAsRoots).toBe(true);
     expect(setting.debug).toBe(false);
     expect(setting.showSizeInTree).toBe(false);
+    expect(setting.operationLog).toBe('tab');
+  });
+});
+
+describe('operationLog normalisation', () => {
+  beforeEach(() => {
+    mockSettings.wireferry = {};
+    mockSettings.sftp = {};
+  });
+
+  test.each(['tab', 'output', 'off'])('keeps the valid value %p', value => {
+    mockSettings.wireferry.operationLog = value;
+    expect(getExtensionSetting().operationLog).toBe(value);
+  });
+
+  // settings.json is hand-editable and VS Code only WARNS on an out-of-enum value — it still hands
+  // it back. Anything we don't recognise has to land on the default, never on "report nowhere".
+  test.each([['unknown mode', 'nowhere'], ['wrong case', 'OFF'], ['stray whitespace', 'off ']])(
+    'falls back to tab on %s',
+    (_label, value) => {
+      mockSettings.wireferry.operationLog = value;
+      expect(getExtensionSetting().operationLog).toBe('tab');
+    }
+  );
+
+  test.each([['null', null], ['a number', 42], ['a boolean', true], ['an object', {}], ['an array', []], ['an empty string', '']])(
+    'falls back to tab on %s',
+    (_label, value) => {
+      mockSettings.wireferry.operationLog = value;
+      expect(getExtensionSetting().operationLog).toBe('tab');
+    }
+  );
+
+  test('honours the legacy sftp.* prefix like every other setting', () => {
+    mockSettings.sftp.operationLog = 'output';
+    expect(getExtensionSetting().operationLog).toBe('output');
+  });
+
+  test('explicit wireferry.* wins over legacy sftp.*', () => {
+    mockSettings.wireferry.operationLog = 'off';
+    mockSettings.sftp.operationLog = 'output';
+    expect(getExtensionSetting().operationLog).toBe('off');
   });
 });

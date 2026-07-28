@@ -52,7 +52,9 @@ function readSetting<T>(key: string, defaultValue: T): T {
   return config.get<T>(key, defaultValue);
 }
 
-function normalizeOperationLog(value: string): OperationLogMode {
+// `unknown`, not `string`: a hand-edited settings.json can put null, a number or an object here and
+// config.get hands it back verbatim, so the parameter type has to admit that.
+function normalizeOperationLog(value: unknown): OperationLogMode {
   return value === 'output' || value === 'off' ? value : 'tab';
 }
 

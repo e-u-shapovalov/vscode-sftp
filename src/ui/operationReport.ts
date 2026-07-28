@@ -153,15 +153,17 @@ function statsDiffer(a: FileSideStat | null | undefined, b: FileSideStat | null 
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 
-function renderRows(kind: ReportKind, rows: Row[]): string {
-  const kindLabel = kind === 'upload'
+function kindLabel(kind: ReportKind): string {
+  return kind === 'upload'
     ? L({ en: 'upload', ru: 'выгрузка' })
     : kind === 'download'
     ? L({ en: 'download', ru: 'скачивание' })
     : L({ en: 'delete', ru: 'удаление' });
+}
 
+function renderRows(kind: ReportKind, rows: Row[]): string {
   const now = formatDate(Date.now());
-  const heading = `${kind}.log — ${now}, ${rows.length} ${L({ en: 'entries', ru: 'записей' })}  [${kindLabel}]`;
+  const heading = `${kind}.log — ${now}, ${rows.length} ${L({ en: 'entries', ru: 'записей' })}  [${kindLabel(kind)}]`;
   const separator = '─'.repeat(Math.max(heading.length, 60));
 
   const lines: string[] = [heading, separator, ''];
@@ -224,19 +226,56 @@ export async function openTextReport(fileName: string, body: string): Promise<vo
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
+// A run that lost files must stay visible even when the log itself is muted. Some failures reach the
+// user ONLY through the report: a permission-denied upload takes the recovery branch instead of the
+// error toast (serviceManager.afterTransfer), and that branch goes quiet for every file after the
+// first while the single-dialog gate is held — Upload Modified holds it for the whole batch on
+// purpose. So `off`/`output` suppress the log, never the fact that something failed: one toast with
+// the tally, and the full log one click away for whoever wants it.
+function warnAboutFailures(kind: ReportKind, rows: Row[], body: string): void {
+  const failedCount = rows.filter(r => r.failed).length;
+  if (failedCount === 0) {
+    return;
+  }
+  const okCount = rows.length - failedCount;
+  const showLog = L({ en: 'Show log', ru: 'Показать журнал' });
+  // Fire-and-forget: awaiting the toast would keep the command "running" until the user dismisses it.
+  void Promise.resolve(
+    vscode.window.showWarningMessage(
+      L({
+        en: `WireFerry ${kindLabel(kind)}: ${okCount} ok, ${failedCount} failed.`,
+        ru: `WireFerry, ${kindLabel(kind)}: успешно ${okCount}, с ошибкой ${failedCount}.`,
+      }),
+      showLog
+    )
+  ).then(pick => {
+    if (pick === showLog) {
+      return openTextReport(`${kind}.log`, body);
+    }
+    return undefined;
+  }, () => {
+    // A display failure must never surface as an error from the operation itself.
+  });
+}
+
 // The automatic post-transfer log. Unlike the on-demand reports (tree.txt, folder-size.txt, the
 // needs-root preview) nobody asked for this one, so `wireferry.operationLog` decides where it goes:
 // a tab (default), the output channel, or nowhere. Read live so a change applies without a reload.
 async function openReport(kind: ReportKind, rows: Row[]): Promise<void> {
   const mode = getExtensionSetting().operationLog;
+  // Rendered up front in every mode: `off` still needs a body behind the "Show log" button, and the
+  // renderer is pure, so paying for it costs nothing but the string.
+  const body = renderRows(kind, rows);
+
   if (mode === 'off') {
+    warnAboutFailures(kind, rows, body);
     return;
   }
 
-  const body = renderRows(kind, rows);
   if (mode === 'output') {
-    // Append only — showing the panel would be the very interruption this mode exists to avoid.
+    // Append only — revealing the panel would be the very interruption this mode exists to avoid.
     output.print(`\n${body}`);
+    warnAboutFailures(kind, rows, body);
     return;
   }
 
