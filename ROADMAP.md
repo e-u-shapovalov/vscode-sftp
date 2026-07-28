@@ -119,11 +119,51 @@ Spot-checked against the code. All inherited from upstream unless noted.
 Investigated and **not** a bug (don't re-file): the service trie longest-prefix lookup is
 token-split and correct.
 
+## Performance — measured, not yet done (from the 2.8.3 pass)
+The 2.8.3 release took the cheap and safe half of a performance review. What is left was investigated
+to the same depth and deliberately deferred; each entry records WHY, so nobody re-derives it.
+
+- **Batch the content-check MD5** — one `md5sum` per directory instead of one SSH exec per file, the
+  way `folderSize.ts` already batches `du`. Real caveats found while designing it: `md5 -q` cannot be
+  used in a batch (it prints no path, and an unreadable file emits no line at all, so every later hash
+  binds to the wrong file — use plain `md5` and match on the echoed path); `2>/dev/null || true` is
+  mandatory or one `Permission denied` makes exec discard the whole directory's stdout; the argument
+  list needs chunking against `ARG_MAX`; and the batch **loses the four-way server-side parallelism**
+  the current per-file scheduler has, so on a folder of large files it may be slower. Needs measurement
+  before it ships, and pairs badly with the per-verdict repaint below.
+- **Publish content verdicts in batches.** Each finished verdict fires a parent-folder event, so a
+  folder with N ambiguous files repaints up to N times. Worth doing WITH the batch above, not after.
+- **One `stat` instead of `open`+`fstat`+`close`** when preserving an existing target's mode
+  (`transferTask`). Two of the three round trips are pure overhead. Needs a new method on the
+  `FileSystem` abstraction (four implementations) and care with symlink semantics: `stat` follows the
+  link like the current pair does, `lstat` would not.
+- **Bound the transfer/sync directory walk.** `transferFolder`/`_sync` recurse through an unbounded
+  `Promise.all`; same in the recursive `rmdir`. NOTE, against the obvious instinct: `MaxSessions` is
+  NOT the issue — SFTP multiplexes over one channel by request id and the walk opens no extra
+  sessions. The server answers serially, so pipelining hides RTT and a SMALL cap is a measurable
+  REGRESSION (≈`T = (N/K)×RTT`: for 2000 directories at 50 ms RTT, K=8 costs about +37 s). Start at 64
+  if this is attempted. Also: wrapping the RECURSION in a pool self-deadlocks (a parent holds a slot
+  while waiting for children) — the pool may only ever hold one leaf operation, and the wrappers
+  belong in `transfer.ts`, never inside `FileSystem`.
+- **Get the synchronous filesystem calls out of per-file paths** — `toRemotePath` calls
+  `realpathSync.native()` twice per mapping, and the operation report `statSync`s every finished file.
+  Both block the extension host; painful on UNC/SMB.
+- **Lazier activation.** `onStartupFinished` plus an eager `require.context` of every command module
+  means a window with no config still pays for all of it. Dropping the event needs `onView` /
+  per-command activation to keep the status bar and welcome view working.
+- **Joi at runtime.** The schema is built at module load and validated on every `getConfig()`.
+  Validating only on config read/change — or generating a standalone validator at build time — would
+  cut both startup and the repeated work. A version bump alone changes nothing.
+- Small and confirmed: the status-bar spinner runs its own 80 ms timer instead of the native
+  `$(sync~spin)` codicon; `path.basename` is recomputed per progress chunk; routine per-file `info`
+  logging formats and appends for every file; `TreeView.badge` (a Modified count on the view title)
+  is unused.
+
 ## Architecture — the highest-leverage fix
 A single **per-service transfer pipeline**: route every source (save, watcher, command, delete)
 through one debounced queue keyed by normalized path with an in-flight lock. This collapses the
-double-upload race, the `Set<Uri>` dedupe bug, and the per-call `Scheduler` concurrency issue into one
-fix.
+double-upload race and the per-call `Scheduler` concurrency issue into one fix. (The `Set<Uri>` dedupe
+bug that used to be listed here was fixed in 2.8.3 — the watcher queue is keyed by normalised path.)
 
 ## Considered for 1.0.1 (shipped)
 - **Windows `ignore` fix** — `fileService.ts` built the local relative path with `path.relative`
