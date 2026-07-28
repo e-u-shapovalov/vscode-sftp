@@ -73,14 +73,19 @@ Two related blockers were **fixed in 1.0.0** (sshClient `.on('close', this.end()
   offset` test is `skip`ped until then.
 - ✅ **Every "Upload to all profiles" variant confirms**, including active file/folder, project and
   force upload.
-- **Inverted context menu** for `downloadWhenOpenInRemoteExplorer` (`treeDataProvider.ts:124` vs
-  `package.json` menu `when`).
+- ~~**Inverted context menu** for `downloadWhenOpenInRemoteExplorer`.~~ Investigated and **not** a bug
+  (don't re-file): the menu deliberately offers the OTHER action to whatever a click does. With the
+  setting on, a click downloads (`treeDataProvider.ts:747` → `editInLocal`) and the menu offers
+  "View Content" (`package.json` `when: config.wireferry.downloadWhenOpenInRemoteExplorer`); with it
+  off, the pair is reversed. Both commands stay reachable either way.
 - ✅ **FIXED: delete/chmod in sync are now awaited** (`transfer.ts`). Deletions are collected into the
   `Promise.all` the command waits on (so success is no longer reported before they finish) and made
   non-fatal via try/catch in `removeFile`; the `dirPerm` chmod is awaited with its own try/catch so a
   chmod failure is logged rather than escaping as an unhandled rejection.
-- **`removeRemote` awaits `undefined`** for unknown stat types (`remove.ts` switch default) — UI then
-  refreshes as if the delete succeeded. Throw / skip `afterHandle` instead.
+- ✅ **FIXED (2.6.3): `removeRemote` no longer awaits `undefined`** for unknown stat types. An
+  unremovable kind (socket, device, fifo → `FileType.Unknown`) is now rejected with a thrown error
+  BEFORE the report row and the `afterHandle` refresh claim a deletion, and the switch `default`
+  throws as a defensive backstop for any future `FileType` (`remove.ts`).
 
 ## Known bugs (pre-existing)
 Spot-checked against the code. All inherited from upstream unless noted.
@@ -103,8 +108,8 @@ Spot-checked against the code. All inherited from upstream unless noted.
   remote-only files that never existed locally. Show paths; handle folders explicitly.
 - Low: `transferTask` `open(target,'w')` truncates the server file before reading mode when
   `useTempFile:false` (lost original if `put` then fails); `diff` from Remote Explorer shows an empty
-  pane for files with no local copy; `replaceHomePath` only expands `~/` not `~\` (Windows
-  `privateKeyPath`); duplicate/empty `context` silently overwrites in the service trie.
+  pane for files with no local copy; duplicate/empty `context` silently overwrites in the service
+  trie. (`replaceHomePath` was fixed in 2.6.3 — it expands the Windows `~\` prefix as well as `~/`.)
 - Resource/leak items (TreeView/EventEmitter/StatusBar/outputChannel not disposed; `_map` unbounded;
   FD/stream leaks in `transferTask`/`fileBaseOperations`; zombie SSH hop clients; listener leak on
   reconnect) — audit `dispose()` coverage holistically.
