@@ -764,7 +764,7 @@ export default class RemoteExplorer {
     const cmd = `find ${shQuote(dir)} -mindepth 1 -maxdepth 1 -printf ${shQuote(FIND_PRINTF)}`;
     // Capture the generation BEFORE the (slow) su fetch: if the user hits Refresh while it runs, the tree
     // bumps its generation and setElevatedListing drops this now-stale snapshot instead of resurrecting it.
-    const gen = this._treeDataProvider.listGeneration;
+    const gen = this._treeDataProvider.listGenerationFor(item);
     const { code, output } = await execAsRoot(remotefs, host, cmd, asUser, true);
     if (code !== 0) {
       showErrorMessage(

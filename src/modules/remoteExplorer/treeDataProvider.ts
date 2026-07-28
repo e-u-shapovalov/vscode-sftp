@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as querystring from 'querystring';
 import { showTextDocument, setContextValue } from '../../host';
 import {
   upath,
@@ -402,8 +403,15 @@ export default class RemoteTreeData
   // In-flight server listings keyed by parent uri.query — a SHARED promise so the instant (background) and
   // complete (navigation) paths never issue two readdirs for the same directory.
   private _remoteInflight: Map<string, Promise<FileEntry[]>> = new Map();
-  // Bumped by refresh(); a listing that started before the bump won't publish its (now stale) result.
-  private _listGeneration = 0;
+  // Listing generations. A listing that started before its directory was invalidated must not publish
+  // its (now stale) result, and that has to be decidable PER DIRECTORY: a targeted refresh may not
+  // void listings of branches it didn't touch, or they'd finish, find themselves "stale", skip the
+  // cache and leave their folder stuck in the local-only provisional view until poked by hand.
+  // _genCounter hands out a fresh number for every invalidation; _baseGen is raised only by a full
+  // refresh and devalues every directory at once; _keyGen holds the per-directory bumps.
+  private _genCounter = 0;
+  private _baseGen = 0;
+  private _keyGen: Map<string, number> = new Map();
   // Parent uri.query keys whose listing FAILED (permission/other). We do NOT auto-re-fetch these on every
   // re-render — otherwise a no-access folder loops: fail → fire → getChildren → fail … Cleared by refresh()
   // and by a successful "View as root" (setElevatedListing).
@@ -462,10 +470,17 @@ export default class RemoteTreeData
     return { candidates, pendingMd5: this._checkingContent.size };
   }
 
-  // The current listing generation — an elevated (su) fetch captures this BEFORE it starts, so a refresh
-  // landing mid-fetch can void the now-stale result at publish time (see setElevatedListing).
-  get listGeneration(): number {
-    return this._listGeneration;
+  // The generation in force for one directory: the higher of the global base and its own bump. It never
+  // decreases, so "captured === current" strictly means "this directory hasn't been invalidated since".
+  private _genOf(key: string): number {
+    const own = this._keyGen.get(key) || 0;
+    return own > this._baseGen ? own : this._baseGen;
+  }
+
+  // The listing generation of ONE directory — an elevated (su) fetch captures this BEFORE it starts, so a
+  // refresh landing mid-fetch can void the now-stale result at publish time (see setElevatedListing).
+  listGenerationFor(item: ExplorerItem): number {
+    return this._genOf(item.resource.uri.query);
   }
 
   // Publish a directory's children obtained via an elevated (su) listing: seed the cache for this dir so
@@ -475,10 +490,10 @@ export default class RemoteTreeData
     // The caller captures the generation before its (slow) su fetch; if a refresh has since bumped it, this
     // elevated snapshot is stale — drop it rather than publish it over the freshly re-checked state. `gen` is
     // REQUIRED (not optional) so a future caller can't silently bypass this guard by omitting it.
-    if (gen !== this._listGeneration) {
+    const key = item.resource.uri.query;
+    if (gen !== this._genOf(key)) {
       return;
     }
-    const key = item.resource.uri.query;
     this._remoteListing.set(key, entries);
     this._listingFailed.delete(key); // access obtained (via su) — no longer a failed listing
     this._elevatedKeys.add(key); // don't let a slow in-flight login-user listing overwrite this
@@ -487,7 +502,51 @@ export default class RemoteTreeData
     this._onDidChangeFolder.fire(item);
   }
 
+  // Directories whose server listings a TARGETED refresh must drop: the node itself, whatever directory
+  // lists it, and everything cached underneath. The subtree always goes, not just when isDirectory says
+  // so — callers get that flag wrong in both directions, and there is no cache under a file's path
+  // anyway, so nothing extra is lost. Keys are parsed with querystring rather than looked up in _map:
+  // the directory node may not be in _map at all (getChildrenComplete is also called on a synthetic
+  // item built in fileHandlers/shared).
+  private _invalidationKeys(item: ExplorerItem): Set<string> {
+    const keys = new Set<string>([item.resource.uri.query]);
+    const root = this.findRoot(item.resource.uri);
+    if (!root || item.resource.fsPath !== root.resource.fsPath) {
+      keys.add(
+        UResource.updateResource(item.resource, {
+          remotePath: upath.dirname(item.resource.fsPath),
+        }).uri.query
+      );
+    }
+    const base = item.resource.fsPath;
+    const remoteId = String(item.resource.remoteId);
+    const profile = item.resource.profile || '';
+    const candidates = new Set<string>();
+    this._remoteListing.forEach((_v, k) => candidates.add(k));
+    this._remoteInflight.forEach((_v, k) => candidates.add(k));
+    this._listingFailed.forEach(k => candidates.add(k));
+    this._elevatedKeys.forEach(k => candidates.add(k));
+    this._keyGen.forEach((_v, k) => candidates.add(k));
+    candidates.forEach(k => {
+      const q = querystring.parse(k);
+      if (String(q.remoteId) !== remoteId || ((q.profile as string) || '') !== profile) {
+        return; // another host or another profile — someone else's tree
+      }
+      const p = (q.fsPath as string) || '';
+      // Same containment test _isInsideCachedSubtree uses: it normalises a trailing slash and the
+      // relative "./" root, so /var/www2 is not mistaken for a child of /var/www.
+      if (p === base || ancestorPaths(p, base).length > 0) {
+        keys.add(k);
+      }
+    });
+    return keys;
+  }
+
   async refresh(item?: ExplorerItem): Promise<any> {
+    // A full refresh (the view's button) invalidates the whole tree; a targeted one touches only the
+    // affected directories, so upload-on-save stops wiping other branches' listings, their elevated
+    // snapshots and their queued content checks.
+    const scope = item ? this._invalidationKeys(item) : undefined;
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
     // drop both cached results so they recompute on demand.
     const statusCleared: vscode.Uri[] = [];
@@ -501,7 +560,13 @@ export default class RemoteTreeData
       // and _children drops the write hint when mode/uid/gid changed — so a stale value can't survive a
       // real change.
       // Re-check access on refresh: drop a stuck "no access"/"unknown" so a fresh listing can clear it.
-      if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
+      // ONLY where the listing is actually being dropped, though: clear it elsewhere and the badge
+      // disappears while the failed-listing marker stays, so the folder is never re-fetched and its
+      // "list not complete" row silently loses both the warning and the "View as root" hint.
+      if (
+        (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) &&
+        (!scope || scope.has(node.resource.uri.query))
+      ) {
         node.status = undefined;
         // Repaint: clearing the flag alone doesn't re-run provideFileDecoration, so a stale "no access"
         // yellow would otherwise linger on a folded node until it is next expanded.
@@ -512,17 +577,37 @@ export default class RemoteTreeData
     // generation and drop in-flight fetches + failed-listing markers too, so a slow pre-refresh listing can't
     // publish its stale result into the freshly-cleared cache, a fresh expand actually re-fetches instead of
     // being de-duped against the old in-flight entry, and a previously no-access folder is retried.
-    this._remoteListing.clear();
-    this._remoteInflight.clear();
-    this._listingFailed.clear();
-    this._elevatedKeys.clear();
-    this._contentScheduler.empty();
-    this._checkingContent.clear();
     // KEEP _listedChildren and _modifiedSources: the retained child sets let the next merge diff against
     // what was there before (removing a deleted/now-synced source), and the retained M sources keep folded
     // ancestors yellow until that merge re-derives them. Clearing them here was the root cause of M badges
     // vanishing tree-wide on any refresh.
-    this._listGeneration += 1;
+    if (scope) {
+      // Per-key bump: a hanging pre-refresh listing of THESE directories won't publish its stale result,
+      // while background work on every other branch — listings, queued MD5 checks, "View as root"
+      // snapshots — lives to finish. The content scheduler is deliberately left alone: tasks inside the
+      // scope are already voided by the new generation, and tasks outside it must be allowed to complete.
+      // Emptying it on every save was dropping MD5 work tree-wide, which left files sitting at "Synced"
+      // with nothing queued to correct them — so "Upload Modified" quietly under-counted.
+      const gen = (this._genCounter += 1);
+      scope.forEach(key => {
+        this._remoteListing.delete(key);
+        this._remoteInflight.delete(key);
+        this._listingFailed.delete(key);
+        this._elevatedKeys.delete(key);
+        this._keyGen.set(key, gen);
+      });
+    } else {
+      this._remoteListing.clear();
+      this._remoteInflight.clear();
+      this._listingFailed.clear();
+      this._elevatedKeys.clear();
+      this._contentScheduler.empty();
+      this._checkingContent.clear();
+      // _baseGen must be raised, not just reset: two full refreshes in a row would both land on 0 if the
+      // per-key map were merely cleared, and a listing captured between them would look current.
+      this._baseGen = this._genCounter += 1;
+      this._keyGen.clear();
+    }
     // Repaint any node whose stuck Denied/Unknown we just cleared (covers both full and targeted refresh).
     if (statusCleared.length > 0) {
       this._onDidChangeDecorations.fire(statusCleared);
@@ -612,6 +697,9 @@ export default class RemoteTreeData
       this._remoteInflight.delete(key);
       this._listingFailed.delete(key);
       this._elevatedKeys.delete(key);
+      // Bump too, or a listing of this folder that is already in flight finishes, still believes it is
+      // current, and writes its pre-recheck result over the one we are about to fetch.
+      this._keyGen.set(key, (this._genCounter += 1));
 
       let children: ExplorerItem[];
       try {
@@ -1342,7 +1430,7 @@ export default class RemoteTreeData
     candidates: ContentCheckCandidate[],
     parent: ExplorerItem
   ): void {
-    const generation = this._listGeneration;
+    const generation = this._genOf(parent.resource.uri.query);
     candidates.forEach(candidate => {
       const itemKey = candidate.item.resource.uri.query;
       const marker = `${generation}\0${candidate.key}`;
@@ -1384,7 +1472,7 @@ export default class RemoteTreeData
     const itemKey = candidate.item.resource.uri.query;
     const children = this._listedChildren.get(parentKey);
     return (
-      generation === this._listGeneration &&
+      generation === this._genOf(parentKey) &&
       this._checkingContent.get(itemKey) === marker &&
       this._map.get(itemKey) === candidate.item &&
       (candidate.item as ExplorerChild).contentVerificationKey === candidate.key &&
@@ -1542,7 +1630,7 @@ export default class RemoteTreeData
     if (inflight) {
       return inflight;
     }
-    const gen = this._listGeneration;
+    const gen = this._genOf(key);
     const p = (async () => {
       const remotefs = await fileService.getRemoteFileSystem(config);
       let entries: FileEntry[];
@@ -1555,7 +1643,7 @@ export default class RemoteTreeData
           throw e; // permission denied / I/O — the caller decides how to surface it
         }
       }
-      if (gen === this._listGeneration && !this._elevatedKeys.has(key)) {
+      if (gen === this._genOf(key) && !this._elevatedKeys.has(key)) {
         this._remoteListing.set(key, entries);
       }
       return entries;
@@ -1589,7 +1677,7 @@ export default class RemoteTreeData
       return; // another expand already owns the spinner + the re-render
     }
     // Capture the generation so a listing that finishes AFTER a refresh can't clobber the fresh state.
-    const gen = this._listGeneration;
+    const gen = this._genOf(key);
     vscode.window
       .withProgress(
         {
@@ -1603,7 +1691,7 @@ export default class RemoteTreeData
       )
       .then(
         () => {
-          if (gen !== this._listGeneration) {
+          if (gen !== this._genOf(key)) {
             return; // a refresh superseded this listing — ignore its completion
           }
           if (this._elevatedKeys.has(key)) {
@@ -1620,7 +1708,7 @@ export default class RemoteTreeData
           this._onDidChangeFolder.fire(item);
         },
         e => {
-          if (gen !== this._listGeneration) {
+          if (gen !== this._genOf(key)) {
             return; // stale failure — don't stamp Denied over a newer, successful state
           }
           if (this._elevatedKeys.has(key)) {
