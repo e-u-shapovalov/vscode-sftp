@@ -1,4 +1,5 @@
 import * as fse from 'fs-extra';
+import * as path from 'path';
 
 // A content-equal Remote Explorer file may have only its local mtime aligned to the server. That metadata
 // write can surface as one or more FileSystemWatcher change events and must not upload unchanged bytes.
@@ -10,8 +11,12 @@ interface MtimeGuard {
 }
 
 const autoUploadMtimeGuards = new Map<string, MtimeGuard>();
-const watcherPathKey = (fsPath: string) =>
-  process.platform === 'win32' ? fsPath.toLowerCase() : fsPath;
+// Identity key for a watched path: case doesn't distinguish files on Windows, and separators are
+// normalised so the same file can't show up twice as "C:" vs "c:" or with mixed slashes.
+export function watcherPathKey(fsPath: string): string {
+  const normalized = path.normalize(fsPath);
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
 
 export function suppressAutoUploadForMtime(
   fsPath: string,
