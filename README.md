@@ -81,7 +81,7 @@ The wizard supports SFTP and FTP connections. Existing `.vscode/sftp.json` files
 - Draw an ASCII tree of a server or local folder from the folder context menu, with an optional depth limit and file sizes.
 - Move files and folders on the server by dragging them inside the Remote Explorer; on a name clash, compare both items and choose to overwrite, rename or skip, with identical files de-duplicated automatically.
 - Follow uploads and downloads with a byte progress bar and a Cancel button; large files (over 10 MB) and binaries ask before they open.
-- Read an operation report after each right-click transfer or delete — an `upload.log`, `download.log` or `delete.log` tab listing every file with its size, date and permissions.
+- Read an operation report after each right-click transfer or delete — an `upload.log`, `download.log` or `delete.log` tab listing every file with its size, date and permissions. Prefer not to be interrupted? `wireferry.operationLog` sends it to the output channel instead, or turns it off — a run with failures still notifies you either way.
 - Transfer atomically by default: each file is staged into a temporary copy and renamed into place, so an interrupted transfer never truncates the original.
 - Recognize symbolic links in the server tree and open their real target.
 - Apply local deletions, renames and moves to the server after a confirmation.

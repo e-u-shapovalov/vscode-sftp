@@ -165,6 +165,8 @@ SSH key generation is SFTP-only. Password storage is available for main configur
 
 After a right-click upload, download or delete, WireFerry opens an `upload.log`, `download.log` or `delete.log` tab that lists each file with its size, modification date and permissions, plus an "N ok, M failed" tally. For deletes it also shows where the local and server copies differ, and a multi-profile run tags each row with its server.
 
+`wireferry.operationLog` decides where that report goes: `tab` (the default), `output` — appended to the WireFerry output channel, with no tab, no focus change and no panel popping up — or `off`. In `output` and `off` a run that had failures still raises one notification with the tally and a **Show log** button, so silencing the report never silences a failure. Upload-on-save writes no report in any mode; the setting covers the explicit right-click transfers. Reports you ask for by name — `tree.txt`, `folder-size.txt` and the "needs root" preview — always open a tab, since the tab IS the result of the command.
+
 ## Local Explorer integration
 
 The local Explorer context menu provides upload, download, sync, diff, delete, size/MD5 and Show Tree actions for mapped items.

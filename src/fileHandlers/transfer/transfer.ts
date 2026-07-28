@@ -241,6 +241,9 @@ async function transferWithType(
           // Update mtime after file was saved
           const stat = await config.srcFs.lstat(config.srcFsPath);
           config.transferOption.mtime = stat.mtime;
+          // …and the size with it: the listing this came from was read before the save, so leaving
+          // it would size the progress bar by the file's pre-save length.
+          config.transferOption.sourceSize = stat.size;
           logger.info('save before upload.');
         }
       }

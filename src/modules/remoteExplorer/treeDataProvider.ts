@@ -542,6 +542,32 @@ export default class RemoteTreeData
     return keys;
   }
 
+  // Does this node's cached size / symlink target need dropping because `item` was refreshed? True for
+  // the node itself, anything under it, and every ancestor above it — a change inside a folder changes
+  // its parents' sizes too. Sibling branches are left alone: with sort-by-size on, wiping the whole map
+  // made one saved file re-run a server-side `du` over every folder in the root.
+  private _sharesSizeScope(node: ExplorerItem, item: ExplorerItem): boolean {
+    if (
+      node.resource.remoteId !== item.resource.remoteId ||
+      (node.resource.profile || '') !== (item.resource.profile || '')
+    ) {
+      return false; // another host or another profile — someone else's tree
+    }
+    // Compare on normalised paths with an explicit separator, so /var/www2 is never taken for a child
+    // of /var/www. `ancestorPaths` normalises the same way for the containment checks elsewhere.
+    const strip = (p: string): string => {
+      const n = upath.normalize(p);
+      return n.length > 1 ? n.replace(/\/+$/, '') || '/' : n;
+    };
+    const nodePath = strip(node.resource.fsPath);
+    const base = strip(item.resource.fsPath);
+    if (nodePath === base) {
+      return true;
+    }
+    const sep = (p: string) => (p === '/' ? '/' : `${p}/`);
+    return nodePath.startsWith(sep(base)) || base.startsWith(sep(nodePath));
+  }
+
   async refresh(item?: ExplorerItem): Promise<any> {
     // A full refresh (the view's button) invalidates the whole tree; a targeted one touches only the
     // affected directories, so upload-on-save stops wiping other branches' listings, their elevated
@@ -552,18 +578,12 @@ export default class RemoteTreeData
     // invalidated subtree PLUS every ancestor up to the root — those really did change size when
     // something below them changed. Sibling branches keep theirs: with sort-by-size on, wiping the
     // whole map meant one saved file re-ran a server-side `du` over every folder in the root.
-    const sizeScope = scope && item ? new Set(scope) : undefined;
-    if (sizeScope && item) {
-      const root = this.findRoot(item.resource.uri);
-      if (root) {
-        ancestorPaths(item.resource.fsPath, root.resource.fsPath).forEach(p => {
-          sizeScope.add(UResource.updateResource(item.resource, { remotePath: p }).uri.query);
-        });
-      }
-    }
+    // Matched on the node's own path rather than against `scope`: that set is built from the listing
+    // caches, which are keyed by DIRECTORY, and `linkTarget` lives on the file nodes — a symlink inside
+    // the refreshed folder would keep pointing at its old target forever.
     const statusCleared: vscode.Uri[] = [];
     this._map.forEach(node => {
-      if (!sizeScope || sizeScope.has(node.resource.uri.query)) {
+      if (!item || this._sharesSizeScope(node, item)) {
         node.folderBytes = undefined;
         node.linkTarget = undefined;
       }
