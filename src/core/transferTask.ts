@@ -43,6 +43,10 @@ interface FileHandle {
 export interface TransferOption {
   atime: number;
   mtime: number;
+  // Source size as the caller already knows it, so the progress bar doesn't have to ask the server
+  // again. Every folder/sync walk gets this from the listing it just read; leave it undefined only
+  // when the size genuinely isn't known yet and the task should stat for itself.
+  sourceSize?: number;
   mode?: number;
   filePerm?: number;
   dirPerm?: number;
@@ -200,17 +204,24 @@ export default class TransferTask implements Task {
       fallbackMode,
       atime,
       mtime,
+      sourceSize,
       filePerm
     } = this._TransferOption;
 
     // Declare the file size to the progress bar before we start acquiring streams so the bar
-    // shows real movement for large files. Only pay the extra lstat when a session is active.
+    // shows real movement for large files. Prefer the size the caller already read from its
+    // listing: a folder walk has it for every entry, and asking the server again costs a round
+    // trip per file — on FTP a whole serialised LIST of the parent per file, since lstat there is
+    // implemented as a parent listing. Only stat when the size is genuinely unknown.
     if (transferProgress.isActive()) {
-      let size = 0;
-      try {
-        size = (await srcFs.lstat(src)).size;
-      } catch {
-        // Ignore: size stays 0, bar shows transfer without a filled percentage.
+      let size = sourceSize;
+      if (size === undefined) {
+        try {
+          size = (await srcFs.lstat(src)).size;
+        } catch {
+          // Ignore: size stays 0, bar shows transfer without a filled percentage.
+          size = 0;
+        }
       }
       // Don't inflate the bar's total for a file that was cancelled during enumeration.
       if (!this._cancelled) {

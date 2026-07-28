@@ -155,6 +155,9 @@ async function transferFolder(
             ...config.transferOption,
             mtime: file.mtime,
             atime: file.atime,
+            // The listing above already carries the size — hand it down so the progress bar
+            // doesn't re-stat every single file over the wire.
+            sourceSize: file.size,
           },
           srcFsPath: file.fspath,
           targetFsPath: targetFs.pathResolver.join(targetFsPath, file.name),
@@ -387,6 +390,7 @@ async function _sync(
                   mode: to.mode, // prefer target mode
                   mtime: from.mtime,
                   atime: from.atime,
+                  sourceSize: from.size,
                 },
                 from.type,
               ]);
@@ -420,6 +424,7 @@ async function _sync(
                 fallbackMode: srcFile.mode,
                 mtime: srcFile.mtime,
                 atime: srcFile.atime,
+                sourceSize: srcFile.size,
               },
               srcFile.type,
             ]);
@@ -452,6 +457,7 @@ async function _sync(
                     fallbackMode: file.mode,
                     mtime: file.mtime,
                     atime: file.atime,
+                    sourceSize: file.size,
                   },
                   file.type,
                 ]);
@@ -597,6 +603,10 @@ export async function transfer(
     fallbackMode: stat.mode,
     mtime: stat.mtime,
     atime: stat.atime,
+    // Single-file case: this lstat already answered what the progress bar would otherwise ask the
+    // server a second time. Only for a real file — a directory's own size says nothing about its
+    // contents, and its children carry their own size down from the listing in transferFolder.
+    sourceSize: stat.type === FileType.File ? stat.size : undefined,
     filePerm: config?.filePerm,
     dirPerm: config?.dirPerm
   };
