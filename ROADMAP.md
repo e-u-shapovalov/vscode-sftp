@@ -99,10 +99,9 @@ Spot-checked against the code. All inherited from upstream unless noted.
 - ✅ **SFTP symlink callbacks settle once** and return immediately after rejection.
 - **Double upload: `uploadOnSave` ⊕ `watcher.autoUpload`.** `fileActivityMonitor` (onSave) and
   `fileWatcher` (onDidChange) both upload the same Ctrl+S — two concurrent `put`s to one remote path,
-  no shared lock; paths differ (save uses `realpathSync.native`, watcher doesn't) so they don't even
-  dedupe. Related: `uploadQueue` is a `Set<Uri>` (dedupes by object identity, not path string);
-  `currentDownloadTasks` snapshot goes stale inside the async `forEach`; `task.localFsPath === uri.fsPath`
-  is case-sensitive (misses on Windows).
+  no shared lock; the paths differ (save uses `realpathSync.native`, the watcher doesn't) so the two
+  sources don't dedupe against each other. Only the cross-source case is left: the watcher's own
+  queue, its stale download snapshot and its case-sensitive path comparison were fixed in 2.8.4.
 - **Delete dialog hides what's deleted.** `onDidDeleteFiles` confirm shows only a count, no paths/host;
   if a folder is among targets, `removeRemote` → `removeDir` recurses on the server and can delete
   remote-only files that never existed locally. Show paths; handle folders explicitly.
@@ -119,8 +118,8 @@ Spot-checked against the code. All inherited from upstream unless noted.
 Investigated and **not** a bug (don't re-file): the service trie longest-prefix lookup is
 token-split and correct.
 
-## Performance — measured, not yet done (from the 2.8.3 pass)
-The 2.8.3 release took the cheap and safe half of a performance review. What is left was investigated
+## Performance — measured, not yet done (from the 2.8.4 pass)
+The 2.8.4 release took the cheap and safe half of a performance review. What is left was investigated
 to the same depth and deliberately deferred; each entry records WHY, so nobody re-derives it.
 
 - **Batch the content-check MD5** — one `md5sum` per directory instead of one SSH exec per file, the
@@ -163,7 +162,7 @@ to the same depth and deliberately deferred; each entry records WHY, so nobody r
 A single **per-service transfer pipeline**: route every source (save, watcher, command, delete)
 through one debounced queue keyed by normalized path with an in-flight lock. This collapses the
 double-upload race and the per-call `Scheduler` concurrency issue into one fix. (The `Set<Uri>` dedupe
-bug that used to be listed here was fixed in 2.8.3 — the watcher queue is keyed by normalised path.)
+bug that used to be listed here was fixed in 2.8.4 — the watcher queue is keyed by normalised path.)
 
 ## Considered for 1.0.1 (shipped)
 - **Windows `ignore` fix** — `fileService.ts` built the local relative path with `path.relative`
