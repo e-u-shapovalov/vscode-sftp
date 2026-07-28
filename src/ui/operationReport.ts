@@ -232,7 +232,7 @@ export async function openTextReport(fileName: string, body: string): Promise<vo
 // first while the single-dialog gate is held — Upload Modified holds it for the whole batch on
 // purpose. So `off`/`output` suppress the log, never the fact that something failed: one toast with
 // the tally, and the full log one click away for whoever wants it.
-function warnAboutFailures(kind: ReportKind, rows: Row[], body: string): void {
+function warnAboutFailures(kind: ReportKind, rows: Row[], renderBody: () => string): void {
   const failedCount = rows.filter(r => r.failed).length;
   if (failedCount === 0) {
     return;
@@ -250,7 +250,7 @@ function warnAboutFailures(kind: ReportKind, rows: Row[], body: string): void {
     )
   ).then(pick => {
     if (pick === showLog) {
-      return openTextReport(`${kind}.log`, body);
+      return openTextReport(`${kind}.log`, renderBody());
     }
     return undefined;
   }, () => {
@@ -263,19 +263,21 @@ function warnAboutFailures(kind: ReportKind, rows: Row[], body: string): void {
 // a tab (default), the output channel, or nowhere. Read live so a change applies without a reload.
 async function openReport(kind: ReportKind, rows: Row[]): Promise<void> {
   const mode = getExtensionSetting().operationLog;
-  // Rendered up front in every mode: `off` still needs a body behind the "Show log" button, and the
-  // renderer is pure, so paying for it costs nothing but the string.
-  const body = renderRows(kind, rows);
 
   if (mode === 'off') {
-    warnAboutFailures(kind, rows, body);
+    // Render lazily here: a clean run in `off` mode should format nothing at all, and a failed one
+    // only pays for the text if the user actually presses "Show log". Formatting a thousand-row
+    // batch nobody asked to see is exactly the work this mode was turned on to avoid.
+    warnAboutFailures(kind, rows, () => renderRows(kind, rows));
     return;
   }
+
+  const body = renderRows(kind, rows);
 
   if (mode === 'output') {
     // Append only — revealing the panel would be the very interruption this mode exists to avoid.
     output.print(`\n${body}`);
-    warnAboutFailures(kind, rows, body);
+    warnAboutFailures(kind, rows, () => body);
     return;
   }
 
