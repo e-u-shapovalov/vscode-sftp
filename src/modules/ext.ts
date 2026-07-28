@@ -7,10 +7,15 @@ import { EXTENSION_NAME } from '../constants';
 // twin when the user hasn't set the new key — pre-rename settings.json keeps working untouched.
 const LEGACY_EXTENSION_NAME = 'sftp';
 
+// Where the post-transfer log ends up: a new editor tab (historic behaviour), the output channel
+// (no tab, no focus change) or nowhere at all.
+export type OperationLogMode = 'tab' | 'output' | 'off';
+
 export interface ExtensionSetting {
   debug: boolean;
   downloadWhenOpenInRemoteExplorer: boolean;
   suppressLegacyConfigNotice: boolean;
+  operationLog: OperationLogMode;
   showSizeInTree: boolean;
   sortBySizeInTree: boolean;
   profilesAsRoots: boolean;
@@ -47,6 +52,10 @@ function readSetting<T>(key: string, defaultValue: T): T {
   return config.get<T>(key, defaultValue);
 }
 
+function normalizeOperationLog(value: string): OperationLogMode {
+  return value === 'output' || value === 'off' ? value : 'tab';
+}
+
 export function getExtensionSetting(): ExtensionSetting {
   return {
     debug: readSetting<boolean>('debug', false),
@@ -55,6 +64,9 @@ export function getExtensionSetting(): ExtensionSetting {
       true
     ),
     suppressLegacyConfigNotice: readSetting<boolean>('suppressLegacyConfigNotice', false),
+    // Hand-edited settings.json can hold anything — VS Code only warns on an out-of-enum value, it
+    // still hands it back verbatim. Fall back to the default rather than silently reporting nowhere.
+    operationLog: normalizeOperationLog(readSetting<string>('operationLog', 'tab')),
     showSizeInTree: readSetting<boolean>('remoteExplorer.showSize', false),
     sortBySizeInTree: readSetting<boolean>('remoteExplorer.sortBySize', false),
     profilesAsRoots: readSetting<boolean>('remoteExplorer.profilesAsRoots', true),

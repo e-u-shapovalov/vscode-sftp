@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { L } from '../i18n';
+import { getExtensionSetting } from '../modules/ext';
+import * as output from './output';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -222,6 +224,21 @@ export async function openTextReport(fileName: string, body: string): Promise<vo
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
+// The automatic post-transfer log. Unlike the on-demand reports (tree.txt, folder-size.txt, the
+// needs-root preview) nobody asked for this one, so `wireferry.operationLog` decides where it goes:
+// a tab (default), the output channel, or nowhere. Read live so a change applies without a reload.
 async function openReport(kind: ReportKind, rows: Row[]): Promise<void> {
-  await openTextReport(`${kind}.log`, renderRows(kind, rows));
+  const mode = getExtensionSetting().operationLog;
+  if (mode === 'off') {
+    return;
+  }
+
+  const body = renderRows(kind, rows);
+  if (mode === 'output') {
+    // Append only — showing the panel would be the very interruption this mode exists to avoid.
+    output.print(`\n${body}`);
+    return;
+  }
+
+  await openTextReport(`${kind}.log`, body);
 }

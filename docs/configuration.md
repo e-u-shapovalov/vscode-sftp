@@ -342,6 +342,7 @@ These values belong in VS Code settings, not `.vscode/wireferry.json`:
 | `wireferry.checkForUpdates` | legacy no-op | Kept so older user settings remain valid; Marketplace updates are handled by VS Code |
 | `wireferry.suppressLegacyConfigNotice` | `false` | Hide legacy migration notices |
 | `wireferry.alertLanguage` | `en` | Language of WireFerry prompts: `en` or `ru` |
+| `wireferry.operationLog` | `tab` | Where the upload/download/delete log goes: `tab` (new editor tab), `output` (WireFerry output channel, no tab and no focus change) or `off` |
 | `wireferry.remoteExplorer.showSize` | `false` | Show file/folder sizes in the tree |
 | `wireferry.remoteExplorer.sortBySize` | `false` | Sort the tree by size instead of name |
 | `wireferry.remoteExplorer.profilesAsRoots` | `true` | Show profiles as separate Remote Explorer roots |
