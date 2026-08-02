@@ -1,5 +1,5 @@
 {
-  "extension.description": "Синхронизация и развёртывание файлов проекта на удалённые серверы — быстрый SFTP/FTP/SSH-клиент с выгрузкой при сохранении, сравнением и несколькими профилями серверов.",
+  "extension.description": "SFTP/FTP/FTPS-клиент для синхронизации и работы с файлами на сервере в VS Code: выгрузка при сохранении, Remote Explorer, сравнение, SSH-ключи и несколько профилей.",
   "wireferry.config": "Конфигурация",
   "wireferry.setProfile": "Выбрать профиль",
   "wireferry.openConnectInTerminal": "Открыть SSH в терминале",

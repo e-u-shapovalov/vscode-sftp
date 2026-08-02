@@ -1,5 +1,5 @@
 {
-  "extension.description": "Sync and deploy workspace files to remote servers — a fast SFTP, FTP and SSH client with upload on save, diff view, and multiple server profiles.",
+  "extension.description": "SFTP/FTP/FTPS sync and remote file manager for VS Code — upload on save, Remote Explorer, diff, SSH keys and multiple server profiles.",
   "wireferry.config": "Config",
   "wireferry.setProfile": "Set Profile",
   "wireferry.openConnectInTerminal": "Open SSH in Terminal",
