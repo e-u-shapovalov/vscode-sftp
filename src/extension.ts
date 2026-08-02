@@ -133,7 +133,11 @@ function registerRenameSync(context: vscode.ExtensionContext) {
       );
 
       if (app.remoteExplorer) {
-        app.remoteExplorer.refresh();
+        // Both ends of every rename are known, so re-list just those folders. A full refresh here made
+        // the tree re-read itself and dropped the user back at the top after a single file was renamed.
+        const touched: vscode.Uri[] = [];
+        targets.forEach(({ oldUri, newUri }) => touched.push(oldUri, newUri));
+        await app.remoteExplorer.refreshParentsOf(touched);
       }
     })
   );

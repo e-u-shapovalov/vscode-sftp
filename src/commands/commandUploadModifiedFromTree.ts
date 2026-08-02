@@ -184,7 +184,13 @@ export default checkCommand({
       if (held) {
         releasePermissionDialog();
       }
-      app.remoteExplorer.refresh(); // full refresh: uploaded files flip M → Synced
+      // Uploaded files flip M → Synced. Re-list only the folders that held them — many M files usually
+      // sit in a handful of folders, so this is a few listings instead of a whole-tree re-read that would
+      // scroll the user away from where they were working.
+      const touched = [...(doNormal ? normal : []), ...(rootApproved ? needsRoot : [])].map(
+        c => c.remoteUri
+      );
+      await app.remoteExplorer.refreshParentsOf(touched);
     }
   },
 });

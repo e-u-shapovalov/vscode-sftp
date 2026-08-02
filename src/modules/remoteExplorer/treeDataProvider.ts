@@ -568,22 +568,24 @@ export default class RemoteTreeData
     return nodePath.startsWith(sep(base)) || base.startsWith(sep(nodePath));
   }
 
-  async refresh(item?: ExplorerItem): Promise<any> {
-    // A full refresh (the view's button) invalidates the whole tree; a targeted one touches only the
-    // affected directories, so upload-on-save stops wiping other branches' listings, their elevated
-    // snapshots and their queued content checks.
-    const scope = item ? this._invalidationKeys(item) : undefined;
+  // The invalidation half of a TARGETED refresh: drop this node's cached listing, the listing of the
+  // directory that lists it and everything cached underneath, plus the folder sizes / symlink targets that
+  // changed with it, and clear a stuck no-access status — WITHOUT telling the view anything yet. Split out
+  // of refresh() so a BATCH (N deleted siblings, a move's two ends) can invalidate every touched path and
+  // still re-list each affected folder only once. Cleared statuses land in `statusCleared`, which the
+  // caller repaints in one go.
+  private _invalidateTargeted(item: ExplorerItem, statusCleared: vscode.Uri[]): void {
+    const scope = this._invalidationKeys(item);
     // A refresh re-measures folder sizes AND re-reads symlink targets (an admin can repoint a link):
-    // drop both cached results so they recompute on demand. For a targeted refresh that means the
-    // invalidated subtree PLUS every ancestor up to the root — those really did change size when
-    // something below them changed. Sibling branches keep theirs: with sort-by-size on, wiping the
-    // whole map meant one saved file re-ran a server-side `du` over every folder in the root.
+    // drop both cached results so they recompute on demand. Targeted, that means the invalidated subtree
+    // PLUS every ancestor up to the root — those really did change size when something below them
+    // changed. Sibling branches keep theirs: with sort-by-size on, wiping the whole map meant one saved
+    // file re-ran a server-side `du` over every folder in the root.
     // Matched on the node's own path rather than against `scope`: that set is built from the listing
     // caches, which are keyed by DIRECTORY, and `linkTarget` lives on the file nodes — a symlink inside
     // the refreshed folder would keep pointing at its old target forever.
-    const statusCleared: vscode.Uri[] = [];
     this._map.forEach(node => {
-      if (!item || this._sharesSizeScope(node, item)) {
+      if (this._sharesSizeScope(node, item)) {
         node.folderBytes = undefined;
         node.linkTarget = undefined;
       }
@@ -599,7 +601,7 @@ export default class RemoteTreeData
       // "list not complete" row silently loses both the warning and the "View as root" hint.
       if (
         (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) &&
-        (!scope || scope.has(node.resource.uri.query))
+        scope.has(node.resource.uri.query)
       ) {
         node.status = undefined;
         // Repaint: clearing the flag alone doesn't re-run provideFileDecoration, so a stale "no access"
@@ -607,30 +609,60 @@ export default class RemoteTreeData
         statusCleared.push(node.resource.uri);
       }
     });
-    // Drop cached server listings so a refresh re-reads BOTH sides — the local disk and the server. Bump the
-    // generation and drop in-flight fetches + failed-listing markers too, so a slow pre-refresh listing can't
-    // publish its stale result into the freshly-cleared cache, a fresh expand actually re-fetches instead of
-    // being de-duped against the old in-flight entry, and a previously no-access folder is retried.
-    // KEEP _listedChildren and _modifiedSources: the retained child sets let the next merge diff against
-    // what was there before (removing a deleted/now-synced source), and the retained M sources keep folded
-    // ancestors yellow until that merge re-derives them. Clearing them here was the root cause of M badges
-    // vanishing tree-wide on any refresh.
-    if (scope) {
-      // Per-key bump: a hanging pre-refresh listing of THESE directories won't publish its stale result,
-      // while background work on every other branch — listings, queued MD5 checks, "View as root"
-      // snapshots — lives to finish. The content scheduler is deliberately left alone: tasks inside the
-      // scope are already voided by the new generation, and tasks outside it must be allowed to complete.
-      // Emptying it on every save was dropping MD5 work tree-wide, which left files sitting at "Synced"
-      // with nothing queued to correct them — so "Upload Modified" quietly under-counted.
-      const gen = (this._genCounter += 1);
-      scope.forEach(key => {
-        this._remoteListing.delete(key);
-        this._remoteInflight.delete(key);
-        this._listingFailed.delete(key);
-        this._elevatedKeys.delete(key);
-        this._keyGen.set(key, gen);
-      });
+    // Drop these directories' cached server listings so they re-read BOTH sides — the local disk and the
+    // server — along with their in-flight fetches and failed-listing markers, so a slow pre-refresh listing
+    // can't publish its stale result into the freshly-cleared cache, a fresh expand actually re-fetches
+    // instead of being de-duped against the old in-flight entry, and a previously no-access folder is
+    // retried. KEEP _listedChildren and _modifiedSources: the retained child sets let the next merge diff
+    // against what was there before (removing a deleted/now-synced source), and the retained M sources keep
+    // folded ancestors yellow until that merge re-derives them.
+    // Per-key bump: a hanging pre-refresh listing of THESE directories won't publish its stale result,
+    // while background work on every other branch — listings, queued MD5 checks, "View as root"
+    // snapshots — lives to finish. The content scheduler is deliberately left alone: tasks inside the
+    // scope are already voided by the new generation, and tasks outside it must be allowed to complete.
+    // Emptying it on every save was dropping MD5 work tree-wide, which left files sitting at "Synced"
+    // with nothing queued to correct them — so "Upload Modified" quietly under-counted.
+    const gen = (this._genCounter += 1);
+    scope.forEach(key => {
+      this._remoteListing.delete(key);
+      this._remoteInflight.delete(key);
+      this._listingFailed.delete(key);
+      this._elevatedKeys.delete(key);
+      this._keyGen.set(key, gen);
+    });
+  }
+
+  async refresh(item?: ExplorerItem): Promise<any> {
+    // A full refresh (the view's button) invalidates the whole tree; a targeted one touches only the
+    // affected directories, so upload-on-save stops wiping other branches' listings, their elevated
+    // snapshots and their queued content checks.
+    const statusCleared: vscode.Uri[] = [];
+    if (item) {
+      this._invalidateTargeted(item, statusCleared);
     } else {
+      // Tree-wide: every cached folder size and symlink target goes (a refresh re-measures and re-reads
+      // them both), and every stuck "no access"/"unknown" is cleared so a fresh listing can resolve it.
+      this._map.forEach(node => {
+        node.folderBytes = undefined;
+        node.linkTarget = undefined;
+        // The confirmed-M state and the read-only hint are retained here too — see _invalidateTargeted
+        // for why they are kept optimistically rather than wiped.
+        if (node.status === NodeStatus.Denied || node.status === NodeStatus.Unknown) {
+          node.status = undefined;
+          // Repaint: clearing the flag alone doesn't re-run provideFileDecoration, so a stale "no access"
+          // yellow would otherwise linger on a folded node until it is next expanded.
+          statusCleared.push(node.resource.uri);
+        }
+      });
+      // Drop cached server listings so a refresh re-reads BOTH sides — the local disk and the server. Bump
+      // the generation and drop in-flight fetches + failed-listing markers too, so a slow pre-refresh
+      // listing can't publish its stale result into the freshly-cleared cache, a fresh expand actually
+      // re-fetches instead of being de-duped against the old in-flight entry, and a previously no-access
+      // folder is retried.
+      // KEEP _listedChildren and _modifiedSources: the retained child sets let the next merge diff against
+      // what was there before (removing a deleted/now-synced source), and the retained M sources keep folded
+      // ancestors yellow until that merge re-derives them. Clearing them here was the root cause of M badges
+      // vanishing tree-wide on any refresh.
       this._remoteListing.clear();
       this._remoteInflight.clear();
       this._listingFailed.clear();
@@ -682,6 +714,95 @@ export default class RemoteTreeData
         this._onDidChangeFolder.fire(parent);
       }
       this._onDidChangeFile.fire(makePreivewUrl(item.resource.uri));
+    }
+  }
+
+  // Targeted refresh for a BATCH of paths whose PARENT folder is what changed — a multi-select delete, a
+  // move's two ends, an upload of many modified files. Every path is invalidated exactly as a single
+  // refresh() would invalidate it, but the view is asked to re-list each affected folder only ONCE: five
+  // files deleted from one folder cost one server listing, not five, and no branch outside those folders is
+  // touched, so the rest of the tree keeps its listings — and the user keeps their place in it.
+  // Returns false when a path belongs to no tree root (its config is gone), so the caller can fall back to
+  // a full refresh rather than leave a deleted entry on screen.
+  async refreshParents(items: ExplorerItem[]): Promise<boolean> {
+    if (items.length === 0) {
+      return true;
+    }
+    // Invalidate EVERY path before firing any folder change: such an event makes VS Code re-list that
+    // folder right away, and a later item's invalidation would then throw the fresh listing away — one
+    // wasted server round-trip per remaining item.
+    const statusCleared: vscode.Uri[] = [];
+    items.forEach(item => this._invalidateTargeted(item, statusCleared));
+    if (statusCleared.length > 0) {
+      this._onDidChangeDecorations.fire(statusCleared);
+    }
+
+    const parents: Map<string, ExplorerItem> = new Map();
+    let resolvedAll = true;
+    items.forEach(item => {
+      const root = this.findRoot(item.resource.uri);
+      if (!root) {
+        resolvedAll = false; // no config covers this uri — the caller falls back to a full refresh
+        return;
+      }
+      const parent = this._cachedParentOf(item, root);
+      if (parent) {
+        parents.set(parent.resource.uri.query, parent);
+      }
+      // Same as refresh() does for a single file: an open read-only preview re-reads its content (for a
+      // deleted file that surfaces the "gone" error instead of leaving stale text on screen). Callers
+      // pass a fixed isDirectory:false, so trust the cached node when we have one — a moved FOLDER has
+      // no preview document and must not be signalled as one.
+      const known = this._map.get(item.resource.uri.query);
+      if (known ? !known.isDirectory : !item.isDirectory) {
+        this._onDidChangeFile.fire(makePreivewUrl(item.resource.uri));
+      }
+    });
+    parents.forEach(parent => this._onDidChangeFolder.fire(parent));
+    return resolvedAll;
+  }
+
+  // The parent node the tree ALREADY holds, or undefined when this path's folder was never listed.
+  // Deliberately NOT getParent(): that materialises a missing parent and server-lists it, which is pure
+  // cost for a folder the view isn't showing — its cached listing has just been dropped, so it re-reads
+  // from the server the moment it IS expanded. Every rendered node lives in `_map` (roots included), so a
+  // miss here really does mean "not on screen".
+  private _cachedParentOf(item: ExplorerItem, root: ExplorerRoot): ExplorerItem | undefined {
+    if (item.resource.fsPath === root.resource.fsPath) {
+      return root; // the root itself changed — re-list it in place
+    }
+    const parentResource = UResource.updateResource(item.resource, {
+      remotePath: upath.dirname(item.resource.fsPath),
+    });
+    return this._map.get(parentResource.uri.query);
+  }
+
+  // Forget the cached write/read hints of everything under `item` and repaint those rows. A recursive
+  // chmod changes the mode of descendants the tree may not re-list on its own — a folded branch keeps its
+  // nodes and their hints — so the "read-only for you" badge would otherwise keep describing permissions
+  // that no longer exist, and "Upload Modified" would route those files by a stale `writable`. Cleared,
+  // not recomputed: each folder's next merge re-derives the hint from the fresh mode/uid/gid.
+  clearWriteHintsUnder(item: ExplorerItem): void {
+    const changed: vscode.Uri[] = [];
+    this._map.forEach(node => {
+      if (!this._isInsideCachedSubtree(node, item, true)) {
+        return;
+      }
+      const child = node as ExplorerChild;
+      if (
+        child.writable === undefined &&
+        child.readable === undefined &&
+        child.accessNote === undefined
+      ) {
+        return; // nothing cached here — no repaint needed
+      }
+      child.writable = undefined;
+      child.readable = undefined;
+      child.accessNote = undefined;
+      changed.push(node.resource.uri);
+    });
+    if (changed.length > 0) {
+      this._onDidChangeDecorations.fire(changed);
     }
   }
 

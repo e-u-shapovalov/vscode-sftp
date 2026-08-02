@@ -161,9 +161,99 @@ export default class RemoteExplorer {
     this._treeDataProvider.refreshItem(item);
   }
 
+  // Re-list ONLY the folders that actually changed, given the remote paths an operation touched (deleted,
+  // moved, uploaded). A full refresh() drops every cached listing and hands the view a rebuilt root level,
+  // so every expanded branch is re-read from the server and the user loses their place — after deleting one
+  // file three folders deep they have to find their way back down. Here each path invalidates just its own
+  // folder, and each affected folder is re-listed once no matter how many entries in it changed.
+  // Falls back to a full refresh if a path can't be mapped into the tree, so a deleted entry is never left
+  // on screen; never throws — the operation itself already succeeded.
+  async refreshParentsOf(uris: vscode.Uri[]): Promise<void> {
+    const seen = new Set<string>();
+    const items: ExplorerItem[] = [];
+    let unmapped = false;
+    for (const uri of uris) {
+      let remoteUri: vscode.Uri | undefined;
+      try {
+        remoteUri = this._asRemoteUri(uri);
+      } catch (e) {
+        // getConfig() throws on an unknown profile or a config that fails validation. This method is
+        // called from `finally` blocks and from VS Code's own rename handler, so it must never throw —
+        // treat the path as unmappable and let the full refresh below (which tolerates a broken config)
+        // sort the tree out.
+        remoteUri = undefined;
+      }
+      if (!remoteUri) {
+        // No config covers this path any more — we can't tell which folder to re-list, so re-read
+        // everything rather than leave a stale entry on screen.
+        unmapped = true;
+        break;
+      }
+      const resource = UResource.makeResource(remoteUri);
+      const key = resource.uri.query;
+      if (seen.has(key)) {
+        continue; // the same path listed twice (e.g. a move that only changed the local side)
+      }
+      seen.add(key);
+      // isDirectory:false deliberately: the invalidation drops the whole subtree either way, and `false` is
+      // what routes the change event to the PARENT — the folder that must be re-listed when an entry
+      // appears or disappears. fileHandlers/remove passes the same fixed flag for the same reason.
+      items.push({ resource, isDirectory: false });
+    }
+    // An unmappable path means the tree is re-read wholesale anyway, so don't pay for the targeted pass
+    // first: it would re-list the mapped folders only for the full refresh to invalidate them again.
+    let done = false;
+    if (!unmapped) {
+      try {
+        done = await this._treeDataProvider.refreshParents(items);
+      } catch (e) {
+        done = false;
+      }
+    }
+    if (!done) {
+      await this._treeDataProvider.refresh().catch(() => undefined);
+    }
+  }
+
+  // The remote uri the tree knows a path by. A remote uri passes straight through; a LOCAL one is mapped
+  // through its config (host/port + mapped remote path + the active profile) exactly the way refresh()
+  // maps one, so a caller can hand over whichever uri it happens to hold. Undefined when no config covers
+  // the path — nothing in the tree corresponds to it.
+  private _asRemoteUri(uri: vscode.Uri): vscode.Uri | undefined {
+    if (UResource.isRemote(uri)) {
+      return uri;
+    }
+    const fileService = getFileService(uri);
+    if (!fileService) {
+      return undefined;
+    }
+    const config = fileService.getConfig();
+    // baseDir, not config.context: context is the raw user value (possibly undefined/relative).
+    const remotePath = toRemotePath(uri.fsPath, fileService.baseDir, config.remotePath);
+    // With profiles shown as roots, target the active profile's root so findRoot resolves it.
+    const profile =
+      fileService.getAvailableProfiles().length > 0 ? app.state.profile || undefined : undefined;
+    return UResource.makeResource({
+      remote: {
+        host: config.host,
+        port: config.port,
+      },
+      fsPath: remotePath,
+      remoteId: fileService.id,
+      profile,
+    }).uri;
+  }
+
   // Recompute + repaint the write-permission hint for one item after our own chmod/chown changed it.
   recomputeWriteHint(item: ExplorerItem): void {
     this._treeDataProvider.recomputeWriteHint(item).catch(() => undefined);
+  }
+
+  // After a RECURSIVE chmod: drop the cached write/read hints under this node, so a folded branch can't
+  // keep drawing a read-only badge from permissions we have just replaced. Each folder's next merge
+  // re-derives the real hint from the fresh mode/uid/gid.
+  clearWriteHintsUnder(item: ExplorerItem): void {
+    this._treeDataProvider.clearWriteHintsUnder(item);
   }
 
   // Right-click a folder → "Recheck Modified Files": force a recursive re-listing of the whole subtree,

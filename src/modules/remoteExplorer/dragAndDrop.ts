@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fse from 'fs-extra';
-import { upath, FileType } from '../../core';
+import { upath, FileType, UResource } from '../../core';
 import { renameRemote, handleCtxFromUri } from '../../fileHandlers';
 import { showConfirmMessage, showWarningMessage, showInformationMessage } from '../../host';
 import { reportError } from '../../helper';
@@ -157,6 +157,9 @@ export default class RemoteDragAndDropController
     // moves racing to write the same destination — would be a mess. A couple of lstats per item is cheap.
     let deduped = 0;
     let localDiffers = 0;
+    // Remote paths this drop touched — the source and the destination of every move actually attempted.
+    // Only their parent folders are re-listed afterwards, so the tree keeps its expanded state.
+    const touched: vscode.Uri[] = [];
     for (const src of moves) {
       const srcRemote = src.resource.fsPath;
       const baseName = upath.basename(srcRemote);
@@ -244,6 +247,11 @@ export default class RemoteDragAndDropController
         continue;
       }
 
+      // Recorded BEFORE the move runs: a failure can still be partial (the server side applied, the local
+      // mirror not), and both folders must be re-listed either way.
+      const destRemote = upath.join(destRemoteDir, targetName);
+      touched.push(src.resource.uri, UResource.updateResource(src.resource, { remotePath: destRemote }).uri);
+
       try {
         if (outcome === 'dedup') {
           // The server already holds byte-identical content at the destination, so this "move" collapses
@@ -273,7 +281,7 @@ export default class RemoteDragAndDropController
           continue;
         }
         await renameRemote(src.resource.uri, {
-          newRemotePath: upath.join(destRemoteDir, targetName),
+          newRemotePath: destRemote,
           localRename: { from: localFrom, to: path.join(destLocalDir, targetName) },
           skipRefresh: true,
           overwrite,
@@ -284,8 +292,8 @@ export default class RemoteDragAndDropController
       }
     }
 
-    if (app.remoteExplorer) {
-      app.remoteExplorer.refresh();
+    if (app.remoteExplorer && touched.length > 0) {
+      await app.remoteExplorer.refreshParentsOf(touched);
     }
 
     if (deduped > 0) {

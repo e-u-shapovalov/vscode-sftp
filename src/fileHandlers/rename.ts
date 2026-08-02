@@ -1,5 +1,5 @@
 import * as fse from 'fs-extra';
-import { fileOperations, FileType } from '../core';
+import { fileOperations, FileType, UResource } from '../core';
 import { toRemotePath } from '../helper';
 import { trashLocalPath } from '../host';
 import createFileHandler from './createFileHandler';
@@ -174,7 +174,15 @@ export const renameRemote = createFileHandler<{
     }
 
     if (!skipRefresh && app.remoteExplorer) {
-      app.remoteExplorer.refresh();
+      // Only two folders can have changed — the one the entry left and the one it landed in (the same
+      // folder for a plain rename). Re-listing those keeps every other branch, and the user's place in
+      // the tree, exactly as it was; a full refresh would re-read everything and scroll them away.
+      const from = UResource.makeResource(this.target.remoteUri);
+      const touched = [from.uri];
+      if (doRemote) {
+        touched.push(UResource.updateResource(from, { remotePath: destRemotePath! }).uri);
+      }
+      await app.remoteExplorer.refreshParentsOf(touched);
     }
   },
 });

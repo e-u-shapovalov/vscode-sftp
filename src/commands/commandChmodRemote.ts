@@ -207,8 +207,13 @@ export default checkCommand({
         if (app.remoteExplorer) {
           if (recursive) {
             // chmod -R changed the mode of every descendant too; refreshItem only repaints this node and
-            // leaves children with stale RO decorations. Re-read the subtree so their write hints reset.
-            app.remoteExplorer.refresh();
+            // leaves children with stale RO decorations. Re-read the subtree so their write hints reset —
+            // targeted at this node, so the rest of the tree keeps its listings and the view its place.
+            // The re-listing only reaches folders the tree actually re-reads, so drop the cached write
+            // hints under this node outright: a folded branch must not keep a read-only badge (or feed
+            // "Upload Modified" a stale `writable`) from the permissions we just replaced.
+            app.remoteExplorer.clearWriteHintsUnder(it);
+            app.remoteExplorer.refresh(it).catch(() => undefined);
           } else {
             app.remoteExplorer.refreshItem(it);
             // Permission bits changed → recompute the write hint + repaint the RO decoration now, so it

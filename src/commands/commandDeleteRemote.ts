@@ -187,7 +187,15 @@ async function deleteAsRootBatch(uris: vscode.Uri[], option: any): Promise<void>
     return;
   }
   // A target that can actually be root-deleted: connection resolved, elevatable (SSH shell), path safe.
-  type Elevatable = { uri: vscode.Uri; remotefs: any; host: string; remotePath: string };
+  // `remoteUri` is the tree's own uri for the target (the incoming one may be a local file uri), so the
+  // explorer can re-list just the folder it was deleted from.
+  type Elevatable = {
+    uri: vscode.Uri;
+    remoteUri: vscode.Uri;
+    remotefs: any;
+    host: string;
+    remotePath: string;
+  };
   const elevatable: Elevatable[] = [];
   let failed = 0;
   // PRE-PASS before the modal: resolve every target's connection PER TARGET (a multi-select can span
@@ -240,7 +248,7 @@ async function deleteAsRootBatch(uris: vscode.Uri[], option: any): Promise<void>
       failed += 1;
       continue;
     }
-    elevatable.push({ uri, remotefs, host, remotePath });
+    elevatable.push({ uri, remoteUri: ctx.target.remoteUri, remotefs, host, remotePath });
   }
   if (elevatable.length === 0) {
     return; // nothing root-deletable — every target was FTP/unsafe and already reported above; no modal
@@ -274,7 +282,8 @@ async function deleteAsRootBatch(uris: vscode.Uri[], option: any): Promise<void>
   if (!pick || pick.title !== del.title) {
     return;
   }
-  let deleted = 0;
+  // The remote uris actually removed — only their parent folders are re-listed afterwards.
+  const deletedUris: vscode.Uri[] = [];
   for (const t of elevatable) {
     try {
       const { code } = await execAsRoot(t.remotefs, t.host, `rm -rf -- ${shQuote(t.remotePath)}`);
@@ -283,7 +292,7 @@ async function deleteAsRootBatch(uris: vscode.Uri[], option: any): Promise<void>
         failed += 1;
         continue;
       }
-      deleted += 1;
+      deletedUris.push(t.remoteUri);
       // For a "both" delete, move the local copy to the trash too (no permission issue there).
       if (option && option.removeLocalCopy && !option.skipRemote) {
         await removeRemote(t.uri, {
@@ -301,8 +310,11 @@ async function deleteAsRootBatch(uris: vscode.Uri[], option: any): Promise<void>
       failed += 1;
     }
   }
+  const deleted = deletedUris.length;
   if (deleted > 0) {
-    app.remoteExplorer.refresh();
+    // Re-list only the folders the deleted items sat in: a multi-select out of one folder costs one
+    // listing, and the rest of the tree — including everything the user had expanded — is left alone.
+    await app.remoteExplorer.refreshParentsOf(deletedUris);
   }
   if (deleted > 0 || failed > 0) {
     vscode.window.showInformationMessage(
