@@ -3,7 +3,8 @@ import { createRemoteFolder } from '../fileHandlers';
 import { upath, UResource } from '../core';
 import { checkFileCommand } from './abstract/createCommand';
 import { uriFromExplorerContextOrEditorContext, validateRemoteEntryName } from './shared';
-import { window } from 'vscode';
+import { isCreatePermissionDenied, offerCreateAsRoot } from '../modules/createFallback';
+import { window, ProgressLocation } from 'vscode';
 import { L } from '../i18n';
 
 export default checkFileCommand({
@@ -31,5 +32,24 @@ export default checkFileCommand({
     return UResource.updateResource(parent, { remotePath: childPath }).uri;
   },
 
-  handleFile: createRemoteFolder,
+  async handleFile(ctx) {
+    try {
+      // Same reason as the file command: mkdir + chmod + re-listing the parent are server round trips, and
+      // without a visible sign the window just looks stuck. The root fallback below has its own progress.
+      await window.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: L({ en: 'WireFerry: creating the folder…', ru: 'WireFerry: создаю папку…' }),
+        },
+        () => createRemoteFolder(ctx)
+      );
+    } catch (e) {
+      // Same wall as "Create File": a root-owned parent refuses the mkdir. Offer the escalated create;
+      // anything that isn't a permission problem keeps going to the normal error report.
+      if (!isCreatePermissionDenied(e)) {
+        throw e;
+      }
+      await offerCreateAsRoot(ctx, true);
+    }
+  },
 });

@@ -124,14 +124,17 @@ export function rename(srcPath: string, destPath: string, fs: FileSystem): Promi
   return fs.rename(srcPath, destPath);
 }
 
-export async function createDir(path: string, fs: FileSystem, option): Promise<void> {
+// Returns true when the folder was actually created, false when the path was already taken (reported to
+// the user here, but not an error). Callers must not treat "already exists" as a fresh creation — acting
+// on it would touch someone else's existing data.
+export async function createDir(path: string, fs: FileSystem, option): Promise<boolean> {
   try {
     await fs.lstat(path);
     logger.warn(`Can't create folder because it already exists`);
     window.showErrorMessage(
       L({ en: `Can't create folder because it already exists`, ru: 'Не удаётся создать папку: она уже существует' })
     );
-    return;
+    return false;
   } catch (error) {
     // Only a genuine not-found means "go ahead and create"; a permission/transient error must surface
     // rather than be misread as "absent".
@@ -151,16 +154,20 @@ export async function createDir(path: string, fs: FileSystem, option): Promise<v
   } catch (error) {
     logger.warn('failed to chmod new folder (dirPerm):', error);
   }
+  return true;
 }
 
-export async function createFile(path: string, fs: FileSystem, option): Promise<void> {
+// Returns true when the file was actually created, false when the path was already taken (reported to the
+// user here, but not an error). The distinction matters to the caller: "already exists" means the server
+// still holds SOMEONE ELSE'S content, so it must not be treated as a new empty file.
+export async function createFile(path: string, fs: FileSystem, option): Promise<boolean> {
   try {
     await fs.lstat(path);
     logger.warn(`Can't create file because file already exists`);
     window.showErrorMessage(
       L({ en: `Can't create file because file already exists`, ru: 'Не удаётся создать файл: он уже существует' })
     );
-    return;
+    return false;
   } catch (error) {
     // Only a genuine not-found means "go ahead and create"; a permission/transient error must surface.
     if (!isNotFoundError(error)) {
@@ -187,4 +194,5 @@ export async function createFile(path: string, fs: FileSystem, option): Promise<
   } catch (error) {
     logger.warn('failed to chmod new file (filePerm):', error);
   }
+  return true;
 }

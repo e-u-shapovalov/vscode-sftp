@@ -108,9 +108,11 @@ export function allHandleCtxFromUri(uri: Uri): Array<FileHandlerContext> {
   });
 }
 
+// The returned function passes the handler's own result back to the caller (most handlers return nothing;
+// the create ones return whether they really created the entry, which the command has to act on).
 export default function createFileHandler<T>(
   handlerOption: FileHandlerOption<T>
-): (ctx: FileHandlerContext | Uri, option?: Partial<T>) => Promise<void> {
+): (ctx: FileHandlerContext | Uri, option?: Partial<T>) => Promise<any> {
   async function fileHandle(ctx: Uri | FileHandlerContext, option?: T) {
     const handleCtx = ctx instanceof Uri ? handleCtxFromUri(ctx) : ctx;
     const { target } = handleCtx;
@@ -132,8 +134,9 @@ export default function createFileHandler<T>(
     logger.trace(`handle ${handlerOption.name} for`, target.localFsPath);
 
     app.sftpBarItem.startSpinner();
+    let result;
     try {
-      await handlerOption.handle.call(handleCtx, invokeOption);
+      result = await handlerOption.handle.call(handleCtx, invokeOption);
     } catch (error) {
       // Annotate the error with the operation + remote path so the single top-level reporter can
       // turn a bare SFTP "Failure" into something diagnosable. We only tag and rethrow here — the
@@ -151,6 +154,7 @@ export default function createFileHandler<T>(
     if (handlerOption.afterHandle) {
       await handlerOption.afterHandle.call(handleCtx);
     }
+    return result;
   }
 
   return fileHandle;
