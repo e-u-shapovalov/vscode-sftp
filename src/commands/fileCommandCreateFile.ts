@@ -60,10 +60,14 @@ async function openNewFileLocally(ctx: FileHandlerContext): Promise<void> {
     if (!pick || pick.title !== open.title) {
       return; // the server entry is created either way; the user just doesn't want the local copy opened
     }
-    // Suppression only lives for 3s, so it is armed AFTER the dialog — arming it before would let the
-    // timeout lapse while the dialog is up and hand the open back to downloadOnOpen.
-    suppressDownloadOnOpenOnce(localPath);
-    await openDownloadedFile(ctx.target.localUri, { preview: false });
+    // Suppression only lives for 3s, so it is armed as late as possible — not here, but in the callback
+    // openDownloadedFile runs right before it shows the document. Arming it at this point would let the
+    // window lapse while the user reads THAT function's own "looks binary / is large, open anyway?"
+    // prompt, and a lapsed suppression means downloadOnOpen pulls the empty server file over exactly the
+    // local content the user just chose to keep.
+    await openDownloadedFile(ctx.target.localUri, { preview: false }, () =>
+      suppressDownloadOnOpenOnce(localPath)
+    );
     return;
   }
 

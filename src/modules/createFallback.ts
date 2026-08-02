@@ -158,11 +158,11 @@ async function runCreateAsRoot(ctx: any, isDirectory: boolean): Promise<boolean>
         isDirectory
           ? L({
               en: `Can't create folder because it already exists: ${remotePath}`,
-              ru: `Не удаётся создать папку: она уже существует: ${remotePath}`,
+              ru: `Не удаётся создать папку — она уже существует: ${remotePath}`,
             })
           : L({
               en: `Can't create file because file already exists: ${remotePath}`,
-              ru: `Не удаётся создать файл: он уже существует: ${remotePath}`,
+              ru: `Не удаётся создать файл — он уже существует: ${remotePath}`,
             })
       );
       return false;

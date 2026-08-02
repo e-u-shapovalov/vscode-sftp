@@ -26,8 +26,9 @@ jest.mock('../src/logger', () => ({ default: { warn() {}, info() {}, error() {},
 jest.mock('../src/i18n', () => ({ L: o => (o && o.en) || '' }));
 jest.mock('../src/app', () => ({ default: { remoteExplorer: { showCreated: mockShowCreated } } }));
 jest.mock('../src/core/fs', () => ({ FileType: { Directory: 1, File: 2, SymbolicLink: 3, Unknown: 4 } }));
+let mockGateFree = true; // flipped by the "another dialog is open" test
 jest.mock('../src/modules/permissionFallback', () => ({
-  acquirePermissionDialog: () => true,
+  acquirePermissionDialog: () => mockGateFree,
   releasePermissionDialog: () => undefined,
 }));
 jest.mock('../src/modules/privilegedExec', () => ({
@@ -131,10 +132,12 @@ describe('offerCreateAsRoot — root script', () => {
     // noclobber => O_CREAT|O_EXCL, so a path appearing after the test can't be truncated or followed.
     expect(script).toContain(`(set -C; : > '/etc/new.conf')`);
     expect(script).toContain(`chmod 644 -- '/etc/new.conf'`);
-    // `exit` must be subshelled or execRoot's trailing exit-code marker never prints.
+    // `exit` must be subshelled or execRoot's trailing exit-code marker never prints. Lookbehind rather
+    // than `[^(]`, which needs a character to match and so would miss a bare `exit` at position 0 — and
+    // both codes, so dropping the parens around either one fails the test.
     expect(script).toContain('(exit 17)');
     expect(script).toContain('(exit 18)');
-    expect(script).not.toMatch(/[^(]exit 17/);
+    expect(script).not.toMatch(/(?<!\()exit (17|18)/);
   });
 
   test('a folder uses mkdir and the dir default mode', async () => {
@@ -188,6 +191,34 @@ describe('offerCreateAsRoot — root script', () => {
     mockWarning.mockImplementationOnce(() => Promise.resolve(undefined));
     await expect(offerCreateAsRoot(makeCtx('/etc/nope'), false)).resolves.toBe(false);
     expect(mockExecAsRoot).not.toHaveBeenCalled();
+  });
+
+  test('a busy dialog gate says so instead of failing silently', async () => {
+    // Another elevation dialog holds the shared gate (e.g. an upload-as-root batch). The command's catch
+    // has already swallowed the permission error, so bailing without a word would end an explicit user
+    // action with no trace at all.
+    mockGateFree = false;
+    mockWarning.mockClear();
+    try {
+      await expect(offerCreateAsRoot(makeCtx('/etc/busy'), false)).resolves.toBe(false);
+    } finally {
+      mockGateFree = true;
+    }
+    expect(mockExecAsRoot).not.toHaveBeenCalled();
+    expect(mockWarning).toHaveBeenCalled(); // the user is told why nothing happened
+  });
+
+  test('a cancelled password prompt is a silent no-op', async () => {
+    const { ElevationCancelled } = require('../src/modules/privilegedExec');
+    mockExecAsRoot.mockImplementation(() => Promise.reject(new ElevationCancelled()));
+    await expect(offerCreateAsRoot(makeCtx('/etc/cancelled'), false)).resolves.toBe(false);
+    expect(mockShowCreated).not.toHaveBeenCalled();
+  });
+
+  test('a failure during exec is reported, not treated as created', async () => {
+    mockExecAsRoot.mockImplementation(() => Promise.reject(new Error('connection reset')));
+    await expect(offerCreateAsRoot(makeCtx('/etc/broken'), false)).resolves.toBe(false);
+    expect(mockShowCreated).not.toHaveBeenCalled();
   });
 });
 

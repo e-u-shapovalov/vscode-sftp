@@ -63,9 +63,16 @@ function humanSize(bytes: number): string {
 
 // Decide how to open a just-downloaded file: open it, or ask first (binary / oversized). Returns
 // silently without opening when the user declines — the download itself already succeeded.
+//
+// `beforeOpen` runs immediately before the document is actually shown, on every path that shows it.
+// Callers use it to arm short-lived state that must not start ticking while a dialog is up: arming it
+// before the call instead would let it lapse while the user reads the "looks binary, open anyway?"
+// prompt below (see fileCommandCreateFile — a lapsed suppression there lets downloadOnOpen overwrite
+// the local copy the user just chose to open).
 export async function openDownloadedFile(
   uri: vscode.Uri,
-  option?: vscode.TextDocumentShowOptions
+  option?: vscode.TextDocumentShowOptions,
+  beforeOpen?: () => void
 ): Promise<void> {
   let size = 0;
   try {
@@ -85,6 +92,7 @@ export async function openDownloadedFile(
   // binary, oversized, OR an unrecognized type — prompts first, so VS Code never tries to render a
   // blob as text.
   if (isText && !isLarge) {
+    beforeOpen?.();
     await showTextDocument(uri, option);
     return;
   }
@@ -124,5 +132,6 @@ export async function openDownloadedFile(
     vscode.commands.executeCommand('revealFileInOS', uri);
     return;
   }
+  beforeOpen?.();
   await showTextDocument(uri, option);
 }
