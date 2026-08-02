@@ -14,8 +14,9 @@ import { L } from '../i18n';
 
 // A just-created remote file is empty, so there is nothing to download: touch the workspace copy and open
 // it, the way "Edit in Local" opens a fetched file — the user asked for a new file to write in, not for an
-// entry to admire in the tree. ensureFile never truncates, so a name that already exists locally opens
-// with its content intact.
+// entry to admire in the tree. ensureFile never truncates, so a name that already exists locally keeps its
+// content — and because that content would then be uploaded over the new (empty) server file on the first
+// save, the non-empty case asks before opening.
 async function openNewFileLocally(ctx: FileHandlerContext): Promise<void> {
   const localPath = ctx.target.localFsPath;
   if (!localPath) {
